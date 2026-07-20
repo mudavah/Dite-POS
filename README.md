@@ -61,8 +61,7 @@ npm run dev
 
 ### Default Credentials
 
-- **Admin**: admin@shop.com / ChangeMe123!
-- **Cashier**: cashier@shop.com / ChangeMe123!
+Default accounts are created by the seed script. See `prisma/seeds/index.ts` for the seeded admin and cashier accounts.
 
 ## Project Structure
 

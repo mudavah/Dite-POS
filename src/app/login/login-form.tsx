@@ -8,8 +8,8 @@ import { loginSchema } from '@/lib/validators';
 import { Eye, EyeOff } from 'lucide-react';
 
 export default function LoginForm() {
-  const [email, setEmail] = React.useState('admin@shop.com');
-  const [password, setPassword] = React.useState('ChangeMe123!');
+  const [email, setEmail] = React.useState('');
+  const [password, setPassword] = React.useState('');
   const [showPassword, setShowPassword] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
   const { toast } = useToast();
@@ -70,10 +70,6 @@ export default function LoginForm() {
               {isLoading ? 'Signing in...' : 'Sign In'}
             </Button>
           </form>
-          <div className="mt-4 rounded-md bg-muted p-3 text-xs text-muted-foreground">
-            <p className="font-semibold">Demo Credentials:</p>
-            <p>Admin: admin@shop.com / ChangeMe123!</p>
-          </div>
         </CardContent>
       </Card>
     </div>
