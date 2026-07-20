@@ -1,0 +1,417 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  CASHIER
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  BANK_TRANSFER
+  MOBILE_MONEY
+  SPLIT
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum StockMovementType {
+  PURCHASE
+  SALE
+  TRANSFER_IN
+  TRANSFER_OUT
+  ADJUSTMENT
+  RETURN
+}
+
+enum ReceiptStatus {
+  GENERATED
+  PRINTED
+  REPRINTED
+  VOIDED
+}
+
+enum SyncStatus {
+  SYNCED
+  PENDING
+  CONFLICT
+  FAILED
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          UserRole  @default(CASHIER)
+  branchId      String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  branch      Branch?       @relation(fields: [branchId], references: [id])
+  accounts    Account[]
+  sessions    Session[]
+  sales       Sale[]
+  heldSales   HeldSale[]
+  auditLogs   AuditLog[]
+
+  @@map("users")
+}
+
+model Branch {
+  id          String   @id @default(cuid())
+  name        String
+  code        String   @unique
+  address     String?
+  phone       String?
+  email       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users          User[]
+  inventories    Inventory[]
+  sales          Sale[]
+  heldSales      HeldSale[]
+  stockTransfers StockTransfer[] @relation("BranchTransfers")
+  stockTransfersFrom StockTransfer[] @relation("FromBranchTransfers")
+  settings       BranchSetting?
+  printerConfigs PrinterConfig[]
+  etrsConfigs    EtrsConfig?
+
+  @@map("branches")
+}
+
+model BranchSetting {
+  id             String   @id @default(cuid())
+  branchId       String   @unique
+  receiptPrefix  String   @default("RCP")
+  receiptNextNum Int      @default(1)
+  currency       String   @default("KES")
+  currencySymbol String   @default("KSh")
+  taxRate        Decimal  @default(0)
+  taxName        String   @default("VAT")
+  showTaxOnReceipt Boolean @default(true)
+  footerText     String?
+  shopName       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@map("branch_settings")
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  parentId    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryHierarchy")
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id           String   @id @default(cuid())
+  name         String
+  sku          String   @unique
+  barcode      String?  @unique
+  description  String?
+  price        Decimal  @db.Decimal(10, 2)
+  costPrice    Decimal? @db.Decimal(10, 2)
+  categoryId   String?
+  image        String?
+  isActive     Boolean  @default(true)
+  isArchived   Boolean  @default(false)
+  lowStockThreshold Int @default(10)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  category    Category?       @relation(fields: [categoryId], references: [id])
+  inventories Inventory[]
+  saleItems   SaleItem[]
+
+  @@map("products")
+}
+
+model Inventory {
+  id         String   @id @default(cuid())
+  branchId   String
+  productId  String
+  quantity   Int      @default(0)
+  reserved   Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  branch   Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  movements StockMovement[]
+
+  @@unique([branchId, productId])
+  @@map("inventories")
+}
+
+model StockMovement {
+  id         String            @id @default(cuid())
+  inventoryId String
+  type       StockMovementType
+  quantity   Int
+  reference  String?
+  notes      String?
+  createdAt  DateTime          @default(now())
+  createdById String
+
+  inventory Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+
+  @@map("stock_movements")
+}
+
+model StockTransfer {
+  id          String   @id @default(cuid())
+  fromBranchId String
+  toBranchId   String
+  productId    String
+  quantity     Int
+  status       String  @default("PENDING")
+  notes        String?
+  createdAt    DateTime @default(now())
+  completedAt  DateTime?
+  createdById  String
+
+  fromBranch Branch @relation("FromBranchTransfers", fields: [fromBranchId], references: [id])
+  toBranch   Branch @relation("BranchTransfers", fields: [toBranchId], references: [id])
+
+  @@map("stock_transfers")
+}
+
+model Sale {
+  id              String        @id @default(cuid())
+  branchId        String
+  cashierId       String
+  customerId      String?
+  customerName    String?
+  customerPhone   String?
+  subtotal        Decimal       @db.Decimal(10, 2)
+  taxAmount       Decimal       @default(0) @db.Decimal(10, 2)
+  discountAmount  Decimal       @default(0) @db.Decimal(10, 2)
+  totalAmount     Decimal       @db.Decimal(10, 2)
+  paymentMethod   PaymentMethod
+  paymentStatus   PaymentStatus @default(PENDING)
+  amountPaid      Decimal       @default(0) @db.Decimal(10, 2)
+  changeAmount    Decimal       @default(0) @db.Decimal(10, 2)
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  branch    Branch      @relation(fields: [branchId], references: [id])
+  cashier   User        @relation(fields: [cashierId], references: [id])
+  items     SaleItem[]
+  payments  Payment[]
+  receipts  Receipt[]
+
+  @@map("sales")
+}
+
+model SaleItem {
+  id         String  @id @default(cuid())
+  saleId     String
+  productId  String
+  productName String
+  sku        String?
+  quantity   Int
+  unitPrice  Decimal @db.Decimal(10, 2)
+  discount   Decimal @default(0) @db.Decimal(10, 2)
+  total      Decimal @db.Decimal(10, 2)
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  sale    Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product  @relation(fields: [productId], references: [id])
+
+  @@map("sale_items")
+}
+
+model Payment {
+  id           String        @id @default(cuid())
+  saleId       String
+  method       PaymentMethod
+  amount       Decimal       @db.Decimal(10, 2)
+  status       PaymentStatus @default(PENDING)
+  reference    String?
+  createdAt    DateTime      @default(now())
+
+  sale Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model HeldSale {
+  id          String   @id @default(cuid())
+  branchId    String
+  cashierId   String
+  customerName String?
+  itemsJson   String   @db.Text
+  subtotal    Decimal  @db.Decimal(10, 2)
+  taxAmount   Decimal  @default(0) @db.Decimal(10, 2)
+  totalAmount Decimal  @db.Decimal(10, 2)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  branch Branch @relation(fields: [branchId], references: [id])
+  cashier User  @relation(fields: [cashierId], references: [id])
+
+  @@map("held_sales")
+}
+
+model Receipt {
+  id          String        @id @default(cuid())
+  saleId      String        @unique
+  receiptNo   String
+  branchId    String
+  status      ReceiptStatus @default(GENERATED)
+  printedAt   DateTime?
+  reprintedAt DateTime?
+  voidedAt    DateTime?
+  createdAt   DateTime      @default(now())
+
+  sale   Sale       @relation(fields: [saleId], references: [id])
+  etrs   EtrsReceipt?
+
+  @@map("receipts")
+}
+
+model EtrsReceipt {
+  id             String   @id @default(cuid())
+  receiptId      String   @unique
+  receiptRef     String   @unique
+  cuUrl          String?
+  receiptType    String   @default("INVOICE")
+  metadata       String?  @db.Text
+  isSynced       Boolean  @default(false)
+  syncedAt       DateTime?
+  createdAt      DateTime @default(now())
+
+  receipt Receipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+
+  @@map("etrs_receipts")
+}
+
+model PrinterConfig {
+  id         String   @id @default(cuid())
+  branchId   String
+  name       String
+  type       String   @default("USB")
+  protocol   String   @default("ESC_POS")
+  paperSize  String   @default("80mm")
+  isDefault  Boolean  @default(false)
+  isActive   Boolean  @default(true)
+  vendorId   String?
+  productId  String?
+  endpoint   String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@map("printer_configs")
+}
+
+model EtrsConfig {
+  id            String   @id @default(cuid())
+  branchId      String   @unique
+  deviceId      String?
+  isActive      Boolean  @default(false)
+  isSimulated   Boolean  @default(true)
+  deviceName    String?
+  lastConnected DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@map("etrs_configs")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  entity    String
+  entityId  String?
+  oldValues String?  @db.Text
+  newValues String?  @db.Text
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("audit_logs")
+}
+
+model SyncQueue {
+  id         String     @id @default(cuid())
+  entityType String
+  entityId   String
+  action     String
+  payload    String     @db.Text
+  status     SyncStatus @default(PENDING)
+  retries    Int        @default(0)
+  lastError  String?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@map("sync_queue")
+}
