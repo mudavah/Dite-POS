@@ -95,7 +95,7 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose }: ReceiptPrevi
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'print',
-          config: printerType === 'NETWORK' ? { endpoint: printerConfig?.endpoint, paperSize: printerConfig?.paperSize } : undefined,
+          config: printerConfig ? { ...printerConfig, ipAddress: printerConfig.ipAddress, port: printerConfig.port, macAddress: printerConfig.macAddress } : undefined,
           data: receiptData,
         }),
       });

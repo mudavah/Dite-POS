@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { branchId, name, type, protocol, paperSize, vendorId, productId, endpoint, deviceId, isDefault, isActive } = body;
+  const { branchId, name, type, protocol, paperSize, vendorId, productId, endpoint, deviceId, ipAddress, macAddress, port, isDefault, isActive } = body;
 
   if (!branchId || !name) {
     return NextResponse.json({ error: 'Branch and name are required' }, { status: 400 });
@@ -41,6 +41,9 @@ export async function POST(request: Request) {
       productId: productId || null,
       endpoint: endpoint || null,
       deviceId: deviceId || null,
+      ipAddress: ipAddress || null,
+      macAddress: macAddress || null,
+      port: port || null,
       isDefault: isDefault || false,
       isActive: isActive ?? true,
     },
@@ -56,7 +59,7 @@ export async function PUT(request: Request) {
   }
 
   const body = await request.json();
-  const { id, branchId, name, type, protocol, paperSize, vendorId, productId, endpoint, deviceId, isDefault, isActive } = body;
+  const { id, branchId, name, type, protocol, paperSize, vendorId, productId, endpoint, deviceId, ipAddress, macAddress, port, isDefault, isActive } = body;
 
   if (!id) {
     return NextResponse.json({ error: 'Printer config ID is required' }, { status: 400 });
@@ -74,6 +77,9 @@ export async function PUT(request: Request) {
       productId: productId || null,
       endpoint: endpoint || null,
       deviceId: deviceId || null,
+      ipAddress: ipAddress || null,
+      macAddress: macAddress || null,
+      port: port || null,
       isDefault,
       isActive,
     },

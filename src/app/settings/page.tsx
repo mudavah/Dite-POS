@@ -59,14 +59,14 @@ export default function SettingsPage() {
   const { data: branches } = useQuery({ queryKey: ['branches'], queryFn: fetchBranches });
 
   const [shopForm, setShopForm] = useState({ branchId: '', shopName: '', currency: 'KES', currencySymbol: 'KSh', footerText: '' });
-  const [printerForm, setPrinterForm] = useState({ id: '', branchId: '', name: '', type: 'USB', protocol: 'ESC_POS', paperSize: '80mm', vendorId: '', productId: '', endpoint: '', deviceId: '', isDefault: false, isActive: true });
+  const [printerForm, setPrinterForm] = useState({ id: '', branchId: '', name: '', type: 'USB', protocol: 'ESC_POS', paperSize: '80mm', vendorId: '', productId: '', endpoint: '', deviceId: '', ipAddress: '', macAddress: '', port: '9100', isDefault: false, isActive: true });
   const [etrsForm, setEtrsForm] = useState({ branchId: '', deviceId: '', isActive: false, isSimulated: true, deviceName: '' });
   const [darkMode, setDarkMode] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
   const shopMutation = useMutation({ mutationFn: updateSettings, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings'] }) });
-  const printerMutation = useMutation({ mutationFn: savePrinterConfig, onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['printer-configs'] }); setPrinterForm({ id: '', branchId: '', name: '', type: 'USB', protocol: 'ESC_POS', paperSize: '80mm', vendorId: '', productId: '', endpoint: '', deviceId: '', isDefault: false, isActive: true }); } });
+  const printerMutation = useMutation({ mutationFn: savePrinterConfig, onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['printer-configs'] }); setPrinterForm({ id: '', branchId: '', name: '', type: 'USB', protocol: 'ESC_POS', paperSize: '80mm', vendorId: '', productId: '', endpoint: '', deviceId: '', ipAddress: '', macAddress: '', port: '9100', isDefault: false, isActive: true }); } });
   const deletePrinterMutation = useMutation({ mutationFn: deletePrinterConfig, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['printer-configs'] }) });
 
   useEffect(() => {
@@ -96,6 +96,9 @@ export default function SettingsPage() {
         productId: p.productId || '',
         endpoint: p.endpoint || '',
         deviceId: p.deviceId || '',
+        ipAddress: p.ipAddress || '',
+        macAddress: p.macAddress || '',
+        port: p.port ? String(p.port) : '9100',
         isDefault: p.isDefault || false,
         isActive: p.isActive ?? true,
       });
@@ -320,9 +323,77 @@ Footer: ${shopForm.footerText || 'Thank you for your purchase!'}`}
               )}
 
               {printerForm.type === 'NETWORK' && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Network Endpoint</label>
-                  <Input value={printerForm.endpoint} onChange={(e) => setPrinterForm({ ...printerForm, endpoint: e.target.value })} placeholder="http://192.168.1.100:9100" />
+                <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Wifi className="h-4 w-4" />
+                    Network Printer Connection
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Connect to a network printer via IP address. The printer must be reachable from this device on the same network.
+                  </p>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium">IP Address</label>
+                      <Input value={printerForm.ipAddress} onChange={(e) => setPrinterForm({ ...printerForm, ipAddress: e.target.value })} placeholder="192.168.1.100" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium">Port</label>
+                      <Input value={printerForm.port} onChange={(e) => setPrinterForm({ ...printerForm, port: e.target.value })} placeholder="9100" type="number" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">MAC Address (optional)</label>
+                    <Input value={printerForm.macAddress} onChange={(e) => setPrinterForm({ ...printerForm, macAddress: e.target.value })} placeholder="00:11:22:33:44:55" />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">Endpoint URL (optional)</label>
+                    <Input value={printerForm.endpoint} onChange={(e) => setPrinterForm({ ...printerForm, endpoint: e.target.value })} placeholder="http://192.168.1.100:9100" />
+                    <p className="text-xs text-muted-foreground">Leave blank to use IP + Port above</p>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button type="button" variant="outline" onClick={async () => {
+                      setConnectionError(null);
+                      try {
+                        const res = await fetch('/api/printer', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            action: 'test',
+                            config: {
+                              type: 'NETWORK',
+                              ipAddress: printerForm.ipAddress,
+                              port: parseInt(printerForm.port) || 9100,
+                              endpoint: printerForm.endpoint,
+                              paperSize: printerForm.paperSize,
+                            },
+                          }),
+                        });
+                        const result = await res.json();
+                        if (result.success) {
+                          alert(`Connection successful: ${result.message}`);
+                        } else {
+                          setConnectionError(result.message || 'Connection failed');
+                        }
+                      } catch {
+                        setConnectionError('Test connection failed');
+                      }
+                    }} className="gap-2">
+                      Test Connection
+                    </Button>
+                  </div>
+
+                  {connectionError && <p className="text-xs text-destructive">{connectionError}</p>}
+                  {printerForm.ipAddress && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Badge variant="secondary" className="text-xs">Configured</Badge>
+                      {printerForm.ipAddress}:{printerForm.port || 9100}
+                      {printerForm.macAddress && <span>MAC: {printerForm.macAddress}</span>}
+                    </div>
+                  )}
                 </div>
               )}
 

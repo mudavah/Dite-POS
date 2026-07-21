@@ -10,6 +10,9 @@ export interface PrinterConfig {
   productId?: number;
   deviceId?: string;
   endpoint?: string;
+  ipAddress?: string;
+  macAddress?: string;
+  port?: number;
 }
 
 export interface PrintOptions {
@@ -90,11 +93,78 @@ class ThermalPrinter {
     }
   }
 
-  private async connectNetwork(): Promise<boolean> {
-    if (!this.config?.endpoint) throw new Error('No network endpoint configured');
+  private getEndpoint(): string {
+    if (this.config?.endpoint) return this.config.endpoint;
+    if (this.config?.ipAddress) {
+      const port = this.config.port || 9100;
+      const protocol = this.config.endpoint?.startsWith('https') ? 'https' : 'http';
+      return `${protocol}://${this.config.ipAddress}:${port}`;
+    }
+    throw new Error('No printer endpoint configured');
+  }
+
+  private getIpAddress(): string | undefined {
+    return this.config?.ipAddress;
+  }
+
+  private getMacAddress(): string | undefined {
+    return this.config?.macAddress;
+  }
+
+  private getPort(): number {
+    return this.config?.port || 9100;
+  }
+
+  async testConnection(): Promise<{ success: boolean; message: string }> {
+    if (!this.config) return { success: false, message: 'No printer configured' };
+
     try {
-      const response = await fetch(this.config.endpoint, { method: 'HEAD' });
-      return response.ok;
+      if (this.config.type === 'NETWORK') {
+        const endpoint = this.getEndpoint();
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+
+        try {
+          const response = await fetch(endpoint, { method: 'HEAD', signal: controller.signal });
+          clearTimeout(timeout);
+          if (response.ok) {
+            return { success: true, message: `Printer reachable at ${endpoint}` };
+          }
+          return { success: false, message: `Printer responded with status ${response.status}` };
+        } catch (error) {
+          clearTimeout(timeout);
+          return { success: false, message: `Cannot reach printer at ${endpoint}` };
+        }
+      }
+
+      if (this.config.type === 'USB') {
+        return { success: false, message: 'Use the Connect button for USB printers' };
+      }
+
+      if (this.config.type === 'BLUETOOTH') {
+        return { success: false, message: 'Use the Connect button for Bluetooth printers' };
+      }
+
+      return { success: false, message: 'Connection test not supported for this printer type' };
+    } catch (error) {
+      return { success: false, message: error instanceof Error ? error.message : 'Connection test failed' };
+    }
+  }
+
+  private async connectNetwork(): Promise<boolean> {
+    try {
+      const endpoint = this.getEndpoint();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+
+      try {
+        const response = await fetch(endpoint, { method: 'HEAD', signal: controller.signal });
+        clearTimeout(timeout);
+        return response.ok;
+      } catch {
+        clearTimeout(timeout);
+        return false;
+      }
     } catch {
       return false;
     }
@@ -154,13 +224,29 @@ class ThermalPrinter {
   }
 
   private async printNetwork(data: Uint8Array): Promise<boolean> {
-    if (!this.config?.endpoint) throw new Error('No endpoint');
-    const response = await fetch(this.config.endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/octet-stream' },
-      body: data.buffer as ArrayBuffer,
-    });
-    return response.ok;
+    if (!this.config) return false;
+
+    try {
+      const endpoint = this.getEndpoint();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/octet-stream' },
+          body: data.buffer as ArrayBuffer,
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        return response.ok;
+      } catch {
+        clearTimeout(timeout);
+        return false;
+      }
+    } catch {
+      return false;
+    }
   }
 
   private async printNodeHelper(data: Uint8Array, options: PrintOptions): Promise<boolean> {

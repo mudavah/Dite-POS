@@ -3,8 +3,41 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { printer, type PrinterConfig } from '@/lib/printer/thermal-printer';
 import { buildEscpos, type ReceiptData } from '@/lib/printer/receipt-template';
+import * as net from 'net';
 
 export const dynamic = 'force-dynamic';
+
+async function printToNetworkPrinter(ipAddress: string, port: number, data: Buffer): Promise<boolean> {
+  return new Promise((resolve) => {
+    const client = new net.Socket();
+
+    const timeout = setTimeout(() => {
+      client.destroy();
+      resolve(false);
+    }, 10000);
+
+    client.connect(port, ipAddress, () => {
+      clearTimeout(timeout);
+      client.write(data);
+      setTimeout(() => {
+        client.end();
+        resolve(true);
+      }, 500);
+    });
+
+    client.on('error', () => {
+      clearTimeout(timeout);
+      client.destroy();
+      resolve(false);
+    });
+
+    client.on('timeout', () => {
+      clearTimeout(timeout);
+      client.destroy();
+      resolve(false);
+    });
+  });
+}
 
 export async function GET(_: NextRequest) {
   const session = await auth();
@@ -28,10 +61,32 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const { action, config, data } = body as {
-    action: 'print' | 'reprint' | 'preview' | 'cut' | 'buzzer';
+    action: 'print' | 'reprint' | 'preview' | 'cut' | 'buzzer' | 'test';
     config?: PrinterConfig;
     data?: ReceiptData;
   };
+
+  if (action === 'test') {
+    if (!config) {
+      return NextResponse.json({ error: 'Printer config required for test' }, { status: 400 });
+    }
+
+    if (config.type === 'NETWORK' && config.ipAddress) {
+      const port = config.port || 9100;
+      const testData = Buffer.from('Test print from Dite POS\n');
+      const success = await printToNetworkPrinter(config.ipAddress, port, testData);
+      return NextResponse.json({
+        success,
+        message: success
+          ? `Successfully sent test data to ${config.ipAddress}:${port}`
+          : `Failed to connect to ${config.ipAddress}:${port}`,
+      });
+    }
+
+    printer.setConfig(config);
+    const result = await printer.testConnection();
+    return NextResponse.json(result);
+  }
 
   if (config) {
     printer.setConfig(config);
@@ -44,7 +99,15 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Receipt data required' }, { status: 400 });
       }
       const escposData = buildEscpos(data, config?.paperSize || '80mm');
-      const success = await printer.print(escposData);
+
+      let success = false;
+      if (config?.type === 'NETWORK' && config.ipAddress) {
+        const port = config.port || 9100;
+        success = await printToNetworkPrinter(config.ipAddress, port, Buffer.from(escposData.buffer));
+      } else {
+        success = await printer.print(escposData);
+      }
+
       if (action === 'reprint') {
         await printer.cut();
       }

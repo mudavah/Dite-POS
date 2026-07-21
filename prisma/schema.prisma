@@ -362,6 +362,9 @@ model PrinterConfig {
   productId  String?
   endpoint   String?
   deviceId   String?
+  ipAddress  String?
+  macAddress String?
+  port       Int?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
