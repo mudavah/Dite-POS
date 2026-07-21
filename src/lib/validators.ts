@@ -49,6 +49,7 @@ export const saleSchema = z.object({
     quantity: z.coerce.number().int().positive(),
     unitPrice: z.coerce.number().positive(),
     discount: z.coerce.number().nonnegative().default(0),
+    total: z.coerce.number().nonnegative().optional(),
     notes: z.string().optional().nullable(),
   })).min(1, 'At least one item is required'),
   paymentMethod: z.enum(['CASH', 'CARD', 'BANK_TRANSFER', 'MOBILE_MONEY', 'SPLIT']),
@@ -61,6 +62,11 @@ export const saleSchema = z.object({
   discountAmount: z.coerce.number().nonnegative().optional(),
   totalAmount: z.coerce.number().nonnegative().optional(),
   changeAmount: z.coerce.number().nonnegative().optional(),
+  splitPayments: z.array(z.object({
+    method: z.enum(['CASH', 'CARD', 'BANK_TRANSFER', 'MOBILE_MONEY', 'SPLIT']),
+    amount: z.coerce.number().nonnegative(),
+    reference: z.string().optional().nullable(),
+  })).optional(),
 }).strict();
 
 export type LoginInput = z.infer<typeof loginSchema>;
