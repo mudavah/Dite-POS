@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, Button, Input, Badge } from '@/components/ui';
 import { ArrowLeft, Save, Trash2, Upload } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
@@ -60,14 +61,16 @@ const emptyForm = {
   image: '',
 };
 
-export default function ProductEditPage({ params }: { params: { id: string } }) {
+export default function ProductEditPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const isNew = params.id === 'new';
+  const params = useParams();
+  const id = params.id as string;
+  const isNew = id === 'new';
 
   const { data: product, isLoading: productLoading } = useQuery({
-    queryKey: ['product', params.id],
-    queryFn: () => fetchProduct(params.id),
+    queryKey: ['product', id],
+    queryFn: () => fetchProduct(id),
     enabled: !isNew,
   });
 
@@ -75,18 +78,18 @@ export default function ProductEditPage({ params }: { params: { id: string } }) 
 
   const initialForm = useMemo(() => {
     if (product) {
-    return {
-      name: product.name || '',
-      sku: product.sku || '',
-      barcode: product.barcode || '',
-      description: product.description || '',
-      price: product.price?.toString() || '',
-      costPrice: product.costPrice?.toString() || '',
-      categoryId: product.categoryId || '',
-      lowStockThreshold: product.lowStockThreshold?.toString() || '10',
-      isActive: product.isActive ?? true,
-      image: product.image || '',
-    };
+      return {
+        name: product.name || '',
+        sku: product.sku || '',
+        barcode: product.barcode || '',
+        description: product.description || '',
+        price: product.price?.toString() || '',
+        costPrice: product.costPrice?.toString() || '',
+        categoryId: product.categoryId || '',
+        lowStockThreshold: product.lowStockThreshold?.toString() || '10',
+        isActive: product.isActive ?? true,
+        image: product.image || '',
+      };
     }
     return emptyForm;
   }, [product]);
@@ -97,7 +100,7 @@ export default function ProductEditPage({ params }: { params: { id: string } }) 
   const isAdmin = session?.user?.role === 'ADMIN';
 
   const updateMutation = useMutation({
-    mutationFn: (data: any) => (isNew ? createProduct(data) : updateProduct(params.id, data)),
+    mutationFn: (data: any) => (isNew ? createProduct(data) : updateProduct(id, data)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       router.push('/products');
@@ -149,7 +152,7 @@ export default function ProductEditPage({ params }: { params: { id: string } }) 
           </div>
         </div>
         {!isNew && (
-          <Button variant="destructive" onClick={() => deleteMutation.mutate(params.id)}>
+          <Button variant="destructive" onClick={() => deleteMutation.mutate(id)}>
             <Trash2 className="h-4 w-4 mr-2" />
             Delete
           </Button>

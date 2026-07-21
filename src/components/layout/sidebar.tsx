@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, ShoppingCart, Package, Warehouse, BarChart3, Settings, Users, Store } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Package, Warehouse, BarChart3, Settings, Users, Store, LogOut } from 'lucide-react';
+import { signOut } from 'next-auth/react';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['ADMIN'] },
@@ -58,6 +59,13 @@ function Sidebar() {
             <p className="text-sm font-medium truncate">{session.user.name}</p>
             <p className="text-xs text-muted-foreground capitalize">{userRole.toLowerCase()}</p>
           </div>
+          <button
+            onClick={() => signOut({ callbackUrl: '/login' })}
+            className="shrink-0 rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            title="Logout"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
       </div>
     </aside>
