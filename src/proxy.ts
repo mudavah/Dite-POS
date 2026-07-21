@@ -2,12 +2,16 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 
-const publicPaths = ['/login', '/_next', '/favicon.ico'];
+const publicPaths = ['/login', '/_next', '/favicon.ico', '/api/auth'];
 
 export async function proxy(request: NextRequest) {
-  const token = await getToken({ req: request, secret: process.env.AUTH_SECRET });
   const { pathname } = request.nextUrl;
 
+  if (pathname.startsWith('/api/auth')) {
+    return NextResponse.next();
+  }
+
+  const token = await getToken({ req: request, secret: process.env.AUTH_SECRET });
   const isPublicPath = publicPaths.some((path) => pathname.startsWith(path));
 
   if (!token && !isPublicPath) {
@@ -52,5 +56,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|api/auth|api/health).*)'],
+  matcher: ['/((?!_next/static|_next/image|api/health).*)'],
 };
