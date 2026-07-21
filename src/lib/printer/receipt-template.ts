@@ -23,7 +23,6 @@ export interface ReceiptData {
   customerPhone?: string;
   items: ReceiptItem[];
   subtotal: number;
-  taxAmount: number;
   discountAmount: number;
   total: number;
   amountPaid: number;
@@ -104,9 +103,6 @@ function generateTextTemplate(data: ReceiptData, paperSize: PaperSize): string {
 
   lines.push(sep);
   lines.push(`Subtotal:`.padEnd(width - 10) + formatNum(data.subtotal).padStart(10));
-  if (data.taxAmount > 0) {
-    lines.push(`Tax:`.padEnd(width - 10) + formatNum(data.taxAmount).padStart(10));
-  }
   if (data.discountAmount > 0) {
     lines.push(`Discount:`.padEnd(width - 10) + formatNum(data.discountAmount).padStart(10));
   }
@@ -194,7 +190,6 @@ function generateHtmlTemplate(data: ReceiptData, paperSize: PaperSize): string {
     <div class="border-top"></div>
     <table>
       <tr><td>Subtotal</td><td class="right">${formatNum(data.subtotal)}</td></tr>
-      ${data.taxAmount > 0 ? `<tr><td>Tax</td><td class="right">${formatNum(data.taxAmount)}</td></tr>` : ''}
       ${data.discountAmount > 0 ? `<tr><td>Discount</td><td class="right">${formatNum(data.discountAmount)}</td></tr>` : ''}
       <tr class="total"><td>TOTAL</td><td class="right">${formatNum(data.total)}</td></tr>
     </table>

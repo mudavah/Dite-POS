@@ -27,7 +27,7 @@ export async function GET() {
   ] = await Promise.all([
     prisma.sale.aggregate({
       where: { ...whereClause, createdAt: { gte: today }, paymentStatus: 'COMPLETED' },
-      _sum: { totalAmount: true, subtotal: true, taxAmount: true },
+      _sum: { totalAmount: true, subtotal: true },
     }),
     prisma.sale.aggregate({
       where: { ...whereClause, createdAt: { gte: weekStart }, paymentStatus: 'COMPLETED' },
@@ -110,7 +110,6 @@ export async function GET() {
       ...sale,
       totalAmount: sale.totalAmount.toNumber(),
       subtotal: sale.subtotal.toNumber(),
-      taxAmount: sale.taxAmount.toNumber(),
     })),
     topProducts: topProductsWithDetails,
     lowStock,

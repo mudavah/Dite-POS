@@ -30,7 +30,6 @@ export async function GET(
     receiptNo: sale.receipts?.[0]?.receiptNo,
     createdAt: sale.createdAt.toISOString(),
     subtotal: sale.subtotal.toNumber(),
-    taxAmount: sale.taxAmount.toNumber(),
     discountAmount: sale.discountAmount.toNumber(),
     totalAmount: sale.totalAmount.toNumber(),
     paymentMethod: sale.paymentMethod,

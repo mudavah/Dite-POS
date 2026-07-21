@@ -52,7 +52,6 @@ interface HeldSale {
   customerName?: string;
   itemsJson: string;
   subtotal: number;
-  taxAmount: number;
   totalAmount: number;
   notes?: string;
   createdAt: string;
@@ -82,9 +81,7 @@ export function PosTerminal({ user }: PosTerminalProps) {
 
   const subtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
   const totalDiscount = cart.reduce((sum, item) => sum + item.discount, 0);
-  const taxRate = 0.16;
-  const taxAmount = subtotal * taxRate;
-  const total = subtotal - totalDiscount + taxAmount;
+  const total = subtotal - totalDiscount;
 
   const addToCart = (product: Product) => {
     setCart((prev) => {
@@ -153,7 +150,6 @@ export function PosTerminal({ user }: PosTerminalProps) {
             notes: i.notes,
           })),
           subtotal,
-          taxAmount,
           totalAmount: total,
         }),
       });

@@ -26,7 +26,6 @@ interface Summary {
   totalMobile: number;
   totalTransfer: number;
   totalSplit: number;
-  totalTax: number;
 }
 
 interface CashierSummaryModalProps {
@@ -94,12 +93,8 @@ export function CashierSummaryModal({ open, onOpenChange, userId }: CashierSumma
                   <p className="text-lg font-bold">{formatCurrency(summary.totalSplit)}</p>
                 </div>
                 <div className="rounded-lg border border-border bg-muted/30 p-3">
-                  <p className="text-xs text-muted-foreground">Tax Collected</p>
-                  <p className="text-lg font-bold">{formatCurrency(summary.totalTax)}</p>
-                </div>
-                <div className="rounded-lg border border-border bg-muted/30 p-3">
                   <p className="text-xs text-muted-foreground">Net Sales</p>
-                  <p className="text-lg font-bold">{formatCurrency(summary.totalSales - summary.totalTax)}</p>
+                  <p className="text-lg font-bold">{formatCurrency(summary.totalSales)}</p>
                 </div>
               </div>
             )}

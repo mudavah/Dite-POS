@@ -15,7 +15,6 @@ interface HeldSale {
   customerName?: string;
   itemsJson: string;
   subtotal: number;
-  taxAmount: number;
   totalAmount: number;
   notes?: string;
   createdAt: string;

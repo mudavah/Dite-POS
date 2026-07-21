@@ -33,7 +33,6 @@ export async function GET(request: Request) {
     sales.map((sale) => ({
       ...sale,
       subtotal: sale.subtotal.toNumber(),
-      taxAmount: sale.taxAmount.toNumber(),
       discountAmount: sale.discountAmount.toNumber(),
       totalAmount: sale.totalAmount.toNumber(),
       amountPaid: sale.amountPaid.toNumber(),
@@ -58,9 +57,8 @@ export async function POST(request: Request) {
   const cashierId = session.user.id;
 
   const subtotal = validated.data.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
-  const taxAmount = subtotal * 0.16;
   const discountAmount = validated.data.items.reduce((sum, item) => sum + (item.discount || 0), 0);
-  const totalAmount = subtotal + taxAmount - discountAmount;
+  const totalAmount = subtotal - discountAmount;
 
   const sale = await prisma.sale.create({
     data: {
@@ -70,7 +68,6 @@ export async function POST(request: Request) {
       customerName: validated.data.customerName,
       customerPhone: validated.data.customerPhone,
       subtotal,
-      taxAmount,
       discountAmount,
       totalAmount,
       paymentMethod: validated.data.paymentMethod,

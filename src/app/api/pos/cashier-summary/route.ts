@@ -35,7 +35,6 @@ export async function GET() {
   const totalMobile = sales.filter((s) => s.paymentMethod === 'MOBILE_MONEY').reduce((sum, s) => sum + s.totalAmount.toNumber(), 0);
   const totalTransfer = sales.filter((s) => s.paymentMethod === 'BANK_TRANSFER').reduce((sum, s) => sum + s.totalAmount.toNumber(), 0);
   const totalSplit = sales.filter((s) => s.paymentMethod === 'SPLIT').reduce((sum, s) => sum + s.totalAmount.toNumber(), 0);
-  const totalTax = sales.reduce((sum, s) => sum + s.taxAmount.toNumber(), 0);
 
   return NextResponse.json({
     sales: sales.map((s) => ({
@@ -59,7 +58,6 @@ export async function GET() {
       totalMobile,
       totalTransfer,
       totalSplit,
-      totalTax,
     },
   });
 }

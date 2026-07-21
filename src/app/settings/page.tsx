@@ -34,7 +34,7 @@ export default function SettingsPage() {
   const { data: settings, isLoading: settingsLoading } = useQuery({ queryKey: ['settings'], queryFn: fetchSettings });
   const { data: branches } = useQuery({ queryKey: ['branches'], queryFn: fetchBranches });
 
-  const [shopForm, setShopForm] = useState({ branchId: '', shopName: '', currency: 'KES', currencySymbol: 'KSh', taxRate: '0', taxName: 'VAT', showTaxOnReceipt: true, footerText: '' });
+  const [shopForm, setShopForm] = useState({ branchId: '', shopName: '', currency: 'KES', currencySymbol: 'KSh', footerText: '' });
   const [printerForm, setPrinterForm] = useState({ branchId: '', name: '', type: 'USB', protocol: 'ESC_POS', paperSize: '80mm', vendorId: '', productId: '' });
   const [etrsForm, setEtrsForm] = useState({ branchId: '', deviceId: '', isActive: false, isSimulated: true, deviceName: '' });
   const [darkMode, setDarkMode] = useState(true);
@@ -49,9 +49,6 @@ export default function SettingsPage() {
         shopName: s.shopName || '',
         currency: s.currency || 'KES',
         currencySymbol: s.currencySymbol || 'KSh',
-        taxRate: s.taxRate?.toString() || '0',
-        taxName: s.taxName || 'VAT',
-        showTaxOnReceipt: s.showTaxOnReceipt ?? true,
         footerText: s.footerText || '',
       });
     }
@@ -60,7 +57,7 @@ export default function SettingsPage() {
   const handleSaveShop = (e: React.FormEvent) => {
     e.preventDefault();
     const { branchId, ...rest } = shopForm;
-    updateMutation.mutate({ ...rest, taxRate: parseFloat(shopForm.taxRate) });
+    updateMutation.mutate(rest);
   };
 
   const handleSavePrinter = (e: React.FormEvent) => {
@@ -143,16 +140,6 @@ export default function SettingsPage() {
                   <Input value={shopForm.currencySymbol} onChange={(e) => setShopForm({ ...shopForm, currencySymbol: e.target.value })} />
                 </div>
               </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Tax Name</label>
-                  <Input value={shopForm.taxName} onChange={(e) => setShopForm({ ...shopForm, taxName: e.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Tax Rate (%)</label>
-                  <Input type="number" step="0.01" value={shopForm.taxRate} onChange={(e) => setShopForm({ ...shopForm, taxRate: e.target.value })} />
-                </div>
-              </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Footer Text</label>
                 <textarea
@@ -161,16 +148,6 @@ export default function SettingsPage() {
                   className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   rows={3}
                 />
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="showTax"
-                  checked={shopForm.showTaxOnReceipt}
-                  onChange={(e) => setShopForm({ ...shopForm, showTaxOnReceipt: e.target.checked })}
-                  className="h-4 w-4 rounded border-input"
-                />
-                <label htmlFor="showTax" className="text-sm font-medium">Show tax on receipt</label>
               </div>
               <Button type="submit" disabled={updateMutation.isPending}>
                 <Save className="h-4 w-4 mr-2" />
@@ -187,14 +164,13 @@ export default function SettingsPage() {
             <CardTitle>Receipt Template</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-muted-foreground">Receipt template configuration is managed per branch in Shop Information settings. Configure shop name, tax display, and footer text above.</p>
+            <p className="text-muted-foreground">Receipt template configuration is managed per branch in Shop Information settings. Configure shop name and footer text above.</p>
             <div className="border rounded-md p-4 bg-muted/30">
               <pre className="text-xs text-muted-foreground whitespace-pre-wrap">
 {`Receipt Template Preview:
-========================
+=======================
 ${shopForm.shopName || 'Your Shop Name'}
-Tax: ${shopForm.taxName} @ ${shopForm.taxRate}%
-========================
+=======================
 Footer: ${shopForm.footerText || 'Thank you for your purchase!'}`}
               </pre>
             </div>

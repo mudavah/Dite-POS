@@ -57,8 +57,7 @@ export function CheckoutModal({ open, onOpenChange, items, customer, onComplete 
 
   const subtotal = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
   const totalDiscount = items.reduce((sum, item) => sum + item.discount, 0);
-  const taxAmount = subtotal * 0.16;
-  const total = subtotal - totalDiscount + taxAmount;
+  const total = subtotal - totalDiscount;
 
   const cashNum = parseFloat(cashReceived) || 0;
   const change = method === 'CASH' ? Math.max(0, cashNum - total) : 0;
@@ -134,7 +133,6 @@ export function CheckoutModal({ open, onOpenChange, items, customer, onComplete 
       amountPaid: method === 'CASH' ? cashNum : total,
       changeAmount: change,
       notes,
-      taxAmount,
       subtotal,
       discountAmount: totalDiscount,
       totalAmount: total,
@@ -182,10 +180,6 @@ export function CheckoutModal({ open, onOpenChange, items, customer, onComplete 
                 <span>-{formatCurrency(totalDiscount)}</span>
               </div>
             )}
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>Tax (16%)</span>
-              <span>{formatCurrency(taxAmount)}</span>
-            </div>
             <div className="flex justify-between text-xl font-bold">
               <span>Total</span>
               <span className="text-primary">{formatCurrency(total)}</span>

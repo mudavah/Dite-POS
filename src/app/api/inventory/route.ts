@@ -85,7 +85,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { inventoryId, quantity, type, notes } = body;
+  const { inventoryId, quantity, type, notes, totalStock } = body;
 
   const inventory = await prisma.inventory.findUnique({
     where: { id: inventoryId },
@@ -93,6 +93,14 @@ export async function POST(request: Request) {
 
   if (!inventory) {
     return NextResponse.json({ error: 'Inventory not found' }, { status: 404 });
+  }
+
+  if (totalStock !== undefined) {
+    await prisma.inventory.update({
+      where: { id: inventoryId },
+      data: { totalStock },
+    });
+    return NextResponse.json({ success: true, totalStock });
   }
 
   const movement = await prisma.stockMovement.create({

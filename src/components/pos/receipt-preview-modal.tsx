@@ -42,7 +42,6 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose }: ReceiptPrevi
               total: i.total,
             })),
             subtotal: data?.subtotal,
-            tax: data?.taxAmount,
             total: data?.totalAmount,
             paymentMethod: data?.paymentMethod,
             amountPaid: data?.amountPaid,
@@ -108,14 +107,6 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose }: ReceiptPrevi
                 ))}
               </div>
               <div className="border-t border-dashed border-border pt-2 mt-2 space-y-1">
-                <div className="flex justify-between text-xs">
-                  <span>Subtotal</span>
-                  <span>{formatCurrency(data?.subtotal || 0)}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span>Tax (16%)</span>
-                  <span>{formatCurrency(data?.taxAmount || 0)}</span>
-                </div>
                 <div className="flex justify-between font-bold text-base pt-1 border-t border-border">
                   <span>TOTAL</span>
                   <span>{formatCurrency(data?.totalAmount || 0)}</span>

@@ -44,9 +44,7 @@ async function main() {
       receiptNextNum: 1,
       currency: 'KES',
       currencySymbol: 'KSh',
-      taxRate: 0.16,
-      taxName: 'VAT',
-      showTaxOnReceipt: true,
+      footerText: 'Thank you for your purchase!',
     },
   });
 
@@ -89,12 +87,14 @@ async function main() {
 
   await prisma.inventory.deleteMany({ where: { branchId: branch.id } });
   for (const product of createdProducts) {
+    const totalStock = Math.floor(Math.random() * 100) + 20;
     await prisma.inventory.create({
       data: {
         branchId: branch.id,
         productId: product.id,
         quantity: Math.floor(Math.random() * 100) + 10,
         reserved: 0,
+        totalStock,
       },
     });
   }

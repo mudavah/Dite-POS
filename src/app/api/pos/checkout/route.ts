@@ -25,7 +25,6 @@ export async function POST(request: Request) {
       customerName: validated.data.customerName,
       customerPhone: validated.data.customerPhone,
       subtotal: validated.data.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0),
-      taxAmount: validated.data.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0) * 0.16,
       discountAmount: validated.data.items.reduce((sum, item) => sum + item.discount, 0),
       totalAmount: 0,
       paymentMethod: validated.data.paymentMethod,
@@ -49,7 +48,7 @@ export async function POST(request: Request) {
     include: { items: true },
   });
 
-  const totalAmount = (sale as any).items.reduce((sum: number, item: any) => sum + item.total.toNumber(), 0) + sale.taxAmount.toNumber() - sale.discountAmount.toNumber();
+  const totalAmount = (sale as any).items.reduce((sum: number, item: any) => sum + item.total.toNumber(), 0) - sale.discountAmount.toNumber();
 
   await prisma.sale.update({
     where: { id: sale.id },
