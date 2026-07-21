@@ -17,6 +17,7 @@ async function fetchReports(type: string, startDate?: string, endDate?: string) 
 
 const reportTypes = [
   { id: 'sales', label: 'Sales Reports', icon: FileText },
+  { id: 'category-sales', label: 'Category Sales', icon: FileText },
   { id: 'products', label: 'Product Reports', icon: FileText },
   { id: 'inventory', label: 'Inventory Reports', icon: FileText },
   { id: 'profit', label: 'Profit Reports', icon: FileText },
@@ -123,6 +124,83 @@ export default function ReportsPage() {
       </div>
     </div>
   );
+
+  const renderCategorySalesReport = () => {
+    const categories = data?.data || [];
+    const totals = categories.reduce((acc: any, cat: any) => ({
+      cash: acc.cash + cat.cash,
+      card: acc.card + cat.card,
+      bankTransfer: acc.bankTransfer + cat.bankTransfer,
+      mobileMoney: acc.mobileMoney + cat.mobileMoney,
+      total: acc.total + cat.total,
+    }), { cash: 0, card: 0, bankTransfer: 0, mobileMoney: 0, total: 0 });
+
+    return (
+      <div className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Total Category Sales</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatCurrency(totals.total)}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Total Transactions</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{categories.length}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Categories</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{categories.length}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="rounded-md border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="p-3 text-left font-medium">Category</th>
+                <th className="p-3 text-right font-medium">Cash</th>
+                <th className="p-3 text-right font-medium">Card</th>
+                <th className="p-3 text-right font-medium">Bank Transfer</th>
+                <th className="p-3 text-right font-medium">M-Pesa</th>
+                <th className="p-3 text-right font-medium">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {categories.map((cat: any) => (
+                <tr key={cat.category} className="border-t">
+                  <td className="p-3 font-medium">{cat.category}</td>
+                  <td className="p-3 text-right">{formatCurrency(cat.cash)}</td>
+                  <td className="p-3 text-right">{formatCurrency(cat.card)}</td>
+                  <td className="p-3 text-right">{formatCurrency(cat.bankTransfer)}</td>
+                  <td className="p-3 text-right">{formatCurrency(cat.mobileMoney)}</td>
+                  <td className="p-3 text-right font-semibold">{formatCurrency(cat.total)}</td>
+                </tr>
+              ))}
+              <tr className="border-t bg-muted/30 font-bold">
+                <td className="p-3">TOTAL</td>
+                <td className="p-3 text-right">{formatCurrency(totals.cash)}</td>
+                <td className="p-3 text-right">{formatCurrency(totals.card)}</td>
+                <td className="p-3 text-right">{formatCurrency(totals.bankTransfer)}</td>
+                <td className="p-3 text-right">{formatCurrency(totals.mobileMoney)}</td>
+                <td className="p-3 text-right">{formatCurrency(totals.total)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
 
   const renderProductsReport = () => (
     <div className="rounded-md border">
@@ -352,6 +430,7 @@ export default function ReportsPage() {
           ) : (
             <>
               {reportType === 'sales' && renderSalesReport()}
+              {reportType === 'category-sales' && renderCategorySalesReport()}
               {reportType === 'products' && renderProductsReport()}
               {reportType === 'inventory' && renderInventoryReport()}
               {reportType === 'profit' && renderProfitReport()}

@@ -49,6 +49,42 @@ export async function GET(request: Request) {
       where: { isActive: true },
       include: { sales: { where: { ...where, paymentStatus: 'COMPLETED' } } },
     });
+  } else if (type === 'category-sales') {
+    const sales = await prisma.sale.findMany({
+      where: { ...where, paymentStatus: 'COMPLETED' },
+      include: {
+        branch: { select: { name: true, code: true } },
+        items: {
+          include: {
+            product: {
+              include: {
+                category: { select: { name: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const categoryMap: Record<string, { category: string; cash: number; card: number; bankTransfer: number; mobileMoney: number; total: number }> = {};
+
+    for (const sale of sales) {
+      for (const item of sale.items) {
+        const categoryName = item.product.category?.name || 'Uncategorized';
+        if (!categoryMap[categoryName]) {
+          categoryMap[categoryName] = { category: categoryName, cash: 0, card: 0, bankTransfer: 0, mobileMoney: 0, total: 0 };
+        }
+        const method = sale.paymentMethod;
+        const amount = item.total.toNumber();
+        if (method === 'CASH') categoryMap[categoryName].cash += amount;
+        else if (method === 'CARD') categoryMap[categoryName].card += amount;
+        else if (method === 'BANK_TRANSFER') categoryMap[categoryName].bankTransfer += amount;
+        else if (method === 'MOBILE_MONEY') categoryMap[categoryName].mobileMoney += amount;
+        categoryMap[categoryName].total += amount;
+      }
+    }
+
+    data = Object.values(categoryMap);
   }
 
   return NextResponse.json({ type, data });

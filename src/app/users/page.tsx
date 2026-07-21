@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, Button, Input, Badge } from '@/components/ui';
-import { Plus, Trash2, MoreVertical } from 'lucide-react';
+import { Plus, Trash2, MoreVertical, Key } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import { userSchema } from '@/lib/validators';
 
@@ -29,15 +29,38 @@ async function deleteUser(id: string) {
   return res.json();
 }
 
+async function changePassword(userId: string, newPassword: string) {
+  const res = await fetch('/api/users/change-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, newPassword }),
+  });
+  if (!res.ok) throw new Error('Failed to change password');
+  return res.json();
+}
+
 export default function UsersPage() {
   const queryClient = useQueryClient();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [newPassword, setNewPassword] = useState('');
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'CASHIER', branchId: '' });
 
   const { data: users, isLoading } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
 
   const createMutation = useMutation({ mutationFn: createUser, onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['users'] }); setShowAddModal(false); setForm({ name: '', email: '', password: '', role: 'CASHIER', branchId: '' }); } });
   const deleteMutation = useMutation({ mutationFn: deleteUser, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] }) });
+
+  const passwordMutation = useMutation({
+    mutationFn: ({ userId, newPassword }: { userId: string; newPassword: string }) => changePassword(userId, newPassword),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      setShowPasswordModal(false);
+      setSelectedUser(null);
+      setNewPassword('');
+    },
+  });
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,13 +125,28 @@ export default function UsersPage() {
                       </td>
                       <td className="p-3">{formatDate(user.createdAt)}</td>
                       <td className="p-3">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => deleteMutation.mutate(user.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setSelectedUser(user);
+                              setNewPassword('');
+                              setShowPasswordModal(true);
+                            }}
+                            title="Change Password"
+                          >
+                            <Key className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => deleteMutation.mutate(user.id)}
+                            title="Delete User"
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -181,6 +219,52 @@ export default function UsersPage() {
                   </Button>
                   <Button type="submit" disabled={createMutation.isPending}>
                     {createMutation.isPending ? 'Creating...' : 'Create User'}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {showPasswordModal && selectedUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md mx-4">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Change Password</CardTitle>
+                <Button variant="ghost" size="icon" onClick={() => { setShowPasswordModal(false); setSelectedUser(null); setNewPassword(''); }}>
+                  <MoreVertical className="h-4 w-4 rotate-90" />
+                </Button>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Changing password for: <span className="font-medium">{selectedUser.name}</span> ({selectedUser.email})
+              </p>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                if (newPassword.length < 6) return;
+                passwordMutation.mutate({ userId: selectedUser.id, newPassword });
+              }} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">New Password</label>
+                  <Input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password"
+                    required
+                    minLength={6}
+                  />
+                  <p className="text-xs text-muted-foreground">Password must be at least 6 characters</p>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="outline" onClick={() => { setShowPasswordModal(false); setSelectedUser(null); setNewPassword(''); }}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={passwordMutation.isPending || newPassword.length < 6}>
+                    {passwordMutation.isPending ? 'Updating...' : 'Update Password'}
                   </Button>
                 </div>
               </form>
