@@ -22,28 +22,33 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'User is not assigned to a branch' }, { status: 400 });
   }
 
+  const items = validated.data.items;
+  const subtotal = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+  const discountAmount = items.reduce((sum, item) => sum + (item.discount || 0), 0);
+  const totalAmount = subtotal - discountAmount;
+  const changeAmount = Math.max(0, validated.data.amountPaid - totalAmount);
+
   const sale = await prisma.sale.create({
     data: {
       branchId,
       cashierId,
       customerName: validated.data.customerName,
       customerPhone: validated.data.customerPhone,
-      subtotal: validated.data.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0),
-      discountAmount: validated.data.items.reduce((sum, item) => sum + item.discount, 0),
-      totalAmount: 0,
+      subtotal,
+      discountAmount,
+      totalAmount,
       paymentMethod: validated.data.paymentMethod,
       amountPaid: validated.data.amountPaid,
-      changeAmount: 0,
+      changeAmount,
       notes: validated.data.notes,
       items: {
-        create: validated.data.items.map((item) => ({
+        create: items.map((item) => ({
           productId: item.productId,
-          product: { connect: { id: item.productId } },
           productName: item.productName || item.sku || '',
           sku: item.sku,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
-          discount: item.discount,
+          discount: item.discount || 0,
           total: item.unitPrice * item.quantity,
           notes: item.notes,
         })),
@@ -52,13 +57,29 @@ export async function POST(request: Request) {
     include: { items: true },
   });
 
-  const totalAmount = (sale as any).items.reduce((sum: number, item: any) => sum + item.total.toNumber(), 0) - sale.discountAmount.toNumber();
-  const changeAmount = Math.max(0, validated.data.amountPaid - totalAmount);
+  for (const item of items) {
+    const inventory = await prisma.inventory.findFirst({
+      where: { branchId, productId: item.productId },
+    });
 
-  await prisma.sale.update({
-    where: { id: sale.id },
-    data: { totalAmount, changeAmount },
-  });
+    if (inventory) {
+      await prisma.inventory.update({
+        where: { id: inventory.id },
+        data: { quantity: { decrement: item.quantity } },
+      });
+
+      await prisma.stockMovement.create({
+        data: {
+          inventoryId: inventory.id,
+          type: 'SALE',
+          quantity: -item.quantity,
+          reference: sale.id,
+          notes: `Sale ${sale.id}`,
+          createdById: cashierId,
+        },
+      });
+    }
+  }
 
   const settings = await prisma.branchSetting.findUnique({ where: { branchId } });
   const receiptNo = `${settings?.receiptPrefix || 'RCP'}-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(settings?.receiptNextNum || 1).padStart(5, '0')}`;
@@ -80,5 +101,6 @@ export async function POST(request: Request) {
     id: sale.id,
     receiptNo,
     totalAmount,
+    changeAmount,
   });
 }
