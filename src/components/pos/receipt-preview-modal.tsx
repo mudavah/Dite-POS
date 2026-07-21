@@ -25,32 +25,51 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose }: ReceiptPrevi
 
   const handlePrint = async () => {
     try {
+      if (!data) return;
+
+      const receiptData = {
+        shopName: data.shopName || 'Dite POS',
+        branchName: data.branchName,
+        branchAddress: data.branchAddress,
+        branchPhone: data.branchPhone,
+        receiptNo: receiptNo || data.receiptNo,
+        date: data.createdAt || new Date().toISOString(),
+        cashierName: data.cashier?.name || 'Unknown',
+        customerName: data.customerName,
+        customerPhone: data.customerPhone,
+        items: data.items?.map((i: any) => ({
+          productName: i.productName,
+          sku: i.sku,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+          discount: i.discount || 0,
+          total: i.total,
+          notes: i.notes,
+        })) || [],
+        subtotal: data.subtotal || 0,
+        discountAmount: data.discountAmount || 0,
+        total: data.totalAmount || 0,
+        amountPaid: data.amountPaid || 0,
+        changeAmount: data.changeAmount || 0,
+        paymentMethod: data.paymentMethod || 'CASH',
+        currency: data.currency || 'KES',
+        currencySymbol: data.currencySymbol || 'KSh',
+        footerText: data.footerText,
+      };
+
       const res = await fetch('/api/printer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'print',
-          data: {
-            receiptNo: receiptNo || data?.receiptNo,
-            date: data?.createdAt || new Date().toISOString(),
-            cashier: data?.cashier?.name || 'Unknown',
-            customerName: data?.customerName,
-            items: data?.items?.map((i: any) => ({
-              name: i.productName,
-              quantity: i.quantity,
-              unitPrice: i.unitPrice,
-              total: i.total,
-            })),
-            subtotal: data?.subtotal,
-            total: data?.totalAmount,
-            paymentMethod: data?.paymentMethod,
-            amountPaid: data?.amountPaid,
-            change: data?.changeAmount,
-          },
+          data: receiptData,
         }),
       });
       if (res.ok) {
         alert('Receipt sent to printer');
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.message || 'Failed to print receipt');
       }
     } catch {
       alert('Failed to print receipt');

@@ -18,6 +18,21 @@ export async function GET(
       items: true,
       cashier: { select: { name: true } },
       receipts: true,
+      branch: {
+        select: {
+          name: true,
+          address: true,
+          phone: true,
+          settings: {
+            select: {
+              shopName: true,
+              currency: true,
+              currencySymbol: true,
+              footerText: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -37,6 +52,14 @@ export async function GET(
     changeAmount: sale.changeAmount.toNumber(),
     customerName: sale.customerName,
     cashier: sale.cashier,
+    branch: sale.branch,
+    shopName: sale.branch?.settings?.shopName || 'Dite POS',
+    branchName: sale.branch?.name,
+    branchAddress: sale.branch?.address,
+    branchPhone: sale.branch?.phone,
+    currency: sale.branch?.settings?.currency || 'KES',
+    currencySymbol: sale.branch?.settings?.currencySymbol || 'KSh',
+    footerText: sale.branch?.settings?.footerText,
     items: sale.items.map((i: any) => ({
       productId: i.productId,
       productName: i.productName,

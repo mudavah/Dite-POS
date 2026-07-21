@@ -72,16 +72,16 @@ function generateTextTemplate(data: ReceiptData, paperSize: PaperSize): string {
   const lines: string[] = [];
   const sep = '─'.repeat(width);
 
-  lines.push(center(data.shopName, width));
+  lines.push(center(data.shopName || 'Dite POS', width));
   if (data.branchName) lines.push(center(data.branchName, width));
   if (data.branchAddress) lines.push(center(data.branchAddress, width));
   if (data.branchPhone) lines.push(center(data.branchPhone, width));
   lines.push(sep);
 
   lines.push(center('RECEIPT', width));
-  lines.push(`Receipt No: ${data.receiptNo}`);
+  lines.push(`Receipt No: ${data.receiptNo || '-'}`);
   lines.push(`Date: ${new Date(data.date).toLocaleString()}`);
-  lines.push(`Cashier: ${data.cashierName}`);
+  lines.push(`Cashier: ${data.cashierName || 'Unknown'}`);
   if (data.customerName) {
     lines.push(`Customer: ${data.customerName}`);
     if (data.customerPhone) lines.push(`Phone: ${data.customerPhone}`);
@@ -102,15 +102,15 @@ function generateTextTemplate(data: ReceiptData, paperSize: PaperSize): string {
   }
 
   lines.push(sep);
-  lines.push(`Subtotal:`.padEnd(width - 10) + formatNum(data.subtotal).padStart(10));
-  if (data.discountAmount > 0) {
-    lines.push(`Discount:`.padEnd(width - 10) + formatNum(data.discountAmount).padStart(10));
+  lines.push(`Subtotal:`.padEnd(width - 10) + formatNum(data.subtotal || 0).padStart(10));
+  if ((data.discountAmount || 0) > 0) {
+    lines.push(`Discount:`.padEnd(width - 10) + formatNum(data.discountAmount || 0).padStart(10));
   }
-  lines.push(`TOTAL:`.padEnd(width - 10) + formatNum(data.total).padStart(10));
+  lines.push(`TOTAL:`.padEnd(width - 10) + formatNum(data.total || 0).padStart(10));
   lines.push(sep);
-  lines.push(`Payment: ${data.paymentMethod}`);
-  lines.push(`Paid: ${data.currency} ${formatNum(data.amountPaid)}`);
-  lines.push(`Change: ${data.currency} ${formatNum(data.changeAmount)}`);
+  lines.push(`Payment: ${data.paymentMethod || 'CASH'}`);
+  lines.push(`Paid: ${data.currencySymbol || 'KSh'} ${formatNum(data.amountPaid || 0)}`);
+  lines.push(`Change: ${data.currencySymbol || 'KSh'} ${formatNum(data.changeAmount || 0)}`);
   lines.push(sep);
   if (data.qrData) {
     lines.push(center('[QR CODE]', width));
