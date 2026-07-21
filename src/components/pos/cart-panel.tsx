@@ -37,6 +37,7 @@ interface CartPanelProps {
   selectedCustomer: Customer | null;
   onSelectCustomer: (customer: Customer | null) => void;
   onUpdateItemNote: (id: string, notes: string) => void;
+  onUpdateItemQuantityDirect: (id: string, quantity: number) => void;
 }
 
 export function CartPanel({
@@ -51,6 +52,7 @@ export function CartPanel({
   selectedCustomer,
   onSelectCustomer,
   onUpdateItemNote,
+  onUpdateItemQuantityDirect,
 }: CartPanelProps) {
   const [showCustomerPicker, setShowCustomerPicker] = React.useState(false);
   const [showItemNotes, setShowItemNotes] = React.useState<string | null>(null);
@@ -151,7 +153,33 @@ export function CartPanel({
                     >
                       <Minus className="h-3 w-3" />
                     </Button>
-                    <span className="w-8 text-center text-sm font-medium">{item.quantity}</span>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={item.quantity}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        if (!isNaN(val) && val >= 1) {
+                          onUpdateItemQuantityDirect(item.id, val);
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        if (isNaN(val) || val < 1) {
+                          onUpdateItemQuantityDirect(item.id, 1);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const val = parseInt((e.target as HTMLInputElement).value, 10);
+                          if (isNaN(val) || val < 1) {
+                            onUpdateItemQuantityDirect(item.id, 1);
+                          }
+                          (e.target as HTMLInputElement).blur();
+                        }
+                      }}
+                      className="h-8 w-14 text-center text-sm p-1"
+                    />
                     <Button
                       variant="outline"
                       size="icon"

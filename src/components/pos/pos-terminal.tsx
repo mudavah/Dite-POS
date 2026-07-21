@@ -119,6 +119,18 @@ export function PosTerminal({ user }: PosTerminalProps) {
     );
   };
 
+  const updateQuantityDirect = (id: string, quantity: number) => {
+    setCart((prev) =>
+      prev
+        .map((item) => {
+          if (item.id !== id) return item;
+          const newQty = Math.max(1, quantity);
+          return { ...item, quantity: newQty, total: newQty * item.unitPrice };
+        })
+        .filter((item) => item.quantity > 0)
+    );
+  };
+
   const removeItem = (id: string) => {
     setCart((prev) => prev.filter((item) => item.id !== id));
   };
@@ -176,7 +188,10 @@ export function PosTerminal({ user }: PosTerminalProps) {
   };
 
   const handleRecallSale = (sale: HeldSale) => {
-    const items: CartItem[] = JSON.parse(sale.itemsJson);
+    const items: CartItem[] = JSON.parse(sale.itemsJson).map((item: any) => ({
+      ...item,
+      id: `${item.productId}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    }));
     setCart(items);
     setSelectedCustomer(sale.customerName ? { id: '', name: sale.customerName } : null);
     toast({ title: 'Sale recalled', description: `${items.length} items loaded` });
@@ -230,6 +245,7 @@ export function PosTerminal({ user }: PosTerminalProps) {
           selectedCustomer={selectedCustomer}
           onSelectCustomer={setSelectedCustomer}
           onUpdateItemNote={updateItemNote}
+          onUpdateItemQuantityDirect={updateQuantityDirect}
         />
       </div>
 

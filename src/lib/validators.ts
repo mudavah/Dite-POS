@@ -57,7 +57,11 @@ export const saleSchema = z.object({
   customerName: z.string().optional().nullable(),
   customerPhone: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
-});
+  subtotal: z.coerce.number().nonnegative().optional(),
+  discountAmount: z.coerce.number().nonnegative().optional(),
+  totalAmount: z.coerce.number().nonnegative().optional(),
+  changeAmount: z.coerce.number().nonnegative().optional(),
+}).passthrough();
 
 export type LoginInput = z.infer<typeof loginSchema>;
 export type ProductInput = z.infer<typeof productSchema>;
