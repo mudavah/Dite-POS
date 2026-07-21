@@ -1,9 +1,18 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
+import { auth } from '@/app/api/auth/[...nextauth]/route';
+
+async function requireAdmin() {
+  const session = await auth();
+  if (!session?.user || session.user.role !== 'ADMIN') {
+    throw new Error('Unauthorized');
+  }
+  return session;
+}
 
 export async function getDashboardStats() {
+  await requireAdmin();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const weekStart = new Date(today);

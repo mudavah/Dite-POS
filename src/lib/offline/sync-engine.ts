@@ -65,7 +65,7 @@ export const syncEngine = {
       } catch (error) {
         item.retries += 1;
         item.lastError = error instanceof Error ? error.message : 'Unknown error';
-        item.status = item.retries >= MAX_RETRIES ? 'FAILED' : 'FAILED';
+        item.status = item.retries >= MAX_RETRIES ? 'FAILED' : 'PENDING';
         item.updatedAt = new Date();
         await db.set('sales-queue', item.id, item);
       }

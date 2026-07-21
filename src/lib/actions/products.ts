@@ -3,8 +3,18 @@
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { productSchema } from '@/lib/validators';
+import { auth } from '@/app/api/auth/[...nextauth]/route';
+
+async function requireAdmin() {
+  const session = await auth();
+  if (!session?.user || session.user.role !== 'ADMIN') {
+    throw new Error('Unauthorized');
+  }
+  return session;
+}
 
 export async function createProduct(data: unknown) {
+  await requireAdmin();
   const validated = productSchema.safeParse(data);
   if (!validated.success) {
     return { error: validated.error.flatten() };
@@ -19,6 +29,7 @@ export async function createProduct(data: unknown) {
 }
 
 export async function updateProduct(id: string, data: unknown) {
+  await requireAdmin();
   const validated = productSchema.safeParse(data);
   if (!validated.success) {
     return { error: validated.error.flatten() };
@@ -35,6 +46,7 @@ export async function updateProduct(id: string, data: unknown) {
 }
 
 export async function deleteProduct(id: string) {
+  await requireAdmin();
   await prisma.product.update({
     where: { id },
     data: { isArchived: true },
@@ -45,6 +57,7 @@ export async function deleteProduct(id: string) {
 }
 
 export async function bulkUpdateProducts(ids: string[], data: { isActive?: boolean; isArchived?: boolean }) {
+  await requireAdmin();
   await prisma.product.updateMany({
     where: { id: { in: ids } },
     data,

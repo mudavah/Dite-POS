@@ -4,8 +4,21 @@ import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { userSchema } from '@/lib/validators';
 import { hash } from 'bcryptjs';
+import { auth } from '@/app/api/auth/[...nextauth]/route';
+
+async function requireAdmin() {
+  const session = await auth();
+  if (!session?.user || session.user.role !== 'ADMIN') {
+    throw new Error('Unauthorized');
+  }
+  return session;
+}
 
 export async function getUsers() {
+  const session = await auth();
+  if (!session?.user || session.user.role !== 'ADMIN') {
+    throw new Error('Unauthorized');
+  }
   return await prisma.user.findMany({
     include: { branch: { select: { name: true, code: true } } },
     orderBy: { name: 'asc' },
@@ -13,6 +26,7 @@ export async function getUsers() {
 }
 
 export async function createUser(data: unknown) {
+  await requireAdmin();
   const validated = userSchema.safeParse(data);
   if (!validated.success) {
     return { error: validated.error.flatten() };
@@ -30,6 +44,7 @@ export async function createUser(data: unknown) {
 }
 
 export async function updateUser(id: string, data: unknown) {
+  await requireAdmin();
   const validated = userSchema.safeParse(data);
   if (!validated.success) {
     return { error: validated.error.flatten() };
@@ -51,6 +66,7 @@ export async function updateUser(id: string, data: unknown) {
 }
 
 export async function deleteUser(id: string) {
+  await requireAdmin();
   await prisma.user.update({
     where: { id },
     data: { isActive: false },

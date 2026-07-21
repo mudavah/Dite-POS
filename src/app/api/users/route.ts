@@ -18,6 +18,7 @@ export async function GET() {
   return NextResponse.json(
     users.map((u) => ({
       ...u,
+      password: undefined,
       createdAt: u.createdAt.toISOString(),
       updatedAt: u.updatedAt.toISOString(),
     }))

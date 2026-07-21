@@ -3,8 +3,21 @@
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { branchSchema } from '@/lib/validators';
+import { auth } from '@/app/api/auth/[...nextauth]/route';
+
+async function requireAdmin() {
+  const session = await auth();
+  if (!session?.user || session.user.role !== 'ADMIN') {
+    throw new Error('Unauthorized');
+  }
+  return session;
+}
 
 export async function getBranches() {
+  const session = await auth();
+  if (!session?.user) {
+    throw new Error('Unauthorized');
+  }
   return await prisma.branch.findMany({
     where: { isActive: true },
     select: { id: true, name: true, code: true },
@@ -13,6 +26,7 @@ export async function getBranches() {
 }
 
 export async function createBranch(data: unknown) {
+  await requireAdmin();
   const validated = branchSchema.safeParse(data);
   if (!validated.success) {
     return { error: validated.error.flatten() };
@@ -31,6 +45,7 @@ export async function createBranch(data: unknown) {
 }
 
 export async function updateBranch(id: string, data: unknown) {
+  await requireAdmin();
   const validated = branchSchema.safeParse(data);
   if (!validated.success) {
     return { error: validated.error.flatten() };
@@ -46,6 +61,8 @@ export async function updateBranch(id: string, data: unknown) {
 }
 
 export async function transferStock(data: { fromBranchId: string; toBranchId: string; productId: string; quantity: number; notes?: string }) {
+  const session = await requireAdmin();
+
   const fromInventory = await prisma.inventory.findFirst({
     where: { branchId: data.fromBranchId, productId: data.productId },
   });
@@ -81,7 +98,7 @@ export async function transferStock(data: { fromBranchId: string; toBranchId: st
       quantity: -data.quantity,
       reference: `Transfer to ${data.toBranchId}`,
       notes: data.notes,
-      createdById: 'system',
+      createdById: session.user!.id,
     },
   });
 

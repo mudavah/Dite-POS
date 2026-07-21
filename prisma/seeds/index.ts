@@ -6,9 +6,12 @@ const prisma = new PrismaClient({
   adapter: new PrismaPg(process.env.DATABASE_URL || ''),
 });
 
+const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD || 'ChangeMe123!';
+const CASHIER_PASSWORD = process.env.SEED_CASHIER_PASSWORD || 'ChangeMe123!';
+
 async function main() {
-  const adminPassword = await hash('ChangeMe123!', 12);
-  const cashierPassword = await hash('ChangeMe123!', 12);
+  const adminPassword = await hash(ADMIN_PASSWORD, 12);
+  const cashierPassword = await hash(CASHIER_PASSWORD, 12);
 
   const branch = await prisma.branch.upsert({
     where: { code: 'HQ' },
@@ -104,7 +107,6 @@ async function main() {
         branchId: branch.id,
         productId: product.id,
         quantity: Math.floor(Math.random() * 100) + 10,
-        reserved: 0,
         totalStock,
       },
     });

@@ -49,6 +49,12 @@ enum SyncStatus {
   FAILED
 }
 
+enum TransferStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -187,7 +193,6 @@ model Inventory {
   branchId   String
   productId  String
   quantity   Int      @default(0)
-  reserved   Int      @default(0)
   totalStock Int      @default(0)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -216,14 +221,14 @@ model StockMovement {
 }
 
 model StockTransfer {
-  id          String   @id @default(cuid())
+  id          String        @id @default(cuid())
   fromBranchId String
   toBranchId   String
   productId    String
   quantity     Int
-  status       String  @default("PENDING")
+  status       TransferStatus @default(PENDING)
   notes        String?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime      @default(now())
   completedAt  DateTime?
   createdById  String
 

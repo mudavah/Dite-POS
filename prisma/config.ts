@@ -2,6 +2,6 @@ import { defineConfig } from 'prisma/config';
 
 export default defineConfig({
   datasource: {
-    url: process.env.DATABASE_URL || 'postgresql://user:password@localhost:5432/ditepos?schema=public',
+    url: process.env.DATABASE_URL,
   },
 });

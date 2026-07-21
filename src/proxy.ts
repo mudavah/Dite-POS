@@ -20,7 +20,7 @@ export async function proxy(request: NextRequest) {
 
   if (token) {
     const role = token.role as string;
-    const cashierOnlyPaths = ['/pos', '/hold-sales', '/daily-summary'];
+    const cashierOnlyPaths = ['/pos', '/pending-sales'];
     const adminOnlyPaths = [
       '/dashboard',
       '/products',

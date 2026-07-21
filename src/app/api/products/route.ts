@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { productSchema } from '@/lib/validators';
+import { sanitizeText } from '@/lib/utils';
 
 export async function GET(request: Request) {
   const session = await auth();
@@ -70,8 +71,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: validated.error.flatten() }, { status: 400 });
   }
 
+  const sanitized = {
+    ...validated.data,
+    name: sanitizeText(validated.data.name)!,
+    description: sanitizeText(validated.data.description),
+    barcode: sanitizeText(validated.data.barcode),
+  };
+
   const product = await prisma.product.create({
-    data: validated.data,
+    data: sanitized,
   });
 
   return NextResponse.json({

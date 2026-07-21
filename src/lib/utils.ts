@@ -31,3 +31,8 @@ export function generateEtrsRef() {
   const random = Math.random().toString(36).substring(2, 8).toUpperCase();
   return `ETRS-${timestamp}-${random}`;
 }
+
+export function sanitizeText(text: string | null | undefined): string | null | undefined {
+  if (!text) return text;
+  return text.replace(/<[^>]*>/g, '').trim();
+}

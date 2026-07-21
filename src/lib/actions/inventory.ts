@@ -2,8 +2,19 @@
 
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
+import { auth } from '@/app/api/auth/[...nextauth]/route';
+
+async function requireAuth() {
+  const session = await auth();
+  if (!session?.user) {
+    throw new Error('Unauthorized');
+  }
+  return session;
+}
 
 export async function adjustStock(data: { inventoryId: string; quantity: number; type: string; notes?: string }) {
+  await requireAuth();
+
   const inventory = await prisma.inventory.findUnique({
     where: { id: data.inventoryId },
   });
@@ -12,13 +23,16 @@ export async function adjustStock(data: { inventoryId: string; quantity: number;
     return { error: 'Inventory not found' };
   }
 
+  const session = await auth();
+  const createdById = session?.user?.id || 'system';
+
   await prisma.stockMovement.create({
     data: {
       inventoryId: data.inventoryId,
       type: data.type as any,
       quantity: data.quantity,
       notes: data.notes,
-      createdById: 'system',
+      createdById,
     },
   });
 
@@ -32,7 +46,8 @@ export async function adjustStock(data: { inventoryId: string; quantity: number;
 }
 
 export async function getInventory(branchId?: string) {
-  const where: any = {};
+  await requireAuth();
+  const where: Record<string, unknown> = {};
   if (branchId) where.branchId = branchId;
 
   const inventory = await prisma.inventory.findMany({
