@@ -13,7 +13,7 @@ const navItems = [
   { href: '/pos', label: 'POS', icon: ShoppingCart, roles: ['ADMIN', 'CASHIER'] },
   { href: '/pending-sales', label: 'Pending Sales', icon: Clock, roles: ['ADMIN', 'CASHIER'] },
   { href: '/products', label: 'Products', icon: Package, roles: ['ADMIN'] },
-  { href: '/inventory', label: 'Inventory', icon: Warehouse, roles: ['ADMIN'] },
+  { href: '/inventory', label: 'Inventory', icon: Warehouse, roles: ['ADMIN', 'CASHIER'] },
   { href: '/reports', label: 'Reports', icon: BarChart3, roles: ['ADMIN'] },
   { href: '/branches', label: 'Branches', icon: Store, roles: ['ADMIN'] },
   { href: '/users', label: 'Users', icon: Users, roles: ['ADMIN'] },

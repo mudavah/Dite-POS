@@ -80,7 +80,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const session = await auth();
-  if (!session?.user || session.user.role !== 'ADMIN') {
+  if (!session?.user || !['ADMIN', 'CASHIER'].includes(session.user.role)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -93,6 +93,10 @@ export async function POST(request: Request) {
 
   if (!inventory) {
     return NextResponse.json({ error: 'Inventory not found' }, { status: 404 });
+  }
+
+  if (totalStock !== undefined && session.user.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'Only administrators can update total stock' }, { status: 403 });
   }
 
   if (totalStock !== undefined) {

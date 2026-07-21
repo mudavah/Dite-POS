@@ -24,7 +24,6 @@ export async function proxy(request: NextRequest) {
     const adminOnlyPaths = [
       '/dashboard',
       '/products',
-      '/inventory',
       '/reports',
       '/settings',
       '/branches',
