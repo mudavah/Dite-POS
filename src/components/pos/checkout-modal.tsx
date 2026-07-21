@@ -78,6 +78,9 @@ export function CheckoutModal({ open, onOpenChange, items, customer, onComplete 
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['pos-products'] });
       queryClient.invalidateQueries({ queryKey: ['pos-held-sales'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
       toast({ title: 'Sale completed', description: `Receipt: ${data.receiptNo || data.id}` });
       onComplete(data.id, data.receiptNo);
       onOpenChange(false);

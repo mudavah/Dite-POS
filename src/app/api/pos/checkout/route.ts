@@ -40,6 +40,7 @@ export async function POST(request: Request) {
       paymentMethod: validated.data.paymentMethod,
       amountPaid: validated.data.amountPaid,
       changeAmount,
+      paymentStatus: 'COMPLETED',
       notes: validated.data.notes,
       items: {
         create: items.map((item) => ({
