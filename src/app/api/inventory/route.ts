@@ -95,10 +95,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Inventory not found' }, { status: 404 });
   }
 
-  if (totalStock !== undefined && session.user.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Only administrators can update total stock' }, { status: 403 });
-  }
-
   if (totalStock !== undefined) {
     await prisma.inventory.update({
       where: { id: inventoryId },
