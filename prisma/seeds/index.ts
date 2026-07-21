@@ -10,18 +10,6 @@ async function main() {
   const adminPassword = await hash('ChangeMe123!', 12);
   const cashierPassword = await hash('ChangeMe123!', 12);
 
-  const admin = await prisma.user.upsert({
-    where: { email: 'admin@shop.com' },
-    update: {},
-    create: {
-      email: 'admin@shop.com',
-      name: 'Admin User',
-      password: adminPassword,
-      role: 'ADMIN',
-      isActive: true,
-    },
-  });
-
   const branch = await prisma.branch.upsert({
     where: { code: 'HQ' },
     update: {},
@@ -31,6 +19,19 @@ async function main() {
       address: '123 Main Street, Nairobi',
       phone: '+254 700 000 000',
       email: 'hq@shop.com',
+      isActive: true,
+    },
+  });
+
+  const admin = await prisma.user.upsert({
+    where: { email: 'admin@shop.com' },
+    update: { branchId: branch.id },
+    create: {
+      email: 'admin@shop.com',
+      name: 'Admin User',
+      password: adminPassword,
+      role: 'ADMIN',
+      branchId: branch.id,
       isActive: true,
     },
   });
@@ -50,7 +51,7 @@ async function main() {
 
   const cashier = await prisma.user.upsert({
     where: { email: 'cashier@shop.com' },
-    update: {},
+    update: { branchId: branch.id },
     create: {
       email: 'cashier@shop.com',
       name: 'John Cashier',

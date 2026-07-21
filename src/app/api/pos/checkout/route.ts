@@ -18,6 +18,10 @@ export async function POST(request: Request) {
   const branchId = session.user.branchId as string;
   const cashierId = session.user.id;
 
+  if (!branchId) {
+    return NextResponse.json({ error: 'User is not assigned to a branch' }, { status: 400 });
+  }
+
   const sale = await prisma.sale.create({
     data: {
       branchId,
