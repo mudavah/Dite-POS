@@ -29,7 +29,7 @@ export async function POST(request: Request) {
       totalAmount: 0,
       paymentMethod: validated.data.paymentMethod,
       amountPaid: validated.data.amountPaid,
-      changeAmount: validated.data.amountPaid,
+      changeAmount: 0,
       notes: validated.data.notes,
       items: {
         create: validated.data.items.map((item) => ({
@@ -49,10 +49,11 @@ export async function POST(request: Request) {
   });
 
   const totalAmount = (sale as any).items.reduce((sum: number, item: any) => sum + item.total.toNumber(), 0) - sale.discountAmount.toNumber();
+  const changeAmount = Math.max(0, validated.data.amountPaid - totalAmount);
 
   await prisma.sale.update({
     where: { id: sale.id },
-    data: { totalAmount },
+    data: { totalAmount, changeAmount },
   });
 
   const settings = await prisma.branchSetting.findUnique({ where: { branchId } });
