@@ -1,11 +1,13 @@
 'use client';
 
 import * as React from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { X, Printer, Download } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { X, Printer, Download, Usb, Bluetooth, Wifi } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { useMiniPrinter } from '@/hooks/use-mini-printer';
+import { buildEscpos, type ReceiptData } from '@/lib/printer/receipt-template';
 
 interface ReceiptPreviewModalProps {
   saleId: string;
@@ -23,11 +25,24 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose }: ReceiptPrevi
     },
   });
 
+  const { data: printerConfigs = [] } = useQuery({
+    queryKey: ['printer-configs'],
+    queryFn: async () => {
+      const res = await fetch('/api/printer-configs');
+      if (!res.ok) throw new Error('Failed to fetch printer configs');
+      return res.json();
+    },
+  });
+
+  const printerConfig = printerConfigs[0];
+  const printerType = printerConfig?.type || 'NETWORK';
+  const { printer: miniPrinter, connect, print } = useMiniPrinter();
+
   const handlePrint = async () => {
     try {
       if (!data) return;
 
-      const receiptData = {
+      const receiptData: ReceiptData = {
         shopName: data.shopName || 'Dite POS',
         branchName: data.branchName,
         branchAddress: data.branchAddress,
@@ -57,11 +72,30 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose }: ReceiptPrevi
         footerText: data.footerText,
       };
 
+      if (printerType === 'USB' || printerType === 'BLUETOOTH') {
+        if (!miniPrinter.connected) {
+          const connected = await connect();
+          if (!connected) {
+            alert('Failed to connect to printer');
+            return;
+          }
+        }
+        const escposData = buildEscpos(receiptData, printerConfig?.paperSize || '80mm');
+        const success = await print(escposData);
+        if (success) {
+          alert('Receipt sent to printer');
+        } else {
+          alert(miniPrinter.error || 'Failed to print receipt');
+        }
+        return;
+      }
+
       const res = await fetch('/api/printer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'print',
+          config: printerType === 'NETWORK' ? { endpoint: printerConfig?.endpoint, paperSize: printerConfig?.paperSize } : undefined,
           data: receiptData,
         }),
       });
@@ -81,6 +115,7 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose }: ReceiptPrevi
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
+            <Printer className="h-5 w-5" />
             Receipt Preview
           </DialogTitle>
           <DialogDescription>
@@ -96,7 +131,7 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose }: ReceiptPrevi
           <div className="space-y-4">
             <div className="rounded-lg border border-border bg-muted/30 p-4 font-mono text-sm space-y-2">
               <div className="text-center border-b border-dashed border-border pb-2">
-                <p className="font-bold text-lg">DITE POS</p>
+                <p className="font-bold text-lg">{data?.shopName || 'DITE POS'}</p>
                 <p className="text-xs text-muted-foreground">Point of Sale System</p>
               </div>
               <div className="flex justify-between text-xs">

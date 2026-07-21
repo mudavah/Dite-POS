@@ -361,6 +361,7 @@ model PrinterConfig {
   vendorId   String?
   productId  String?
   endpoint   String?
+  deviceId   String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
