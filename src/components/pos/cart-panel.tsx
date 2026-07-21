@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Minus, Plus, Trash2, ClipboardList, Tag, User, X, RotateCcw } from 'lucide-react';
+import { Minus, Plus, Trash2, ClipboardList, Tag, User, X, RotateCcw, Clock } from 'lucide-react';
 import { Button, Card, CardHeader, CardTitle, CardContent, Badge, Input } from '@/components/ui';
 import { formatCurrency } from '@/lib/utils';
 
@@ -34,6 +34,7 @@ interface CartPanelProps {
   onRecallSale: () => void;
   onCheckout: () => void;
   onOpenSummary: () => void;
+  onOpenPendingSales: () => void;
   selectedCustomer: Customer | null;
   onSelectCustomer: (customer: Customer | null) => void;
   onUpdateItemNote: (id: string, notes: string) => void;
@@ -49,6 +50,7 @@ export function CartPanel({
   onRecallSale,
   onCheckout,
   onOpenSummary,
+  onOpenPendingSales,
   selectedCustomer,
   onSelectCustomer,
   onUpdateItemNote,
@@ -262,6 +264,10 @@ export function CartPanel({
                 Hold
               </Button>
             </div>
+            <Button variant="outline" onClick={onOpenPendingSales} className="w-full h-11 gap-2">
+              <Clock className="h-4 w-4" />
+              Pending Sales
+            </Button>
             <Button onClick={onCheckout} className="w-full h-12 text-base font-semibold">
               Checkout (F2)
             </Button>

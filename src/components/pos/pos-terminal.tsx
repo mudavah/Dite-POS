@@ -9,6 +9,7 @@ import { CheckoutModal } from '@/components/pos/checkout-modal';
 import { HeldSalesModal } from '@/components/pos/held-sales-modal';
 import { CashierSummaryModal } from '@/components/pos/cashier-summary-modal';
 import { ReceiptPreviewModal } from '@/components/pos/receipt-preview-modal';
+import { PendingSalesModal } from '@/components/pos/pending-sales-modal';
 import { Button, Badge } from '@/components/ui';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/toast';
@@ -73,6 +74,7 @@ export function PosTerminal({ user }: PosTerminalProps) {
   const [showCheckout, setShowCheckout] = React.useState(false);
   const [showHeldSales, setShowHeldSales] = React.useState(false);
   const [showCashierSummary, setShowCashierSummary] = React.useState(false);
+  const [showPendingSales, setShowPendingSales] = React.useState(false);
   const [lastSale, setLastSale] = React.useState<{ id: string; receiptNo?: string } | null>(null);
   const [searchFocused, setSearchFocused] = React.useState(false);
 
@@ -220,11 +222,15 @@ export function PosTerminal({ user }: PosTerminalProps) {
       if (showCheckout) setShowCheckout(false);
       if (showHeldSales) setShowHeldSales(false);
       if (showCashierSummary) setShowCashierSummary(false);
+      if (showPendingSales) setShowPendingSales(false);
+    },
+    'Ctrl+p': () => {
+      setShowPendingSales(true);
     },
     'Ctrl+h': () => {
       handleHoldSale();
     },
-  }, [cart.length, showCheckout, showHeldSales, showCashierSummary, searchFocused]);
+  }, [cart.length, showCheckout, showHeldSales, showCashierSummary, showPendingSales, searchFocused]);
 
   return (
     <div className="flex h-[calc(100vh-4rem)] gap-4">
@@ -242,6 +248,7 @@ export function PosTerminal({ user }: PosTerminalProps) {
           onRecallSale={() => setShowHeldSales(true)}
           onCheckout={() => setShowCheckout(true)}
           onOpenSummary={() => setShowCashierSummary(true)}
+          onOpenPendingSales={() => setShowPendingSales(true)}
           selectedCustomer={selectedCustomer}
           onSelectCustomer={setSelectedCustomer}
           onUpdateItemNote={updateItemNote}
@@ -267,6 +274,12 @@ export function PosTerminal({ user }: PosTerminalProps) {
         open={showCashierSummary}
         onOpenChange={setShowCashierSummary}
         userId={user.id}
+      />
+
+      <PendingSalesModal
+        open={showPendingSales}
+        onOpenChange={setShowPendingSales}
+        onComplete={handleCheckoutComplete}
       />
 
       {lastSale && (

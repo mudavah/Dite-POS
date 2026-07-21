@@ -5,12 +5,13 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, ShoppingCart, Package, Warehouse, BarChart3, Settings, Users, Store, LogOut } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Package, Warehouse, BarChart3, Settings, Users, Store, LogOut, Clock } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['ADMIN'] },
   { href: '/pos', label: 'POS', icon: ShoppingCart, roles: ['ADMIN', 'CASHIER'] },
+  { href: '/pending-sales', label: 'Pending Sales', icon: Clock, roles: ['ADMIN', 'CASHIER'] },
   { href: '/products', label: 'Products', icon: Package, roles: ['ADMIN'] },
   { href: '/inventory', label: 'Inventory', icon: Warehouse, roles: ['ADMIN'] },
   { href: '/reports', label: 'Reports', icon: BarChart3, roles: ['ADMIN'] },
