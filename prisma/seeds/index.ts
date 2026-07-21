@@ -1,6 +1,10 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { hash } from 'bcryptjs';
+import dotenv from 'dotenv';
+import path from 'path';
+
+dotenv.config({ path: path.resolve(__dirname, '..', '..', '.env') });
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg(process.env.DATABASE_URL || ''),
@@ -13,10 +17,22 @@ async function main() {
   const adminPassword = await hash(ADMIN_PASSWORD, 12);
   const cashierPassword = await hash(CASHIER_PASSWORD, 12);
 
-  const branch = await prisma.branch.upsert({
-    where: { code: 'HQ' },
-    update: {},
-    create: {
+  await prisma.heldSale.deleteMany({});
+  await prisma.receipt.deleteMany({});
+  await prisma.saleItem.deleteMany({});
+  await prisma.sale.deleteMany({});
+  await prisma.stockMovement.deleteMany({});
+  await prisma.inventory.deleteMany({});
+  await prisma.product.deleteMany({});
+  await prisma.category.deleteMany({});
+  await prisma.user.deleteMany({});
+  await prisma.printerConfig.deleteMany({});
+  await prisma.etrsConfig.deleteMany({});
+  await prisma.branchSetting.deleteMany({});
+  await prisma.branch.deleteMany({});
+
+  const branch = await prisma.branch.create({
+    data: {
       name: 'Main Branch',
       code: 'HQ',
       address: '123 Main Street, Nairobi',
@@ -26,10 +42,8 @@ async function main() {
     },
   });
 
-  const admin = await prisma.user.upsert({
-    where: { email: 'admin@shop.com' },
-    update: { branchId: branch.id },
-    create: {
+  const admin = await prisma.user.create({
+    data: {
       email: 'admin@shop.com',
       name: 'Admin User',
       password: adminPassword,
@@ -39,28 +53,8 @@ async function main() {
     },
   });
 
-  await prisma.user.update({
-    where: { id: admin.id },
-    data: { branchId: branch.id },
-  });
-
-  await prisma.branchSetting.upsert({
-    where: { branchId: branch.id },
-    update: {},
-    create: {
-      branchId: branch.id,
-      receiptPrefix: 'RCP',
-      receiptNextNum: 1,
-      currency: 'KES',
-      currencySymbol: 'KSh',
-      footerText: 'Thank you for your purchase!',
-    },
-  });
-
-  const cashier = await prisma.user.upsert({
-    where: { email: 'cashier@shop.com' },
-    update: { branchId: branch.id },
-    create: {
+  const cashier = await prisma.user.create({
+    data: {
       email: 'cashier@shop.com',
       name: 'John Cashier',
       password: cashierPassword,
@@ -70,18 +64,22 @@ async function main() {
     },
   });
 
-  await prisma.user.update({
-    where: { id: cashier.id },
-    data: { branchId: branch.id },
+  await prisma.branchSetting.create({
+    data: {
+      branchId: branch.id,
+      receiptPrefix: 'RCP',
+      receiptNextNum: 1,
+      currency: 'KES',
+      currencySymbol: 'KSh',
+      footerText: 'Thank you for your purchase!',
+    },
   });
 
-  await prisma.category.deleteMany({});
   const categories = await Promise.all([
     prisma.category.create({ data: { id: 'cat-1', name: 'CCTV', description: 'CCTV cameras and accessories' } }),
     prisma.category.create({ data: { id: 'cat-2', name: 'Internet', description: 'Internet services and devices' } }),
   ]);
 
-  await prisma.product.deleteMany({});
   const products = [
     { name: 'CCTV Camera HD', sku: 'CCTV-001', barcode: '5901234123457', price: 3500, costPrice: 2200, categoryId: categories[0].id },
     { name: 'CCTV DVR 4CH', sku: 'CCTV-002', barcode: '5901234123458', price: 8000, costPrice: 5000, categoryId: categories[0].id },
@@ -91,15 +89,14 @@ async function main() {
     { name: 'Ethernet Cable 50m', sku: 'NET-003', barcode: '5901234123462', price: 1200, costPrice: 700, categoryId: categories[1].id },
   ];
 
+  const createdProducts = [];
   for (const p of products) {
-    await prisma.product.create({
+    const product = await prisma.product.create({
       data: { ...p, lowStockThreshold: 5, isActive: true },
     });
+    createdProducts.push(product);
   }
 
-  const createdProducts = await prisma.product.findMany();
-
-  await prisma.inventory.deleteMany({ where: { branchId: branch.id } });
   for (const product of createdProducts) {
     const totalStock = Math.floor(Math.random() * 100) + 20;
     await prisma.inventory.create({
@@ -112,10 +109,8 @@ async function main() {
     });
   }
 
-  await prisma.printerConfig.upsert({
-    where: { id: 'printer-default' },
-    update: {},
-    create: {
+  await prisma.printerConfig.create({
+    data: {
       id: 'printer-default',
       branchId: branch.id,
       name: 'Default Thermal Printer',
@@ -127,10 +122,8 @@ async function main() {
     },
   });
 
-  await prisma.etrsConfig.upsert({
-    where: { branchId: branch.id },
-    update: {},
-    create: {
+  await prisma.etrsConfig.create({
+    data: {
       branchId: branch.id,
       isActive: true,
       isSimulated: true,
