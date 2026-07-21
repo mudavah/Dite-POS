@@ -65,17 +65,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const settings = await prisma.branchSetting.findUnique({ where: { branchId: sale.branchId } });
-  const receiptNo = `${settings?.receiptPrefix || 'RCP'}-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(settings?.receiptNextNum || 1).padStart(5, '0')}`;
+  if (!settings) {
+    return NextResponse.json({ error: 'Branch settings not found' }, { status: 404 });
+  }
+
+  const updatedSettings = await prisma.branchSetting.update({
+    where: { branchId: sale.branchId },
+    data: { receiptNextNum: { increment: 1 } },
+  });
+  const receiptNo = `${settings.receiptPrefix || 'RCP'}-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(updatedSettings.receiptNextNum).padStart(5, '0')}`;
 
   await prisma.receipt.upsert({
     where: { saleId: sale.id },
     update: { receiptNo, printedAt: new Date() },
     create: { saleId: sale.id, receiptNo, branchId: sale.branchId },
-  });
-
-  await prisma.branchSetting.update({
-    where: { branchId: sale.branchId },
-    data: { receiptNextNum: { increment: 1 } },
   });
 
   return NextResponse.json({

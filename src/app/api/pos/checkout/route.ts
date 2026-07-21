@@ -94,13 +94,11 @@ export async function POST(request: Request) {
         throw new Error('Branch settings not found');
       }
 
-      const nextNumResult = await tx.$queryRaw<{ next_num: number }[]>`
-        UPDATE branch_settings
-        SET receipt_next_num = receipt_next_num + 1
-        WHERE branch_id = ${branchId}
-        RETURNING receipt_next_num AS next_num
-      `;
-      const nextNum = nextNumResult[0]?.next_num || (settings.receiptNextNum + 1);
+      const updatedSettings = await tx.branchSetting.update({
+        where: { branchId },
+        data: { receiptNextNum: { increment: 1 } },
+      });
+      const nextNum = updatedSettings.receiptNextNum;
       const receiptNo = `${settings.receiptPrefix || 'RCP'}-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(nextNum).padStart(5, '0')}`;
 
       await tx.receipt.create({
