@@ -136,11 +136,24 @@ npm run db:studio    # Open Prisma Studio
 ## Environment Variables
 
 ```env
+# Database (required)
 DATABASE_URL="postgresql://user:password@localhost:5432/ditepos?schema=public"
-AUTH_SECRET="your-super-secret-auth-key-change-this-in-production"
+
+# NextAuth (required)
+AUTH_SECRET="your-super-secret-auth-key-min-32-chars-change-in-production"
 AUTH_URL="http://localhost:3000"
+
+# App (required)
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 NEXT_PUBLIC_APP_NAME="Dite POS"
+
+# Environment (optional)
+NODE_ENV="production"
+LOG_LEVEL="info"
+
+# Seed Script (optional - defaults to ChangeMe123! if unset)
+SEED_ADMIN_PASSWORD="your-secure-admin-password"
+SEED_CASHIER_PASSWORD="your-secure-cashier-password"
 ```
 
 ## User Roles
@@ -170,25 +183,82 @@ NEXT_PUBLIC_APP_NAME="Dite POS"
 
 ## Deployment
 
+### Production Checklist
+
+- [ ] Set `NODE_ENV=production`
+- [ ] Use a strong `AUTH_SECRET` (min 32 characters, random)
+- [ ] Configure `DATABASE_URL` with connection pooling (e.g., PgBouncer)
+- [ ] Set `NEXT_PUBLIC_APP_URL` to your production domain
+- [ ] Run `npm run db:migrate` before first deploy
+- [ ] Enable HTTPS with valid SSL certificate
+- [ ] Configure firewall to allow only ports 80, 443, and 5432
+- [ ] Set up automated database backups
+
+### Docker (Recommended)
+
+```bash
+# Build and start with Docker Compose
+docker compose up -d --build
+
+# Run database migrations
+docker compose exec app npx prisma migrate deploy
+
+# Seed initial data
+docker compose exec app npm run db:seed
+
+# View logs
+docker compose logs -f app
+```
+
 ### Vercel + Neon PostgreSQL
 
 1. Push your code to GitHub
 2. Import project in Vercel
-3. Add environment variables
-4. Deploy
+3. Add environment variables from `.env.example`
+4. Enable "Production Environment Variables"
+5. Deploy
 
 ### Database Setup
 
 ```bash
-# On Neon, create a new PostgreSQL database
-# Copy the connection string to DATABASE_URL
+# Generate Prisma client
+npm run db:generate
 
-# Run migrations
-npm run db:push
+# Create and apply migrations
+npm run db:migrate
 
-# Seed data
+# Seed initial data
 npm run db:seed
 ```
+
+### Health Check
+
+The app exposes a health endpoint at `GET /api/health` that returns:
+
+```json
+{
+  "status": "healthy",
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "environment": "production",
+  "database": { "status": "healthy" }
+}
+```
+
+Use this for load balancer health checks and monitoring.
+
+### Environment Variables Reference
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | PostgreSQL connection string with pooling |
+| `AUTH_SECRET` | Yes | NextAuth secret (min 32 chars, random) |
+| `AUTH_URL` | Yes | Canonical app URL |
+| `NEXT_PUBLIC_APP_URL` | Yes | Public app URL (exposed to browser) |
+| `NEXT_PUBLIC_APP_NAME` | No | App name (default: "Dite POS") |
+| `NODE_ENV` | No | Environment (default: "development") |
+| `LOG_LEVEL` | No | Log level: debug, info, warn, error (default: warn in production) |
+| `SEED_ADMIN_PASSWORD` | No | Admin seed password |
+| `SEED_CASHIER_PASSWORD` | No | Cashier seed password |
 
 ## Documentation
 

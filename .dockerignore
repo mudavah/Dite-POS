@@ -1,0 +1,10 @@
+node_modules
+.next
+.git
+.env*.local
+*.log
+coverage
+.vitest
+prisma/migrations
+.DS_Store
+Thumbs.db
