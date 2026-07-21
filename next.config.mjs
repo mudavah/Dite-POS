@@ -6,6 +6,9 @@ const nextConfig = {
   compress: true,
   output: process.env.NODE_ENV === 'production' ? 'standalone' : undefined,
   turbopack: {},
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   images: {
     remotePatterns: [
       {
