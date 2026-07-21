@@ -3,9 +3,10 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, Button, Input, Badge } from '@/components/ui';
-import { ArrowLeft, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, Upload } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 
 async function fetchProduct(id: string) {
   const res = await fetch(`/api/products/${id}`);
@@ -56,6 +57,7 @@ const emptyForm = {
   categoryId: '',
   lowStockThreshold: '10',
   isActive: true,
+  image: '',
 };
 
 export default function ProductEditPage({ params }: { params: { id: string } }) {
@@ -73,22 +75,26 @@ export default function ProductEditPage({ params }: { params: { id: string } }) 
 
   const initialForm = useMemo(() => {
     if (product) {
-      return {
-        name: product.name || '',
-        sku: product.sku || '',
-        barcode: product.barcode || '',
-        description: product.description || '',
-        price: product.price?.toString() || '',
-        costPrice: product.costPrice?.toString() || '',
-        categoryId: product.categoryId || '',
-        lowStockThreshold: product.lowStockThreshold?.toString() || '10',
-        isActive: product.isActive ?? true,
-      };
+    return {
+      name: product.name || '',
+      sku: product.sku || '',
+      barcode: product.barcode || '',
+      description: product.description || '',
+      price: product.price?.toString() || '',
+      costPrice: product.costPrice?.toString() || '',
+      categoryId: product.categoryId || '',
+      lowStockThreshold: product.lowStockThreshold?.toString() || '10',
+      isActive: product.isActive ?? true,
+      image: product.image || '',
+    };
     }
     return emptyForm;
   }, [product]);
 
   const [form, setForm] = useState(initialForm);
+  const [imagePreview, setImagePreview] = useState<string | null>(product?.image || null);
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === 'ADMIN';
 
   const updateMutation = useMutation({
     mutationFn: (data: any) => (isNew ? createProduct(data) : updateProduct(params.id, data)),
@@ -99,6 +105,22 @@ export default function ProductEditPage({ params }: { params: { id: string } }) 
   });
 
   const deleteMutation = useMutation({ mutationFn: deleteProduct, onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['products'] }); router.push('/products'); } });
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+      setForm({ ...form, image: reader.result as string });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleImageDelete = () => {
+    setImagePreview(null);
+    setForm({ ...form, image: '' });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -202,6 +224,29 @@ export default function ProductEditPage({ params }: { params: { id: string } }) 
               />
               <label htmlFor="isActive" className="text-sm font-medium">Active</label>
             </div>
+            {isAdmin && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Product Image</label>
+                <div className="flex items-center gap-4">
+                  {imagePreview ? (
+                    <div className="relative">
+                      <img src={imagePreview} alt="Preview" className="h-24 w-24 object-cover rounded-md border" />
+                      <Button type="button" variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6" onClick={handleImageDelete}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="h-24 w-24 flex items-center justify-center rounded-md border border-dashed text-muted-foreground text-xs">
+                      No image
+                    </div>
+                  )}
+                  <div>
+                    <Input type="file" accept="image/*" onChange={handleImageUpload} className="w-full" />
+                    <p className="text-xs text-muted-foreground mt-1">Upload product image (JPG, PNG)</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 

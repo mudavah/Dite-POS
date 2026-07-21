@@ -181,9 +181,14 @@ export default function ProductsPage() {
                         />
                       </td>
                       <td className="p-3">
-                        <div>
-                          <p className="font-medium">{product.name}</p>
-                          <p className="text-xs text-muted-foreground line-clamp-1">{product.description}</p>
+                        <div className="flex items-center gap-3">
+                          {product.image && (
+                            <img src={product.image} alt={product.name} className="h-10 w-10 rounded-md object-cover border" />
+                          )}
+                          <div>
+                            <p className="font-medium">{product.name}</p>
+                            <p className="text-xs text-muted-foreground line-clamp-1">{product.description}</p>
+                          </div>
                         </div>
                       </td>
                       <td className="p-3 font-mono">{product.sku}</td>

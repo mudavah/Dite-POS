@@ -67,30 +67,22 @@ async function main() {
     prisma.category.upsert({
       where: { id: 'cat-1' },
       update: {},
-      create: { id: 'cat-1', name: 'Electronics', description: 'Electronic devices and accessories' },
+      create: { id: 'cat-1', name: 'CCTV', description: 'CCTV cameras and accessories' },
     }),
     prisma.category.upsert({
       where: { id: 'cat-2' },
       update: {},
-      create: { id: 'cat-2', name: 'Groceries', description: 'Food and household items' },
-    }),
-    prisma.category.upsert({
-      where: { id: 'cat-3' },
-      update: {},
-      create: { id: 'cat-3', name: 'Clothing', description: 'Apparel and fashion' },
+      create: { id: 'cat-2', name: 'Internet', description: 'Internet services and devices' },
     }),
   ]);
 
   const products = [
-    { name: 'Wireless Headphones', sku: 'ELEC-001', barcode: '5901234123457', price: 3500, costPrice: 2200, categoryId: categories[0].id },
-    { name: 'USB-C Cable', sku: 'ELEC-002', barcode: '5901234123458', price: 800, costPrice: 400, categoryId: categories[0].id },
-    { name: 'Smart Watch', sku: 'ELEC-003', barcode: '5901234123459', price: 12500, costPrice: 8000, categoryId: categories[0].id },
-    { name: 'Rice 5kg', sku: 'GROC-001', barcode: '5901234123460', price: 650, costPrice: 500, categoryId: categories[1].id },
-    { name: 'Cooking Oil 2L', sku: 'GROC-002', barcode: '5901234123461', price: 450, costPrice: 320, categoryId: categories[1].id },
-    { name: 'Sugar 2kg', sku: 'GROC-003', barcode: '5901234123462', price: 220, costPrice: 170, categoryId: categories[1].id },
-    { name: 'Men T-Shirt', sku: 'CLO-001', barcode: '5901234123463', price: 1200, costPrice: 700, categoryId: categories[2].id },
-    { name: 'Women Dress', sku: 'CLO-002', barcode: '5901234123464', price: 2500, costPrice: 1500, categoryId: categories[2].id },
-    { name: 'Sneakers', sku: 'CLO-003', barcode: '5901234123465', price: 4500, costPrice: 2800, categoryId: categories[2].id },
+    { name: 'CCTV Camera HD', sku: 'CCTV-001', barcode: '5901234123457', price: 3500, costPrice: 2200, categoryId: categories[0].id },
+    { name: 'CCTV DVR 4CH', sku: 'CCTV-002', barcode: '5901234123458', price: 8000, costPrice: 5000, categoryId: categories[0].id },
+    { name: 'CCTV Cable 100m', sku: 'CCTV-003', barcode: '5901234123459', price: 2500, costPrice: 1500, categoryId: categories[0].id },
+    { name: 'Router WiFi 6', sku: 'NET-001', barcode: '5901234123460', price: 6500, costPrice: 4500, categoryId: categories[1].id },
+    { name: 'Fiber Modem', sku: 'NET-002', barcode: '5901234123461', price: 4200, costPrice: 3000, categoryId: categories[1].id },
+    { name: 'Ethernet Cable 50m', sku: 'NET-003', barcode: '5901234123462', price: 1200, costPrice: 700, categoryId: categories[1].id },
   ];
 
   for (const p of products) {
