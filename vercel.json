@@ -1,0 +1,24 @@
+{
+  "buildCommand": "npm run db:generate && npm run build",
+  "outputDirectory": ".next",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "regions": ["iad1"],
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "functions": {
+    "src/app/api/pos/checkout/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/sales/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/branches/transfer/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/printer/route.ts": {
+      "maxDuration": 30
+    }
+  }
+}
