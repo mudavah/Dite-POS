@@ -2,9 +2,10 @@ import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import { prisma } from '@/lib/prisma';
 import { compare } from 'bcryptjs';
-import { loginSchema, type LoginInput } from '@/lib/validators';
+import { loginSchema } from '@/lib/validators';
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  trustHost: true,
   providers: [
     Credentials({
       credentials: {
@@ -59,4 +60,4 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: process.env.AUTH_SECRET,
 });
 
-export const { GET, POST } = handlers as any;
+export const { GET, POST } = handlers;
