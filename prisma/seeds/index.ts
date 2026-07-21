@@ -36,6 +36,11 @@ async function main() {
     },
   });
 
+  await prisma.user.update({
+    where: { id: admin.id },
+    data: { branchId: branch.id },
+  });
+
   await prisma.branchSetting.upsert({
     where: { branchId: branch.id },
     update: {},
@@ -60,6 +65,11 @@ async function main() {
       branchId: branch.id,
       isActive: true,
     },
+  });
+
+  await prisma.user.update({
+    where: { id: cashier.id },
+    data: { branchId: branch.id },
   });
 
   await prisma.category.deleteMany({});
