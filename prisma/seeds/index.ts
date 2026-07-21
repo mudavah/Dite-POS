@@ -63,19 +63,13 @@ async function main() {
     },
   });
 
+  await prisma.category.deleteMany({});
   const categories = await Promise.all([
-    prisma.category.upsert({
-      where: { id: 'cat-1' },
-      update: {},
-      create: { id: 'cat-1', name: 'CCTV', description: 'CCTV cameras and accessories' },
-    }),
-    prisma.category.upsert({
-      where: { id: 'cat-2' },
-      update: {},
-      create: { id: 'cat-2', name: 'Internet', description: 'Internet services and devices' },
-    }),
+    prisma.category.create({ data: { id: 'cat-1', name: 'CCTV', description: 'CCTV cameras and accessories' } }),
+    prisma.category.create({ data: { id: 'cat-2', name: 'Internet', description: 'Internet services and devices' } }),
   ]);
 
+  await prisma.product.deleteMany({});
   const products = [
     { name: 'CCTV Camera HD', sku: 'CCTV-001', barcode: '5901234123457', price: 3500, costPrice: 2200, categoryId: categories[0].id },
     { name: 'CCTV DVR 4CH', sku: 'CCTV-002', barcode: '5901234123458', price: 8000, costPrice: 5000, categoryId: categories[0].id },
@@ -86,20 +80,17 @@ async function main() {
   ];
 
   for (const p of products) {
-    await prisma.product.upsert({
-      where: { sku: p.sku },
-      update: {},
-      create: { ...p, lowStockThreshold: 5, isActive: true },
+    await prisma.product.create({
+      data: { ...p, lowStockThreshold: 5, isActive: true },
     });
   }
 
   const createdProducts = await prisma.product.findMany();
 
+  await prisma.inventory.deleteMany({ where: { branchId: branch.id } });
   for (const product of createdProducts) {
-    await prisma.inventory.upsert({
-      where: { branchId_productId: { branchId: branch.id, productId: product.id } },
-      update: {},
-      create: {
+    await prisma.inventory.create({
+      data: {
         branchId: branch.id,
         productId: product.id,
         quantity: Math.floor(Math.random() * 100) + 10,
