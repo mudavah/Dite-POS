@@ -12,15 +12,18 @@ export default function LoginForm() {
   const [password, setPassword] = React.useState('');
   const [showPassword, setShowPassword] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
+  const [loginError, setLoginError] = React.useState<string | null>(null);
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setLoginError(null);
 
     const validated = loginSchema.safeParse({ email, password });
     if (!validated.success) {
-      toast({ title: 'Invalid credentials', description: validated.error.flatten().fieldErrors.email?.[0] || validated.error.flatten().fieldErrors.password?.[0], variant: 'destructive' });
+      const errorMsg = validated.error.flatten().fieldErrors.email?.[0] || validated.error.flatten().fieldErrors.password?.[0] || 'Invalid input';
+      setLoginError(errorMsg);
       setIsLoading(false);
       return;
     }
@@ -33,12 +36,14 @@ export default function LoginForm() {
       });
 
       if (result?.error) {
-        toast({ title: 'Login failed', description: 'Invalid email or password', variant: 'destructive' });
-      } else {
+        setLoginError('Invalid email or password');
+      } else if (result?.ok) {
         window.location.href = '/pos';
+      } else {
+        setLoginError('Login failed. Please try again.');
       }
     } catch {
-      toast({ title: 'Login failed', description: 'An error occurred', variant: 'destructive' });
+      setLoginError('An error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -54,18 +59,21 @@ export default function LoginForm() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Email</label>
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@shop.com" required />
+              <label htmlFor="email" className="text-sm font-medium">Email</label>
+              <Input id="email" name="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@shop.com" required autoComplete="email" />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Password</label>
+              <label htmlFor="password" className="text-sm font-medium">Password</label>
               <div className="relative">
-                <Input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <Input id="password" name="password" type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required autoComplete="current-password" />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" aria-label={showPassword ? 'Hide password' : 'Show password'}>
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
+            {loginError && (
+              <div className="text-sm text-destructive bg-destructive/10 p-2 rounded">{loginError}</div>
+            )}
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? 'Signing in...' : 'Sign In'}
             </Button>
