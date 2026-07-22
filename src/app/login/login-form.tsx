@@ -35,14 +35,18 @@ export default function LoginForm() {
         redirect: false,
       });
 
+      console.log('Login result:', result);
+
       if (result?.error) {
-        setLoginError('Invalid email or password');
+        const errorMsg = result.error === 'CredentialsSignin' ? 'Invalid email or password' : `Login failed: ${result.error}`;
+        setLoginError(errorMsg);
       } else if (result?.ok) {
         window.location.href = '/pos';
       } else {
         setLoginError('Login failed. Please try again.');
       }
-    } catch {
+    } catch (error) {
+      console.error('Login error:', error);
       setLoginError('An error occurred. Please try again.');
     } finally {
       setIsLoading(false);
