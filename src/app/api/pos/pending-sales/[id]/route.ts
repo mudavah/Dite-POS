@@ -37,7 +37,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       changeAmount: changeAmount ?? sale.changeAmount,
       totalAmount,
     },
-    include: { items: true, cashier: true, branch: true, receipts: true },
+    include: { items: true, cashier: { select: { name: true, email: true } }, branch: { select: { name: true, code: true } }, receipts: { select: { receiptNo: true } } },
   });
 
   for (const item of sale.items) {

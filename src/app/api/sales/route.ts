@@ -24,7 +24,7 @@ export async function GET(request: Request) {
 
   const sales = await prisma.sale.findMany({
     where,
-    include: { cashier: true, branch: true, items: { include: { product: true } }, payments: true, receipts: true },
+    include: { cashier: { select: { name: true, email: true } }, branch: { select: { name: true, code: true } }, items: { include: { product: { select: { name: true, sku: true } } } }, payments: { select: { method: true, amount: true } }, receipts: { select: { receiptNo: true } } },
     orderBy: { createdAt: 'desc' },
     take: 100,
   });
@@ -32,6 +32,8 @@ export async function GET(request: Request) {
   return NextResponse.json(
     sales.map((sale) => ({
       ...sale,
+      cashier: sale.cashier ? { name: sale.cashier.name, email: sale.cashier.email } : null,
+      branch: sale.branch ? { name: sale.branch.name, code: sale.branch.code } : null,
       subtotal: sale.subtotal.toNumber(),
       discountAmount: sale.discountAmount.toNumber(),
       totalAmount: sale.totalAmount.toNumber(),

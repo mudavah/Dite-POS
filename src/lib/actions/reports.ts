@@ -43,7 +43,7 @@ export async function getDashboardStats() {
     prisma.sale.findMany({
       take: 10,
       orderBy: { createdAt: 'desc' },
-      include: { cashier: true, branch: true },
+      include: { cashier: { select: { name: true, email: true } }, branch: { select: { name: true, code: true } } },
     }),
     prisma.saleItem.groupBy({
       by: ['productId'],
@@ -99,6 +99,7 @@ export async function getDashboardStats() {
     profit: revenue,
     recentSales: recentSales.map((sale) => ({
       ...sale,
+      cashier: sale.cashier ? { name: sale.cashier.name, email: sale.cashier.email } : null,
       totalAmount: sale.totalAmount.toNumber(),
       subtotal: sale.subtotal.toNumber(),
     })),
