@@ -212,11 +212,46 @@ docker compose logs -f app
 
 ### Vercel + Neon PostgreSQL
 
-1. Push your code to GitHub
-2. Import project in Vercel
-3. Add environment variables from `.env.example`
-4. Enable "Production Environment Variables"
-5. Deploy
+#### Step 1: Create a new Vercel project
+1. Push this code to a **new** GitHub repository (fresh account = fresh repo)
+2. In Vercel, click **"Add New..." → "Project"**
+3. Import the new GitHub repository
+4. Vercel will auto-detect Next.js
+
+#### Step 2: Set environment variables in Vercel
+Before deploying, add these in **Vercel → Settings → Environment Variables**:
+
+| Variable | Value |
+|----------|-------|
+| `DATABASE_URL` | Your Neon PostgreSQL connection string |
+| `AUTH_SECRET` | Generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` |
+| `AUTH_URL` | `https://your-project.vercel.app` (your actual Vercel URL) |
+| `NEXT_PUBLIC_APP_URL` | Same as `AUTH_URL` |
+| `NEXT_PUBLIC_APP_NAME` | `Dite POS` (optional) |
+
+Make sure these are set for **Production**, **Preview**, and **Development** environments.
+
+#### Step 3: Deploy
+Click **Deploy**. Vercel will build and deploy the app.
+
+#### Step 4: Seed the database
+After the first deploy, seed your database:
+```bash
+# Install Vercel CLI if needed
+npm i -g vercel
+
+# Pull environment variables
+vercel env pull .env
+
+# Run seed script
+npx prisma db push
+npx tsx prisma/seeds/index.ts
+```
+
+#### Step 5: Log in
+Use the seeded credentials:
+- **Admin:** `admin@shop.com` / `ChangeMe123!`
+- **Cashier:** `cashier@shop.com` / `ChangeMe123!`
 
 ### Database Setup
 
@@ -224,8 +259,8 @@ docker compose logs -f app
 # Generate Prisma client
 npm run db:generate
 
-# Create and apply migrations
-npm run db:migrate
+# Push schema to database
+npm run db:push
 
 # Seed initial data
 npm run db:seed
