@@ -11,7 +11,12 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const token = await getToken({ req: request, secret: process.env.AUTH_SECRET });
+  const token = await getToken({
+    req: request,
+    secret: process.env.AUTH_SECRET,
+    cookieName: process.env.NODE_ENV === 'production' ? '__Secure-authjs.session-token' : 'authjs.session-token',
+    secureCookie: process.env.NODE_ENV === 'production',
+  });
 
   const isPublicPath = publicPaths.some((path) => pathname.startsWith(path));
 
