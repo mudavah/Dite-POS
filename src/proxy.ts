@@ -12,6 +12,9 @@ export async function proxy(request: NextRequest) {
   }
 
   const token = await getToken({ req: request, secret: process.env.AUTH_SECRET });
+  
+  console.log('[proxy] pathname:', pathname, 'token:', token ? 'exists' : 'null');
+  
   const isPublicPath = publicPaths.some((path) => pathname.startsWith(path));
 
   if (!token && !isPublicPath) {
