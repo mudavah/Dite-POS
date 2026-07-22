@@ -20,26 +20,57 @@ export async function proxy(request: NextRequest) {
   const secretLength = rawSecret.length;
 
   const cookieNames = request.cookies.getAll().map((c) => c.name);
-  const sessionCookie = request.cookies.get('next-auth.session-token') || request.cookies.get('__Secure-next-auth.session-token');
-  const csrfToken = request.cookies.get('next-auth.csrf-token') || request.cookies.get('__Host-next-auth.csrf-token');
+  const sessionCookie =
+    request.cookies.get('authjs.session-token') || request.cookies.get('__Secure-authjs.session-token');
+  const csrfToken =
+    request.cookies.get('authjs.csrf-token') || request.cookies.get('__Host-authjs.csrf-token');
 
-  const token = await getToken({ req: request, secret: process.env.AUTH_SECRET });
+  const expectedSessionName =
+    process.env.NODE_ENV === 'production'
+      ? '__Secure-authjs.session-token'
+      : 'authjs.session-token';
+  const token = await getToken({
+    req: request,
+    secret: process.env.AUTH_SECRET,
+    cookieName: expectedSessionName,
+    secureCookie: process.env.NODE_ENV === 'production',
+  });
+  const fallbackToken =
+    token ?? (await getToken({ req: request, secret: process.env.AUTH_SECRET, cookieName: 'authjs.session-token' }));
 
+  const effectiveToken = token ?? fallbackToken;
   const sessionValue = sessionCookie?.value || '';
-  console.log('[proxy] pathname:', pathname, 'token:', token ? 'exists' : 'null', 'cookies:', cookieNames.length, 'sessionCookie:', sessionCookie ? 'present' : 'missing', 'sessionLen:', sessionValue.length, 'csrf:', csrfToken ? 'present' : 'missing', 'secretLoaded:', secretLoaded, 'secretLength:', secretLength);
+  console.log(
+    '[proxy] pathname:',
+    pathname,
+    'token:',
+    effectiveToken ? 'exists' : 'null',
+    'cookies:',
+    cookieNames.length,
+    'sessionCookie:',
+    sessionCookie ? 'present' : 'missing',
+    'sessionLen:',
+    sessionValue.length,
+    'csrf:',
+    csrfToken ? 'present' : 'missing',
+    'secretLoaded:',
+    secretLoaded,
+    'secretLength:',
+    secretLength
+  );
 
   const isPublicPath = publicPaths.some((path) => pathname.startsWith(path));
 
-  if (!token && !isPublicPath) {
+  if (!effectiveToken && !isPublicPath) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  if (token && pathname === '/login') {
+  if (effectiveToken && pathname === '/login') {
     return NextResponse.redirect(new URL('/pos', request.url));
   }
 
-  if (token) {
-    const role = token.role as string;
+  if (effectiveToken) {
+    const role = effectiveToken.role as string;
     const cashierOnlyPaths = ['/pos', '/pending-sales'];
     const adminOnlyPaths = [
       '/dashboard',
