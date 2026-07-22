@@ -10,6 +10,12 @@ declare module 'next-auth' {
       branchId?: string | null;
     };
   }
+
+  interface User {
+    id: string;
+    role: UserRole;
+    branchId?: string | null;
+  }
 }
 
 declare module 'next-auth/jwt' {

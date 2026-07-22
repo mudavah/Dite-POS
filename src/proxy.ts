@@ -11,10 +11,14 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  if (!process.env.AUTH_SECRET) {
+    console.error('[proxy] AUTH_SECRET is missing from environment');
+  }
+
   const token = await getToken({ req: request, secret: process.env.AUTH_SECRET });
-  
+
   console.log('[proxy] pathname:', pathname, 'token:', token ? 'exists' : 'null');
-  
+
   const isPublicPath = publicPaths.some((path) => pathname.startsWith(path));
 
   if (!token && !isPublicPath) {

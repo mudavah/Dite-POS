@@ -3,6 +3,9 @@ import Credentials from 'next-auth/providers/credentials';
 import { prisma } from '@/lib/prisma';
 import { compare } from 'bcryptjs';
 import { loginSchema } from '@/lib/validators';
+import { UserRole } from '@prisma/client';
+
+type AppUser = { id: string; email: string; name?: string | null; role: UserRole; branchId?: string | null };
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,
@@ -31,23 +34,23 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           name: user.name,
           role: user.role,
           branchId: user.branchId,
-        } as any;
+        } as AppUser;
       },
     }),
   ],
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id = (user as any).id as string;
-        token.role = (user as any).role;
-        token.branchId = (user as any).branchId;
+        token.id = (user as AppUser).id as string;
+        token.role = (user as AppUser).role;
+        token.branchId = (user as AppUser).branchId;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
-        session.user.role = token.role as any;
+        session.user.role = token.role as UserRole;
         session.user.branchId = token.branchId as string | undefined;
       }
       return session;
@@ -60,4 +63,5 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: process.env.AUTH_SECRET,
 });
 
-export const { GET, POST } = handlers as any;
+export const GET = handlers.GET;
+export const POST = handlers.POST;
