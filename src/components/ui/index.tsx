@@ -72,3 +72,10 @@ function Badge({ className, variant = 'default', ...props }: BadgeProps) {
 }
 
 export { Button, Input, Card, CardHeader, CardTitle, CardContent, Badge };
+export {
+  TooltipProvider,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from './tooltip';
+export { Sheet, SheetTrigger, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from './sheet';

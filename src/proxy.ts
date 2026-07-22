@@ -11,66 +11,20 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (!process.env.AUTH_SECRET) {
-    console.error('[proxy] AUTH_SECRET is missing from environment');
-  }
-
-  const rawSecret = process.env.AUTH_SECRET || '';
-  const secretLoaded = Boolean(rawSecret);
-  const secretLength = rawSecret.length;
-
-  const cookieNames = request.cookies.getAll().map((c) => c.name);
-  const sessionCookie =
-    request.cookies.get('authjs.session-token') || request.cookies.get('__Secure-authjs.session-token');
-  const csrfToken =
-    request.cookies.get('authjs.csrf-token') || request.cookies.get('__Host-authjs.csrf-token');
-
-  const expectedSessionName =
-    process.env.NODE_ENV === 'production'
-      ? '__Secure-authjs.session-token'
-      : 'authjs.session-token';
-  const token = await getToken({
-    req: request,
-    secret: process.env.AUTH_SECRET,
-    cookieName: expectedSessionName,
-    secureCookie: process.env.NODE_ENV === 'production',
-  });
-  const fallbackToken =
-    token ?? (await getToken({ req: request, secret: process.env.AUTH_SECRET, cookieName: 'authjs.session-token' }));
-
-  const effectiveToken = token ?? fallbackToken;
-  const sessionValue = sessionCookie?.value || '';
-  console.log(
-    '[proxy] pathname:',
-    pathname,
-    'token:',
-    effectiveToken ? 'exists' : 'null',
-    'cookies:',
-    cookieNames.length,
-    'sessionCookie:',
-    sessionCookie ? 'present' : 'missing',
-    'sessionLen:',
-    sessionValue.length,
-    'csrf:',
-    csrfToken ? 'present' : 'missing',
-    'secretLoaded:',
-    secretLoaded,
-    'secretLength:',
-    secretLength
-  );
+  const token = await getToken({ req: request, secret: process.env.AUTH_SECRET });
 
   const isPublicPath = publicPaths.some((path) => pathname.startsWith(path));
 
-  if (!effectiveToken && !isPublicPath) {
+  if (!token && !isPublicPath) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  if (effectiveToken && pathname === '/login') {
+  if (token && pathname === '/login') {
     return NextResponse.redirect(new URL('/pos', request.url));
   }
 
-  if (effectiveToken) {
-    const role = effectiveToken.role as string;
+  if (token) {
+    const role = token.role as string;
     const cashierOnlyPaths = ['/pos', '/pending-sales'];
     const adminOnlyPaths = [
       '/dashboard',
@@ -82,10 +36,7 @@ export async function proxy(request: NextRequest) {
     ];
 
     if (role === 'CASHIER') {
-      const isAdminPath = adminOnlyPaths.some((path) => {
-        if (path === '/') return false;
-        return pathname.startsWith(path);
-      });
+      const isAdminPath = adminOnlyPaths.some((path) => pathname.startsWith(path));
       if (isAdminPath) {
         return NextResponse.redirect(new URL('/pos', request.url));
       }
