@@ -5,21 +5,15 @@ import { compare } from 'bcryptjs';
 import { loginSchema } from '@/lib/validators';
 import { UserRole } from '@prisma/client';
 
+if (process.env.NODE_ENV === 'production') {
+  console.log('[auth] module loaded, AUTH_SECRET present:', !!process.env.AUTH_SECRET);
+}
+
 type AppUser = { id: string; email: string; name?: string | null; role: UserRole; branchId?: string | null };
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,
-  cookies: {
-    sessionToken: {
-      name: process.env.NODE_ENV === 'production' ? '__Secure-next-auth.session-token' : 'next-auth.session-token',
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: process.env.NODE_ENV === 'production',
-      },
-    },
-  },
+  debug: process.env.NODE_ENV === 'development',
   providers: [
     Credentials({
       credentials: {

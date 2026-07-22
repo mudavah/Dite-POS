@@ -35,8 +35,6 @@ export default function LoginForm() {
         redirect: false,
       });
 
-      console.log('Login result:', result);
-
       if (result?.error) {
         const errorMsg = result.error === 'CredentialsSignin' ? 'Invalid email or password' : `Login failed: ${result.error}`;
         setLoginError(errorMsg);
