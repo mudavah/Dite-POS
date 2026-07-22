@@ -15,9 +15,13 @@ export async function proxy(request: NextRequest) {
     console.error('[proxy] AUTH_SECRET is missing from environment');
   }
 
+  const cookieNames = request.cookies.getAll().map((c) => c.name);
+  const sessionCookie = request.cookies.get('next-auth.session-token') || request.cookies.get('__Secure-next-auth.session-token');
+  const csrfToken = request.cookies.get('next-auth.csrf-token') || request.cookies.get('__Host-next-auth.csrf-token');
+
   const token = await getToken({ req: request, secret: process.env.AUTH_SECRET });
 
-  console.log('[proxy] pathname:', pathname, 'token:', token ? 'exists' : 'null');
+  console.log('[proxy] pathname:', pathname, 'token:', token ? 'exists' : 'null', 'cookies:', cookieNames.length, 'sessionCookie:', sessionCookie ? 'present' : 'missing', 'csrf:', csrfToken ? 'present' : 'missing');
 
   const isPublicPath = publicPaths.some((path) => pathname.startsWith(path));
 
