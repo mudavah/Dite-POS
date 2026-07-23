@@ -46,6 +46,17 @@ export const syncEngine = {
           item.status = 'SYNCED';
           item.updatedAt = new Date().toISOString();
           await db.salesQueue.put(item);
+
+          const result = await response.json();
+          if (result.saleId) {
+            const receipt = await db.receipts.where('saleId').equals(item.entityId).first();
+            if (receipt) {
+              await db.receipts.update(receipt.id, {
+                status: 'SYNCED',
+                printedAt: new Date().toISOString(),
+              });
+            }
+          }
         } else if (response.status === 409) {
           item.status = 'CONFLICT';
           item.updatedAt = new Date().toISOString();

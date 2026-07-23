@@ -2,14 +2,12 @@
 
 import * as React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
 import { Printer, CheckCircle2, CreditCard, Banknote, Building2, Smartphone, Split } from 'lucide-react';
 import { Button, Input } from '@/components/ui';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/toast';
 import { formatCurrency } from '@/lib/utils';
 import { usePosStore } from '@/store/use-pos-store';
-import { syncEngine } from '@/lib/offline/sync-engine';
 
 interface CartItem {
   id: string;
@@ -34,6 +32,8 @@ interface CheckoutModalProps {
   onOpenChange: (open: boolean) => void;
   items: CartItem[];
   customer: Customer | null;
+  branchId: string;
+  cashierId: string;
   onComplete: (saleId: string, receiptNo?: string) => void;
 }
 
@@ -47,8 +47,7 @@ const paymentIcons: Record<PaymentMethod, React.ReactNode> = {
   SPLIT: <Split className="h-4 w-4" />,
 };
 
-export function CheckoutModal({ open, onOpenChange, items, customer, onComplete }: CheckoutModalProps) {
-  const router = useRouter();
+export function CheckoutModal({ open, onOpenChange, items, customer, branchId, cashierId, onComplete }: CheckoutModalProps) {
   const isOnline = usePosStore((s) => s.isOnline);
   const [method, setMethod] = React.useState<PaymentMethod>('CASH');
   const [cashReceived, setCashReceived] = React.useState('');
@@ -70,14 +69,9 @@ export function CheckoutModal({ open, onOpenChange, items, customer, onComplete 
   const checkoutMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) => {
       if (!isOnline) {
-        const queueId = await syncEngine.queueMutation({
-          entityType: 'sale',
-          entityId: crypto.randomUUID(),
-          action: 'CREATE',
-          payload: JSON.stringify(payload),
-          status: 'PENDING',
-        });
-        return { queued: true, queueId, payload };
+        const result = await usePosStore.getState().completeOfflineSale(payload, branchId, cashierId);
+        if (!result) throw new Error('Failed to save offline sale');
+        return { queued: true, ...result };
       }
 
       const res = await fetch('/api/pos/checkout', {
@@ -91,12 +85,13 @@ export function CheckoutModal({ open, onOpenChange, items, customer, onComplete 
       }
       return res.json();
     },
-    onSuccess: (data, payload) => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['pos-products'] });
       queryClient.invalidateQueries({ queryKey: ['pos-held-sales'] });
 
       if (data.queued) {
-        toast({ title: 'Sale queued for sync', description: 'Will complete when online' });
+        toast({ title: 'Sale completed offline', description: `Receipt: ${data.receiptNo} (Pending Sync)` });
+        onComplete(data.saleId, data.receiptNo);
         onOpenChange(false);
         resetForm();
         return;
@@ -106,11 +101,6 @@ export function CheckoutModal({ open, onOpenChange, items, customer, onComplete 
       onComplete(data.id, data.receiptNo);
       onOpenChange(false);
       resetForm();
-
-      const totalAmount = (payload as Record<string, unknown>).totalAmount as number;
-      const saleId = data.id;
-      const receiptNo = data.receiptNo;
-      router.push(`/checkout/complete?saleId=${saleId}&receiptNo=${encodeURIComponent(receiptNo || '')}&total=${totalAmount}`);
     },
     onError: (err: Error) => {
       toast({ title: 'Checkout failed', description: err.message, variant: 'destructive' });
@@ -192,7 +182,7 @@ export function CheckoutModal({ open, onOpenChange, items, customer, onComplete 
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5 text-success" />
-            Checkout
+            {isOnline ? 'Checkout' : 'Checkout (Offline)'}
           </DialogTitle>
           <DialogDescription>Complete payment for {items.length} item(s)</DialogDescription>
         </DialogHeader>
@@ -216,6 +206,11 @@ export function CheckoutModal({ open, onOpenChange, items, customer, onComplete 
             {customer && (
               <div className="text-sm text-muted-foreground">
                 Customer: <span className="font-medium text-foreground">{customer.name}</span>
+              </div>
+            )}
+            {!isOnline && (
+              <div className="text-sm text-warning">
+                You are offline. Sale will be saved locally and synced when connection is restored.
               </div>
             )}
           </div>
@@ -324,24 +319,6 @@ export function CheckoutModal({ open, onOpenChange, items, customer, onComplete 
                     className="h-11"
                   />
                 </div>
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-1 block">Cash Reference (optional)</label>
-                <Input
-                  value={splitAmounts.cashRef || ''}
-                  onChange={(e) => setSplitAmounts((s) => ({ ...s, cashRef: e.target.value }))}
-                  placeholder="Cash reference"
-                  className="h-11"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-1 block">Card Reference (optional)</label>
-                <Input
-                  value={splitAmounts.cardRef || ''}
-                  onChange={(e) => setSplitAmounts((s) => ({ ...s, cardRef: e.target.value }))}
-                  placeholder="Card reference"
-                  className="h-11"
-                />
               </div>
               <div className="flex justify-between text-sm text-muted-foreground">
                 <span>Total split</span>

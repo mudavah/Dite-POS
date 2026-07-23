@@ -28,7 +28,13 @@ interface PosState {
   lastSyncAt: string | null;
   syncStatus: 'idle' | 'syncing' | 'error' | 'conflict';
   serverTimeOffset: number;
+  cartSheetOpen: boolean;
+  checkoutOpen: boolean;
 
+  openCheckoutFlow: () => void;
+  closeCheckoutFlow: (reopenCart?: boolean) => void;
+  setCartSheetOpen: (open: boolean) => void;
+  setCheckoutOpen: (open: boolean) => void;
   addToCart: (product: { id: string; name: string; sku?: string; price: number }) => void;
   updateQuantity: (id: string, delta: number) => void;
   updateQuantityDirect: (id: string, quantity: number) => void;
@@ -42,6 +48,15 @@ interface PosState {
   setSyncStatus: (status: PosState['syncStatus']) => void;
   restoreCart: () => Promise<void>;
   persistCart: () => Promise<void>;
+  completeOfflineSale: (
+    payload: Record<string, unknown>,
+    branchId: string,
+    cashierId: string
+  ) => Promise<{ saleId: string; receiptNo: string } | null>;
+  getOfflineSales: () => Promise<{ id: string; totalAmount: number; createdAt: string; syncStatus: string }[]>;
+  getOfflineSaleItems: (saleId: string) => Promise<Record<string, unknown>[]>;
+  getOfflineReceipt: (saleId: string) => Promise<{ receiptNo: string; status: string } | undefined>;
+  deleteOfflineSale: (saleId: string) => Promise<void>;
 }
 
 export const subtotal = (cart: CartItem[]) => cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
@@ -55,6 +70,25 @@ export const usePosStore = create<PosState>((set, get) => ({
   lastSyncAt: null,
   syncStatus: 'idle',
   serverTimeOffset: 0,
+  cartSheetOpen: false,
+  checkoutOpen: false,
+
+  openCheckoutFlow: () => {
+    set({ cartSheetOpen: false });
+    setTimeout(() => set({ checkoutOpen: true }), 300);
+  },
+
+  closeCheckoutFlow: (reopenCart = true) => {
+    set({ checkoutOpen: false });
+    setTimeout(() => {
+      if (reopenCart && get().cart.length > 0) {
+        set({ cartSheetOpen: true });
+      }
+    }, 100);
+  },
+
+  setCartSheetOpen: (cartSheetOpen) => set({ cartSheetOpen }),
+  setCheckoutOpen: (checkoutOpen) => set({ checkoutOpen }),
 
   addToCart: (product) =>
     set((prev) => {
@@ -146,6 +180,105 @@ export const usePosStore = create<PosState>((set, get) => ({
       }
     } catch {
       // ignore restore errors
+    }
+  },
+
+  completeOfflineSale: async (payload, branchId, _cashierId: string) => {
+    const saleId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    const receiptNo = `OFF-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(Date.now() % 100000).padStart(5, '0')}`;
+
+    try {
+      await db.salesQueue.add({
+        id: saleId,
+        entityType: 'sale',
+        entityId: saleId,
+        action: 'CREATE',
+        payload: JSON.stringify(payload),
+        status: 'PENDING',
+        retries: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      await db.receipts.add({
+        id: crypto.randomUUID(),
+        saleId,
+        receiptNo,
+        branchId,
+        status: 'PENDING_SYNC',
+        createdAt: now,
+      });
+
+      const items = (payload.items as Array<Record<string, unknown>>) || [];
+      for (const item of items) {
+        await db.saleItems.add({
+          id: crypto.randomUUID(),
+          saleId,
+          productId: item.productId as string,
+          productName: (item.productName as string) || (item.sku as string) || '',
+          sku: item.sku as string | undefined,
+          quantity: item.quantity as number,
+          unitPrice: item.unitPrice as number,
+          discount: (item.discount as number) || 0,
+          total: item.total as number,
+          notes: item.notes as string | undefined,
+        });
+      }
+
+      return { saleId, receiptNo };
+    } catch {
+      return null;
+    }
+  },
+
+  getOfflineSales: async () => {
+    const sales = await db.salesQueue.where('entityType').equals('sale').toArray();
+    return sales.map((s) => ({
+      id: s.id,
+      totalAmount: (() => {
+        try {
+          const payload = JSON.parse(s.payload);
+          return payload.totalAmount || 0;
+        } catch {
+          return 0;
+        }
+      })(),
+      createdAt: s.createdAt,
+      syncStatus: s.status,
+    }));
+  },
+
+  getOfflineSaleItems: async (saleId: string) => {
+    const items = await db.saleItems.where('saleId').equals(saleId).toArray();
+    return items.map((item) => ({
+      productName: item.productName,
+      sku: item.sku,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      discount: item.discount,
+      total: item.total,
+      notes: item.notes,
+    }));
+  },
+
+  getOfflineReceipt: async (saleId: string) => {
+    const receipt = await db.receipts.where('saleId').equals(saleId).first();
+    if (!receipt) return undefined;
+    return { receiptNo: receipt.receiptNo, status: receipt.status };
+  },
+
+  deleteOfflineSale: async (saleId: string) => {
+    await db.salesQueue.delete(saleId);
+    const items = await db.saleItems.where('saleId').equals(saleId).toArray();
+    const itemIds = items.map((i) => i.id);
+    if (itemIds.length > 0) {
+      await db.saleItems.bulkDelete(itemIds);
+    }
+    const receipts = await db.receipts.where('saleId').equals(saleId).toArray();
+    const receiptIds = receipts.map((r) => r.id);
+    if (receiptIds.length > 0) {
+      await db.receipts.bulkDelete(receiptIds);
     }
   },
 }));

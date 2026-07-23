@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { ProductGrid } from '@/components/pos/product-grid';
@@ -10,8 +11,8 @@ import { PosHeader } from '@/components/pos/pos-header';
 import { CheckoutModal } from '@/components/pos/checkout-modal';
 import { HeldSalesModal } from '@/components/pos/held-sales-modal';
 import { CashierSummaryModal } from '@/components/pos/cashier-summary-modal';
-import { ReceiptPreviewModal } from '@/components/pos/receipt-preview-modal';
 import { PendingSalesModal } from '@/components/pos/pending-sales-modal';
+import { ReceiptPreviewModal } from '@/components/pos/receipt-preview-modal';
 import { useToast } from '@/components/ui/toast';
 import { useCartPersistence } from '@/lib/offline/cart-persistence';
 import { usePosStore, subtotal, totalDiscount } from '@/store/use-pos-store';
@@ -46,6 +47,7 @@ interface CartItem {
 
 export function PosTerminal({ user }: PosTerminalProps) {
   useCartPersistence();
+  const router = useRouter();
 
   const {
     cart,
@@ -61,11 +63,13 @@ export function PosTerminal({ user }: PosTerminalProps) {
     pendingSyncCount,
     syncStatus,
     setSyncStatus,
+    checkoutOpen,
+    openCheckoutFlow,
+    closeCheckoutFlow,
   } = usePosStore();
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [showCheckout, setShowCheckout] = React.useState(false);
   const [showHeldSales, setShowHeldSales] = React.useState(false);
   const [showCashierSummary, setShowCashierSummary] = React.useState(false);
   const [showPendingSales, setShowPendingSales] = React.useState(false);
@@ -143,6 +147,11 @@ export function PosTerminal({ user }: PosTerminalProps) {
     setLastSale({ id: saleId, receiptNo });
     clearCart();
     setSyncStatus('idle');
+
+    if (isOnline) {
+      const totalAmount = subtotalVal - totalDiscountVal;
+      router.push(`/checkout/complete?saleId=${saleId}&receiptNo=${encodeURIComponent(receiptNo || '')}&total=${totalAmount}`);
+    }
   };
 
   const handleManualSync = async () => {
@@ -176,10 +185,12 @@ export function PosTerminal({ user }: PosTerminalProps) {
       firstProduct?.click();
     },
     F2: () => {
-      if (cart.length > 0) setShowCheckout(true);
+      if (cart.length > 0 && !checkoutOpen) openCheckoutFlow();
     },
     Escape: () => {
-      if (showCheckout) setShowCheckout(false);
+      if (checkoutOpen) {
+        closeCheckoutFlow(true);
+      }
       if (showHeldSales) setShowHeldSales(false);
       if (showCashierSummary) setShowCashierSummary(false);
       if (showPendingSales) setShowPendingSales(false);
@@ -190,7 +201,7 @@ export function PosTerminal({ user }: PosTerminalProps) {
     'Ctrl+h': () => {
       handleHoldSale();
     },
-  }, [cart.length, showCheckout, showHeldSales, showCashierSummary, showPendingSales, searchFocused, subtotalVal, total, selectedCustomer]);
+  }, [cart.length, checkoutOpen, showHeldSales, showCashierSummary, showPendingSales, searchFocused, subtotalVal, total, selectedCustomer, openCheckoutFlow, closeCheckoutFlow]);
 
   return (
     <div className="flex h-[calc(100vh-4rem)] gap-4">
@@ -207,7 +218,7 @@ export function PosTerminal({ user }: PosTerminalProps) {
           onClearCart={clearCart}
           onHoldSale={handleHoldSale}
           onRecallSale={() => setShowHeldSales(true)}
-          onCheckout={() => setShowCheckout(true)}
+          onCheckout={openCheckoutFlow}
           onOpenSummary={() => setShowCashierSummary(true)}
           onOpenPendingSales={() => setShowPendingSales(true)}
           selectedCustomer={selectedCustomer}
@@ -222,10 +233,16 @@ export function PosTerminal({ user }: PosTerminalProps) {
       </div>
 
       <CheckoutModal
-        open={showCheckout}
-        onOpenChange={setShowCheckout}
+        open={checkoutOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeCheckoutFlow(true);
+          }
+        }}
         items={cart}
         customer={selectedCustomer}
+        branchId={user.branchId || ''}
+        cashierId={user.id}
         onComplete={handleCheckoutComplete}
       />
 

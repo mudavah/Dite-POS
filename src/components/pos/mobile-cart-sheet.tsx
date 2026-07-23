@@ -8,8 +8,6 @@ import { Button } from '@/components/ui';
 import { usePosStore, subtotal, totalDiscount } from '@/store/use-pos-store';
 import { CheckoutModal } from '@/components/pos/checkout-modal';
 import { HeldSalesModal } from '@/components/pos/held-sales-modal';
-import { CashierSummaryModal } from '@/components/pos/cashier-summary-modal';
-import { PendingSalesModal } from '@/components/pos/pending-sales-modal';
 import { ReceiptPreviewModal } from '@/components/pos/receipt-preview-modal';
 import { Minus, Plus, Trash2, RotateCcw, ClipboardList, Clock } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
@@ -27,11 +25,14 @@ interface MobileCartSheetProps {
 
 export function MobileCartSheet({ user, onCheckoutComplete }: MobileCartSheetProps) {
   const router = useRouter();
-  const [open, setOpen] = React.useState(false);
-  const [showCheckout, setShowCheckout] = React.useState(false);
+  const cartSheetOpen = usePosStore((s) => s.cartSheetOpen);
+  const checkoutOpen = usePosStore((s) => s.checkoutOpen);
+  const setCartSheetOpen = usePosStore((s) => s.setCartSheetOpen);
+  const setCheckoutOpen = usePosStore((s) => s.setCheckoutOpen);
+  const openCheckoutFlow = usePosStore((s) => s.openCheckoutFlow);
+  const closeCheckoutFlow = usePosStore((s) => s.closeCheckoutFlow);
+
   const [showHeldSales, setShowHeldSales] = React.useState(false);
-  const [showCashierSummary, setShowCashierSummary] = React.useState(false);
-  const [showPendingSales, setShowPendingSales] = React.useState(false);
   const [lastSale, setLastSale] = React.useState<{ id: string; receiptNo?: string } | null>(null);
 
   const cart = usePosStore((s) => s.cart);
@@ -74,6 +75,7 @@ export function MobileCartSheet({ user, onCheckoutComplete }: MobileCartSheetPro
       });
       if (!res.ok) throw new Error('Failed to hold sale');
       clearCart();
+      setCartSheetOpen(false);
     } catch {
       // handle error
     }
@@ -98,6 +100,7 @@ export function MobileCartSheet({ user, onCheckoutComplete }: MobileCartSheetPro
     if (sale.customerName) {
       setSelectedCustomer({ id: '', name: sale.customerName });
     }
+    setCartSheetOpen(true);
   };
 
   return (
@@ -117,11 +120,11 @@ export function MobileCartSheet({ user, onCheckoutComplete }: MobileCartSheetPro
             </div>
           </>
         )}
-        <Sheet open={open} onOpenChange={setOpen}>
+        <Sheet open={cartSheetOpen} onOpenChange={setCartSheetOpen}>
           <Button
             size="icon"
             className="h-14 w-14 rounded-full shadow-lg"
-            onClick={() => setOpen(true)}
+            onClick={() => setCartSheetOpen(true)}
             aria-label="Open cart"
           >
             <ShoppingCart className="h-6 w-6" />
@@ -253,7 +256,10 @@ export function MobileCartSheet({ user, onCheckoutComplete }: MobileCartSheetPro
 
                 <div className="grid grid-cols-2 gap-2">
                   <button
-                    onClick={() => setShowHeldSales(true)}
+                    onClick={() => {
+                      setCartSheetOpen(false);
+                      setTimeout(() => setShowHeldSales(true), 300);
+                    }}
                     className="h-11 rounded-md border border-input bg-background flex items-center justify-center gap-2 text-sm font-medium"
                   >
                     <RotateCcw className="h-4 w-4" />
@@ -267,14 +273,17 @@ export function MobileCartSheet({ user, onCheckoutComplete }: MobileCartSheetPro
                   </button>
                 </div>
                 <button
-                  onClick={() => router.push('/pending-sales')}
+                  onClick={() => {
+                    setCartSheetOpen(false);
+                    setTimeout(() => router.push('/pending-sales'), 300);
+                  }}
                   className="w-full h-11 rounded-md border border-input bg-background flex items-center justify-center gap-2 text-sm font-medium"
                 >
                   <Clock className="h-4 w-4" />
                   Pending Sales
                 </button>
                 <button
-                  onClick={() => setShowCheckout(true)}
+                  onClick={openCheckoutFlow}
                   className="w-full h-12 rounded-md bg-primary text-primary-foreground text-base font-semibold"
                 >
                   Checkout
@@ -286,14 +295,25 @@ export function MobileCartSheet({ user, onCheckoutComplete }: MobileCartSheetPro
       </div>
 
       <CheckoutModal
-        open={showCheckout}
-        onOpenChange={setShowCheckout}
+        open={checkoutOpen}
+        onOpenChange={(open) => {
+          setCheckoutOpen(open);
+          if (!open) {
+            closeCheckoutFlow(true);
+          }
+        }}
         items={cart}
         customer={selectedCustomer}
+        branchId={user.branchId || ''}
+        cashierId={user.id}
         onComplete={(saleId, receiptNo) => {
           setLastSale({ id: saleId, receiptNo });
-          clearCart();
           onCheckoutComplete(saleId, receiptNo);
+          closeCheckoutFlow(false);
+          if (isOnline) {
+            const totalAmount = subtotalVal - totalDiscountVal;
+            router.push(`/checkout/complete?saleId=${saleId}&receiptNo=${encodeURIComponent(receiptNo || '')}&total=${totalAmount}`);
+          }
         }}
       />
 
@@ -301,21 +321,6 @@ export function MobileCartSheet({ user, onCheckoutComplete }: MobileCartSheetPro
         open={showHeldSales}
         onOpenChange={setShowHeldSales}
         onRecall={recallSale}
-      />
-
-      <CashierSummaryModal
-        open={showCashierSummary}
-        onOpenChange={setShowCashierSummary}
-        userId={user.id}
-      />
-
-      <PendingSalesModal
-        open={showPendingSales}
-        onOpenChange={setShowPendingSales}
-        onComplete={(saleId, receiptNo) => {
-          setLastSale({ id: saleId, receiptNo });
-          onCheckoutComplete(saleId, receiptNo);
-        }}
       />
 
       {lastSale && (
