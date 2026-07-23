@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { printer, type PrinterConfig } from '@/lib/printer/thermal-printer';
 import { buildEscpos, type ReceiptData } from '@/lib/printer/receipt-template';
