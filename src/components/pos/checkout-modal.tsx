@@ -2,11 +2,14 @@
 
 import * as React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Printer, CheckCircle2, CreditCard, Banknote, Building2, Smartphone, Split } from 'lucide-react';
-import { Button, Input, Badge } from '@/components/ui';
+import { useRouter } from 'next/navigation';
+import { Printer, CheckCircle2, CreditCard, Banknote, Building2, Smartphone, Split } from 'lucide-react';
+import { Button, Input } from '@/components/ui';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/toast';
 import { formatCurrency } from '@/lib/utils';
+import { usePosStore } from '@/store/use-pos-store';
+import { syncEngine } from '@/lib/offline/sync-engine';
 
 interface CartItem {
   id: string;
@@ -45,6 +48,8 @@ const paymentIcons: Record<PaymentMethod, React.ReactNode> = {
 };
 
 export function CheckoutModal({ open, onOpenChange, items, customer, onComplete }: CheckoutModalProps) {
+  const router = useRouter();
+  const isOnline = usePosStore((s) => s.isOnline);
   const [method, setMethod] = React.useState<PaymentMethod>('CASH');
   const [cashReceived, setCashReceived] = React.useState('');
   const [cardRef, setCardRef] = React.useState('');
@@ -63,7 +68,18 @@ export function CheckoutModal({ open, onOpenChange, items, customer, onComplete 
   const change = method === 'CASH' ? Math.max(0, cashNum - total) : 0;
 
   const checkoutMutation = useMutation({
-    mutationFn: async (payload: unknown) => {
+    mutationFn: async (payload: Record<string, unknown>) => {
+      if (!isOnline) {
+        const queueId = await syncEngine.queueMutation({
+          entityType: 'sale',
+          entityId: crypto.randomUUID(),
+          action: 'CREATE',
+          payload: JSON.stringify(payload),
+          status: 'PENDING',
+        });
+        return { queued: true, queueId, payload };
+      }
+
       const res = await fetch('/api/pos/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -75,16 +91,26 @@ export function CheckoutModal({ open, onOpenChange, items, customer, onComplete 
       }
       return res.json();
     },
-    onSuccess: (data) => {
+    onSuccess: (data, payload) => {
       queryClient.invalidateQueries({ queryKey: ['pos-products'] });
       queryClient.invalidateQueries({ queryKey: ['pos-held-sales'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      queryClient.invalidateQueries({ queryKey: ['reports'] });
-      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+
+      if (data.queued) {
+        toast({ title: 'Sale queued for sync', description: 'Will complete when online' });
+        onOpenChange(false);
+        resetForm();
+        return;
+      }
+
       toast({ title: 'Sale completed', description: `Receipt: ${data.receiptNo || data.id}` });
       onComplete(data.id, data.receiptNo);
       onOpenChange(false);
       resetForm();
+
+      const totalAmount = (payload as Record<string, unknown>).totalAmount as number;
+      const saleId = data.id;
+      const receiptNo = data.receiptNo;
+      router.push(`/checkout/complete?saleId=${saleId}&receiptNo=${encodeURIComponent(receiptNo || '')}&total=${totalAmount}`);
     },
     onError: (err: Error) => {
       toast({ title: 'Checkout failed', description: err.message, variant: 'destructive' });

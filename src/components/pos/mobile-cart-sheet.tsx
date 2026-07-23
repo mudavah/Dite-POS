@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
 import { ShoppingCart } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui';
@@ -25,6 +26,7 @@ interface MobileCartSheetProps {
 }
 
 export function MobileCartSheet({ user, onCheckoutComplete }: MobileCartSheetProps) {
+  const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [showCheckout, setShowCheckout] = React.useState(false);
   const [showHeldSales, setShowHeldSales] = React.useState(false);
@@ -265,7 +267,7 @@ export function MobileCartSheet({ user, onCheckoutComplete }: MobileCartSheetPro
                   </button>
                 </div>
                 <button
-                  onClick={() => setShowPendingSales(true)}
+                  onClick={() => router.push('/pending-sales')}
                   className="w-full h-11 rounded-md border border-input bg-background flex items-center justify-center gap-2 text-sm font-medium"
                 >
                   <Clock className="h-4 w-4" />
