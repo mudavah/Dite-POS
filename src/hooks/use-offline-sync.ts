@@ -1,18 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { syncEngine } from '@/lib/offline/sync-engine';
-import type { SyncQueueItem } from '@/lib/offline/sync-engine';
+import { syncEngine, type OfflineSale } from '@/lib/offline/sync-engine';
 
-async function refreshQueue(setQueueItems: React.Dispatch<React.SetStateAction<SyncQueueItem[]>>) {
-  const items = await import('@/lib/offline/db').then(({ db }) => db.getAll<SyncQueueItem>('sales-queue'));
+async function refreshQueue(setQueueItems: React.Dispatch<React.SetStateAction<OfflineSale[]>>) {
+  const items = await syncEngine.getQueue();
   setQueueItems(items);
 }
 
 export function useOfflineSync() {
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'error' | 'complete'>('idle');
-  const [queueItems, setQueueItems] = useState<SyncQueueItem[]>([]);
+  const [queueItems, setQueueItems] = useState<OfflineSale[]>([]);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);

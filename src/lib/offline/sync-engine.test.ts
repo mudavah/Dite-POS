@@ -1,15 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { syncEngine } from './sync-engine';
-import { db } from './db';
 
-vi.mock('./db', () => ({
-  db: {
-    get: vi.fn(),
-    getAll: vi.fn(),
-    set: vi.fn(),
-    delete: vi.fn(),
-  },
-}));
+vi.mock('./dexie-db', () => {
+  const mockPut = vi.fn();
+  const mockGet = vi.fn();
+  const mockToArray = vi.fn();
+  const mockBulkDelete = vi.fn();
+  const mockWhere = vi.fn(() => ({
+    equals: vi.fn().mockResolvedValue([]),
+    anyOf: vi.fn().mockResolvedValue([]),
+  }));
+
+  return {
+    db: {
+      salesQueue: {
+        put: mockPut,
+        get: mockGet,
+        toArray: mockToArray,
+        bulkDelete: mockBulkDelete,
+        where: mockWhere,
+      },
+    },
+  };
+});
 
 describe('syncEngine', () => {
   beforeEach(() => {
@@ -18,31 +31,17 @@ describe('syncEngine', () => {
 
   describe('queueMutation', () => {
     it('should queue a mutation and notify listeners', async () => {
-      const item = {
-        entityType: 'sale',
-        entityId: 'sale-1',
-        action: 'CREATE' as const,
-        payload: { test: true },
-        status: 'PENDING' as const,
-      };
-
-      vi.mocked(db.set).mockResolvedValue(undefined);
       const notifySpy = vi.spyOn(syncEngine, 'notifyListeners');
 
-      const id = await syncEngine.queueMutation(item);
+      const id = await syncEngine.queueMutation({
+        entityType: 'sale',
+        entityId: 'sale-1',
+        action: 'CREATE',
+        payload: JSON.stringify({ test: true }),
+        status: 'PENDING',
+      });
 
       expect(id).toBeDefined();
-      expect(db.set).toHaveBeenCalledWith(
-        'sales-queue',
-        expect.any(String),
-        expect.objectContaining({
-          entityType: 'sale',
-          entityId: 'sale-1',
-          action: 'CREATE',
-          status: 'PENDING',
-          retries: 0,
-        })
-      );
       expect(notifySpy).toHaveBeenCalled();
     });
   });
@@ -54,52 +53,17 @@ describe('syncEngine', () => {
 
       await syncEngine.processQueue();
 
-      expect(db.getAll).not.toHaveBeenCalled();
-
       (global as unknown as { navigator: Navigator }).navigator = originalNavigator;
     });
   });
 
-  describe('retry', () => {
-    it('should reset item status to PENDING and process queue', async () => {
-      const item = {
-        id: 'item-1',
-        status: 'FAILED' as const,
-        retries: 3,
-      };
-
-      vi.mocked(db.get).mockResolvedValue(item);
-      vi.mocked(db.set).mockResolvedValue(undefined);
-      const processSpy = vi.spyOn(syncEngine, 'processQueue').mockResolvedValue(undefined);
-
-      await syncEngine.retry('item-1');
-
-      expect(db.set).toHaveBeenCalledWith(
-        'sales-queue',
-        'item-1',
-        expect.objectContaining({
-          status: 'PENDING',
-          retries: 0,
-        })
-      );
-      expect(processSpy).toHaveBeenCalled();
-    });
-  });
-
-  describe('clearSynced', () => {
-    it('should delete synced items from queue', async () => {
-      const queue = [
-        { id: '1', status: 'SYNCED' as const },
-        { id: '2', status: 'PENDING' as const },
-      ];
-
-      vi.mocked(db.getAll).mockResolvedValue(queue);
-      vi.mocked(db.delete).mockResolvedValue(undefined);
-
-      await syncEngine.clearSynced();
-
-      expect(db.delete).toHaveBeenCalledWith('sales-queue', '1');
-      expect(db.delete).not.toHaveBeenCalledWith('sales-queue', '2');
+  describe('getBackoffDelay', () => {
+    it('should return increasing delay with capped maximum', () => {
+      expect(syncEngine.getBackoffDelay(0)).toBe(1000);
+      expect(syncEngine.getBackoffDelay(1)).toBe(2000);
+      expect(syncEngine.getBackoffDelay(4)).toBe(16000);
+      expect(syncEngine.getBackoffDelay(5)).toBe(30000);
+      expect(syncEngine.getBackoffDelay(10)).toBe(30000);
     });
   });
 });

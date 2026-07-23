@@ -1,30 +1,35 @@
 'use client';
 
 import * as React from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { ProductGrid } from '@/components/pos/product-grid';
 import { CartPanel } from '@/components/pos/cart-panel';
+import { MobileCartSheet } from '@/components/pos/mobile-cart-sheet';
+import { PosHeader } from '@/components/pos/pos-header';
 import { CheckoutModal } from '@/components/pos/checkout-modal';
 import { HeldSalesModal } from '@/components/pos/held-sales-modal';
 import { CashierSummaryModal } from '@/components/pos/cashier-summary-modal';
 import { ReceiptPreviewModal } from '@/components/pos/receipt-preview-modal';
 import { PendingSalesModal } from '@/components/pos/pending-sales-modal';
-import { Button, Badge } from '@/components/ui';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/toast';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { useCartPersistence } from '@/lib/offline/cart-persistence';
+import { usePosStore, subtotal, totalDiscount } from '@/store/use-pos-store';
 
-interface Product {
+interface PosTerminalProps {
+  user: {
+    id: string;
+    name?: string | null;
+    email: string;
+    role: string;
+    branchId?: string | null;
+  };
+}
+
+interface HeldSale {
   id: string;
-  name: string;
-  sku: string;
-  barcode?: string;
-  price: number;
-  image?: string;
-  categoryId: string;
-  category?: { name: string };
-  isActive: boolean;
+  customerName?: string;
+  itemsJson: string;
 }
 
 interface CartItem {
@@ -39,112 +44,37 @@ interface CartItem {
   notes?: string;
 }
 
-interface Customer {
-  id: string;
-  name: string;
-  phone?: string;
-  email?: string;
-}
-
-interface HeldSale {
-  id: string;
-  branchId: string;
-  cashierId: string;
-  customerName?: string;
-  itemsJson: string;
-  subtotal: number;
-  totalAmount: number;
-  notes?: string;
-  createdAt: string;
-}
-
-interface PosTerminalProps {
-  user: {
-    id: string;
-    name?: string | null;
-    email: string;
-    role: string;
-    branchId?: string | null;
-  };
-}
-
 export function PosTerminal({ user }: PosTerminalProps) {
-  const [cart, setCart] = React.useState<CartItem[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = React.useState<Customer | null>(null);
+  useCartPersistence();
+
+  const {
+    cart,
+    selectedCustomer,
+    addToCart,
+    updateQuantity,
+    updateQuantityDirect,
+    removeItem,
+    updateItemNote,
+    clearCart,
+    setSelectedCustomer,
+    isOnline,
+    pendingSyncCount,
+    syncStatus,
+    setSyncStatus,
+  } = usePosStore();
+
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [showCheckout, setShowCheckout] = React.useState(false);
   const [showHeldSales, setShowHeldSales] = React.useState(false);
   const [showCashierSummary, setShowCashierSummary] = React.useState(false);
   const [showPendingSales, setShowPendingSales] = React.useState(false);
   const [lastSale, setLastSale] = React.useState<{ id: string; receiptNo?: string } | null>(null);
-  const [searchFocused, setSearchFocused] = React.useState(false);
+  const [searchFocused] = React.useState(false);
 
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-
-  const subtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
-  const totalDiscount = cart.reduce((sum, item) => sum + item.discount, 0);
-  const total = subtotal - totalDiscount;
-
-  const addToCart = (product: Product) => {
-    setCart((prev) => {
-      const existing = prev.find((item) => item.productId === product.id);
-      if (existing) {
-        return prev.map((item) =>
-          item.productId === product.id
-            ? { ...item, quantity: item.quantity + 1, total: (item.quantity + 1) * item.unitPrice }
-            : item
-        );
-      }
-      const newItem: CartItem = {
-        id: `${product.id}-${Date.now()}`,
-        productId: product.id,
-        name: product.name,
-        sku: product.sku,
-        unitPrice: product.price,
-        quantity: 1,
-        discount: 0,
-        total: product.price,
-      };
-      return [...prev, newItem];
-    });
-  };
-
-  const updateQuantity = (id: string, delta: number) => {
-    setCart((prev) =>
-      prev
-        .map((item) => {
-          if (item.id !== id) return item;
-          const newQty = Math.max(1, item.quantity + delta);
-          return { ...item, quantity: newQty, total: newQty * item.unitPrice };
-        })
-        .filter((item) => item.quantity > 0)
-    );
-  };
-
-  const updateQuantityDirect = (id: string, quantity: number) => {
-    setCart((prev) =>
-      prev
-        .map((item) => {
-          if (item.id !== id) return item;
-          const newQty = Math.max(1, quantity);
-          return { ...item, quantity: newQty, total: newQty * item.unitPrice };
-        })
-        .filter((item) => item.quantity > 0)
-    );
-  };
-
-  const removeItem = (id: string) => {
-    setCart((prev) => prev.filter((item) => item.id !== id));
-  };
-
-  const updateItemNote = (id: string, notes: string) => {
-    setCart((prev) => prev.map((item) => (item.id === id ? { ...item, notes } : item)));
-  };
-
-  const clearCart = () => {
-    setCart([]);
-    setSelectedCustomer(null);
-  };
+  const subtotalVal = subtotal(cart);
+  const totalDiscountVal = totalDiscount(cart);
+  const total = subtotalVal - totalDiscountVal;
 
   const holdMutation = useMutation({
     mutationFn: async () => {
@@ -163,7 +93,7 @@ export function PosTerminal({ user }: PosTerminalProps) {
             total: i.total,
             notes: i.notes,
           })),
-          subtotal,
+          subtotal: subtotalVal,
           totalAmount: total,
         }),
       });
@@ -172,8 +102,7 @@ export function PosTerminal({ user }: PosTerminalProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pos-held-sales'] });
-      setCart([]);
-      setSelectedCustomer(null);
+      clearCart();
       toast({ title: 'Sale held successfully' });
     },
     onError: (err: Error) => {
@@ -190,19 +119,50 @@ export function PosTerminal({ user }: PosTerminalProps) {
   };
 
   const handleRecallSale = (sale: HeldSale) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const items: CartItem[] = JSON.parse(sale.itemsJson).map((item: any) => ({
       ...item,
       id: `${item.productId}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
     }));
-    setCart(items);
-    setSelectedCustomer(sale.customerName ? { id: '', name: sale.customerName } : null);
+    clearCart();
+    items.forEach((item) => {
+      addToCart({
+        id: item.productId,
+        name: item.name,
+        price: item.unitPrice,
+        sku: item.sku,
+      });
+    });
+    if (sale.customerName) {
+      setSelectedCustomer({ id: '', name: sale.customerName });
+    }
     toast({ title: 'Sale recalled', description: `${items.length} items loaded` });
   };
 
   const handleCheckoutComplete = (saleId: string, receiptNo?: string) => {
     setLastSale({ id: saleId, receiptNo });
-    setCart([]);
-    setSelectedCustomer(null);
+    clearCart();
+    setSyncStatus('idle');
+  };
+
+  const handleManualSync = async () => {
+    if (!isOnline) {
+      toast({ title: 'Offline', description: 'Connect to the internet to sync', variant: 'destructive' });
+      return;
+    }
+    setSyncStatus('syncing');
+    try {
+      const res = await fetch('/api/sync', { method: 'POST' });
+      if (res.ok) {
+        setSyncStatus('idle');
+        toast({ title: 'Sync complete' });
+      } else {
+        throw new Error('Sync failed');
+      }
+    } catch (err) {
+      setSyncStatus('error');
+      toast({ title: 'Sync failed', description: err instanceof Error ? err.message : 'Unknown error', variant: 'destructive' });
+    }
   };
 
   useKeyboardShortcuts({
@@ -230,15 +190,16 @@ export function PosTerminal({ user }: PosTerminalProps) {
     'Ctrl+h': () => {
       handleHoldSale();
     },
-  }, [cart.length, showCheckout, showHeldSales, showCashierSummary, showPendingSales, searchFocused]);
+  }, [cart.length, showCheckout, showHeldSales, showCashierSummary, showPendingSales, searchFocused, subtotalVal, total, selectedCustomer]);
 
   return (
     <div className="flex h-[calc(100vh-4rem)] gap-4">
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 flex flex-col">
+        <PosHeader />
         <ProductGrid onSelect={addToCart} />
       </div>
 
-      <div className="w-96 shrink-0">
+      <div className="hidden md:block w-96 shrink-0">
         <CartPanel
           items={cart}
           onUpdateQuantity={updateQuantity}
@@ -253,6 +214,10 @@ export function PosTerminal({ user }: PosTerminalProps) {
           onSelectCustomer={setSelectedCustomer}
           onUpdateItemNote={updateItemNote}
           onUpdateItemQuantityDirect={updateQuantityDirect}
+          pendingSyncCount={pendingSyncCount}
+          syncStatus={syncStatus}
+          isOnline={isOnline}
+          onManualSync={handleManualSync}
         />
       </div>
 
@@ -289,6 +254,8 @@ export function PosTerminal({ user }: PosTerminalProps) {
           onClose={() => setLastSale(null)}
         />
       )}
+
+      <MobileCartSheet user={user} onCheckoutComplete={handleCheckoutComplete} />
     </div>
   );
 }

@@ -4,8 +4,7 @@ import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AppLayout } from '@/components/layout/sidebar';
 import { PosTerminal } from '@/components/pos/pos-terminal';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui';
-import { ShoppingCart } from 'lucide-react';
+import { ConnectivityProvider } from '@/components/offline/connectivity-provider';
 
 async function fetchSession() {
   const res = await fetch('/api/auth/session', { cache: 'no-store' });
@@ -42,7 +41,9 @@ export default function PosClient() {
 
   return (
     <AppLayout>
-      <PosTerminal user={session.user} />
+      <ConnectivityProvider>
+        <PosTerminal user={session.user} />
+      </ConnectivityProvider>
     </AppLayout>
   );
 }

@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Minus, Plus, Trash2, ClipboardList, Tag, User, X, RotateCcw, Clock } from 'lucide-react';
-import { Button, Card, CardHeader, CardTitle, CardContent, Badge, Input } from '@/components/ui';
+import { Button, Badge, Input, CardHeader, CardTitle, CardContent } from '@/components/ui';
 import { formatCurrency } from '@/lib/utils';
 
 interface CartItem {
@@ -39,6 +39,10 @@ interface CartPanelProps {
   onSelectCustomer: (customer: Customer | null) => void;
   onUpdateItemNote: (id: string, notes: string) => void;
   onUpdateItemQuantityDirect: (id: string, quantity: number) => void;
+  pendingSyncCount?: number;
+  syncStatus?: 'idle' | 'syncing' | 'error' | 'conflict';
+  isOnline?: boolean;
+  onManualSync?: () => void;
 }
 
 export function CartPanel({
@@ -55,6 +59,10 @@ export function CartPanel({
   onSelectCustomer,
   onUpdateItemNote,
   onUpdateItemQuantityDirect,
+  pendingSyncCount,
+  syncStatus,
+  isOnline,
+  onManualSync,
 }: CartPanelProps) {
   const [showCustomerPicker, setShowCustomerPicker] = React.useState(false);
   const [showItemNotes, setShowItemNotes] = React.useState<string | null>(null);
@@ -114,6 +122,22 @@ export function CartPanel({
               setShowCustomerPicker(false);
             }}
           />
+        )}
+
+        {(pendingSyncCount !== undefined && pendingSyncCount > 0) && (
+          <div className="rounded-md border border-warning/30 bg-warning/5 p-2 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className={`h-2 w-2 rounded-full ${isOnline ? 'bg-warning animate-pulse' : 'bg-destructive'}`} />
+              <span className="text-xs font-medium text-warning">
+                {pendingSyncCount} transaction{pendingSyncCount !== 1 ? 's' : ''} pending sync
+              </span>
+            </div>
+            {isOnline && onManualSync && (
+              <Button variant="ghost" size="sm" onClick={onManualSync} className="h-7 text-xs">
+                {syncStatus === 'syncing' ? 'Syncing...' : 'Sync Now'}
+              </Button>
+            )}
+          </div>
         )}
 
         <div className="flex-1 overflow-y-auto space-y-2">

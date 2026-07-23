@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/use-offline-cache';
 import { Search, Package } from 'lucide-react';
 import { Button, Input } from '@/components/ui';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -49,17 +49,17 @@ export function ProductGrid({ onSelect }: ProductGridProps) {
   const [barcodeBuffer, setBarcodeBuffer] = React.useState('');
   const searchInputRef = React.useRef<HTMLInputElement>(null);
 
-  const { data: products = [], isLoading: productsLoading } = useQuery({
-    queryKey: ['pos-products', search, activeCategory],
-    queryFn: () => fetchProducts(search || undefined, activeCategory === 'all' ? undefined : activeCategory),
-    staleTime: 30_000,
-  });
+  const { data: products = [], isLoading: productsLoading } = useCachedQuery(
+    ['pos-products', search, activeCategory],
+    () => fetchProducts(search || undefined, activeCategory === 'all' ? undefined : activeCategory),
+    'products'
+  );
 
-  const { data: categories = [], isLoading: categoriesLoading } = useQuery({
-    queryKey: ['pos-categories'],
-    queryFn: fetchCategories,
-    staleTime: 60_000,
-  });
+  const { data: categories = [], isLoading: categoriesLoading } = useCachedQuery(
+    ['pos-categories'],
+    fetchCategories,
+    'categories'
+  );
 
   const filtered = React.useMemo(() => {
     if (!search) return products;
