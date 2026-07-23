@@ -12,7 +12,7 @@ if (process.env.NODE_ENV === 'production') {
 
 type AppUser = { id: string; email: string; name?: string | null; role: UserRole; branchId?: string | null };
 
-export const { handlers, signIn, signOut, auth } = NextAuth({
+const { handlers, signIn, signOut, auth } = NextAuth({
   debug: process.env.NODE_ENV === 'development',
   providers: [
     Credentials({
@@ -68,5 +68,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: process.env.AUTH_SECRET,
 });
 
+export { auth, signIn, signOut };
 export const GET = handlers.GET;
 export const POST = handlers.POST;

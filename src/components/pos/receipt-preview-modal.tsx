@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useMiniPrinter } from '@/hooks/use-mini-printer';
 import { buildEscpos, type ReceiptData } from '@/lib/printer/receipt-template';
-import { Receipt } from '@/components/pos/receipt';
+import { Receipt, type ReceiptItem } from '@/components/pos/receipt';
 
 interface ReceiptPreviewModalProps {
   saleId: string;
@@ -53,7 +53,7 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint }: R
       cashierName: data.cashier?.name || 'Unknown',
       customerName: data.customerName,
       customerPhone: data.customerPhone,
-        items: (data.items || []).map((i) => ({
+        items: (data.items || []).map((i: ReceiptItem) => ({
           productName: i.productName || 'Unknown',
           sku: i.sku,
           quantity: i.quantity,
