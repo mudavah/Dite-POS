@@ -36,69 +36,80 @@ function ReceiptActionsInner() {
     enabled: !!saleId,
     retry: 1,
     staleTime: 60_000,
+    refetchOnMount: true,
   });
 
   const [offlineSale, setOfflineSale] = React.useState<ReceiptData | null>(null);
   const [showPreview, setShowPreview] = React.useState(false);
+
   React.useEffect(() => {
     if (!saleId || sale) return;
-    import('@/lib/offline/dexie-db').then(({ db }) => {
-      db.salesQueue.get(saleId).then((item) => {
-        if (item && item.payload) {
-          try {
-            const payload = JSON.parse(item.payload) as {
-              customerName?: string;
-              customerPhone?: string;
-              customerEmail?: string;
-              items?: Array<{ productName: string; sku?: string; quantity: number; unitPrice: number; discount?: number; total: number }>;
-              totalAmount?: number;
-              amountPaid?: number;
-              changeAmount?: number;
-              paymentMethod?: string;
-              notes?: string;
-            };
-            db.receipts.where('saleId').equals(saleId).first().then((receipt) => {
-              const totalAmount = payload.totalAmount || parseFloat(total || '0');
-              const amountPaid = payload.amountPaid || totalAmount;
-              const changeAmount = payload.changeAmount || 0;
-              const subtotal = calculateVatBreakdown(totalAmount).vatExclusive;
-              const items = (payload.items || []).map((i) => ({
-                productName: i.productName,
-                sku: i.sku,
-                quantity: i.quantity,
-                unitPrice: i.unitPrice,
-                discount: i.discount || 0,
-                total: i.total,
-              }));
-              setOfflineSale({
-                shopName: 'Dite POS',
-                receiptNo: receipt?.receiptNo || offlineReceiptNo || '',
-                saleId,
-                date: item.createdAt,
-                cashierName: 'Current User',
-                customerName: payload.customerName,
-                customerPhone: payload.customerPhone,
-                customerEmail: payload.customerEmail,
-                items,
-                subtotal,
-                discountAmount: items.reduce((sum, i) => sum + (i.discount || 0), 0),
-                total: totalAmount,
-                amountPaid,
-                changeAmount,
-                paymentMethod: payload.paymentMethod || 'CASH',
-                currency: 'KES',
-                currencySymbol: 'KSh',
-                syncStatus: 'PENDING_SYNC',
-                isOffline: true,
-                qrData: receipt?.receiptNo || offlineReceiptNo || saleId,
-              });
-            });
-          } catch (error) {
-            console.error('Failed to parse offline sale payload', error);
-          }
+    let cancelled = false;
+
+    async function load() {
+      setOfflineSale(null);
+      if (!saleId) return;
+      try {
+        const { db } = await import('@/lib/offline/dexie-db');
+        const item = await db.salesQueue.get(saleId);
+        if (!item || !item.payload || cancelled) return;
+        const payload = JSON.parse(item.payload) as {
+          customerName?: string;
+          customerPhone?: string;
+          customerEmail?: string;
+          items?: Array<{ productName: string; sku?: string; quantity: number; unitPrice: number; discount?: number; total: number }>;
+          totalAmount?: number;
+          amountPaid?: number;
+          changeAmount?: number;
+          paymentMethod?: string;
+          notes?: string;
+        };
+        const receipt = await db.receipts.where('saleId').equals(saleId).first();
+        const totalAmount = payload.totalAmount || parseFloat(total || '0');
+        const amountPaid = payload.amountPaid || totalAmount;
+        const changeAmount = payload.changeAmount || 0;
+        const subtotal = calculateVatBreakdown(totalAmount).vatExclusive;
+        const items = (payload.items || []).map((i) => ({
+          productName: i.productName,
+          sku: i.sku,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+          discount: i.discount || 0,
+          total: i.total,
+        }));
+        if (!cancelled) {
+          setOfflineSale({
+            shopName: 'Dite POS',
+            receiptNo: receipt?.receiptNo || offlineReceiptNo || '',
+            saleId,
+            date: item.createdAt,
+            cashierName: 'Current User',
+            customerName: payload.customerName,
+            customerPhone: payload.customerPhone,
+            customerEmail: payload.customerEmail,
+            items,
+            subtotal,
+            discountAmount: items.reduce((sum, i) => sum + (i.discount || 0), 0),
+            total: totalAmount,
+            amountPaid,
+            changeAmount,
+            paymentMethod: payload.paymentMethod || 'CASH',
+            currency: 'KES',
+            currencySymbol: 'KSh',
+            syncStatus: 'PENDING_SYNC',
+            isOffline: true,
+            qrData: receipt?.receiptNo || offlineReceiptNo || saleId,
+          });
         }
-      });
-    });
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to parse offline sale payload', error);
+        }
+      }
+    }
+
+    load();
+    return () => { cancelled = true; };
   }, [saleId, sale, offlineReceiptNo, total]);
 
   const receiptData: ReceiptData | null = React.useMemo(() => {
