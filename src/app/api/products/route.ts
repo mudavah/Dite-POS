@@ -3,6 +3,7 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { productSchema } from '@/lib/validators';
 import { sanitizeText } from '@/lib/utils';
+import type { Prisma } from '@prisma/client';
 
 export async function GET(request: Request) {
   const session = await auth();
@@ -16,7 +17,7 @@ export async function GET(request: Request) {
   const status = searchParams.get('status') || '';
   const archived = searchParams.get('archived') || 'false';
 
-  const where: any = {
+  const where: Prisma.ProductWhereInput = {
     isArchived: archived === 'true',
   };
 

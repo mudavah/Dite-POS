@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import type { Prisma } from '@prisma/client';
 
 export async function GET(request: Request) {
   const session = await auth();
@@ -12,7 +13,7 @@ export async function GET(request: Request) {
   const branchId = searchParams.get('branchId') || session.user.branchId || '';
   const cashierId = searchParams.get('cashierId');
 
-  const where: any = { paymentStatus: 'PENDING' };
+  const where: Prisma.SaleWhereInput = { paymentStatus: 'PENDING' };
   if (branchId) where.branchId = branchId;
   if (cashierId && session.user.role === 'ADMIN') where.cashierId = cashierId;
 

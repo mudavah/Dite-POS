@@ -2,9 +2,10 @@
 
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
+import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { userSchema } from '@/lib/validators';
 import { hash } from 'bcryptjs';
-import { auth } from '@/app/api/auth/[...nextauth]/route';
+import type { Prisma } from '@prisma/client';
 
 async function requireAdmin() {
   const session = await auth();
@@ -51,7 +52,7 @@ export async function updateUser(id: string, data: unknown) {
   }
 
   const { password, ...userData } = validated.data;
-  const updateData: any = { ...userData };
+  const updateData: Prisma.UserUpdateInput = { ...userData };
   if (password) {
     updateData.password = await hash(password, 12);
   }

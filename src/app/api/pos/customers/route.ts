@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import type { Prisma } from '@prisma/client';
 
 export async function GET(request: Request) {
   const session = await auth();
@@ -11,7 +12,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const q = searchParams.get('q') || '';
 
-  const where: any = { isActive: true };
+  const where: Prisma.UserWhereInput = { isActive: true };
   if (q) {
     where.OR = [
       { name: { contains: q, mode: 'insensitive' } },

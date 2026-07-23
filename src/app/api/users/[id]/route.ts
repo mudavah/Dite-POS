@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { hash } from 'bcryptjs';
 import { userSchema } from '@/lib/validators';
+import { hash } from 'bcryptjs';
+import type { Prisma } from '@prisma/client';
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -37,7 +38,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   }
 
   const { password, ...userData } = validated.data;
-  const updateData: any = { ...userData };
+  const updateData: Prisma.UserUpdateInput = { ...userData };
   if (password) {
     updateData.password = await hash(password, 12);
   }

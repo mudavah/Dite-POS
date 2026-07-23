@@ -63,43 +63,74 @@ export async function updateBranch(id: string, data: unknown) {
 export async function transferStock(data: { fromBranchId: string; toBranchId: string; productId: string; quantity: number; notes?: string }) {
   const session = await requireAdmin();
 
-  const fromInventory = await prisma.inventory.findFirst({
-    where: { branchId: data.fromBranchId, productId: data.productId },
-  });
-
-  if (!fromInventory || fromInventory.quantity < data.quantity) {
-    return { error: 'Insufficient stock in source branch' };
+  if (data.quantity <= 0) {
+    return { error: 'Quantity must be greater than zero' };
   }
 
-  const toInventory = await prisma.inventory.findFirst({
-    where: { branchId: data.toBranchId, productId: data.productId },
-  });
-
-  if (toInventory) {
-    await prisma.inventory.update({
-      where: { id: toInventory.id },
-      data: { quantity: { increment: data.quantity } },
+  await prisma.$transaction(async (tx) => {
+    const fromInventory = await tx.inventory.findFirst({
+      where: { branchId: data.fromBranchId, productId: data.productId },
     });
-  } else {
-    await prisma.inventory.create({
-      data: { branchId: data.toBranchId, productId: data.productId, quantity: data.quantity },
+
+    if (!fromInventory || fromInventory.quantity < data.quantity) {
+      throw new Error('Insufficient stock in source branch');
+    }
+
+    const toInventory = await tx.inventory.findFirst({
+      where: { branchId: data.toBranchId, productId: data.productId },
     });
-  }
 
-  await prisma.inventory.update({
-    where: { id: fromInventory.id },
-    data: { quantity: { decrement: data.quantity } },
-  });
+    if (toInventory) {
+      await tx.inventory.update({
+        where: { id: toInventory.id },
+        data: { quantity: { increment: data.quantity } },
+      });
+    } else {
+      await tx.inventory.create({
+        data: { branchId: data.toBranchId, productId: data.productId, quantity: data.quantity },
+      });
+    }
 
-  await prisma.stockMovement.create({
-    data: {
-      inventoryId: fromInventory.id,
-      type: 'TRANSFER_OUT',
-      quantity: -data.quantity,
-      reference: `Transfer to ${data.toBranchId}`,
-      notes: data.notes,
-      createdById: session.user!.id,
-    },
+    await tx.inventory.update({
+      where: { id: fromInventory.id },
+      data: { quantity: { decrement: data.quantity } },
+    });
+
+    const transfer = await tx.stockTransfer.create({
+      data: {
+        fromBranchId: data.fromBranchId,
+        toBranchId: data.toBranchId,
+        productId: data.productId,
+        quantity: data.quantity,
+        notes: data.notes,
+        status: 'COMPLETED',
+        createdById: session.user!.id,
+      },
+    });
+
+    await tx.stockMovement.create({
+      data: {
+        inventoryId: fromInventory.id,
+        type: 'TRANSFER_OUT',
+        quantity: -data.quantity,
+        reference: transfer.id,
+        notes: data.notes,
+        createdById: session.user!.id,
+      },
+    });
+
+    if (toInventory) {
+      await tx.stockMovement.create({
+        data: {
+          inventoryId: toInventory.id,
+          type: 'TRANSFER_IN',
+          quantity: data.quantity,
+          reference: transfer.id,
+          notes: data.notes,
+          createdById: session.user!.id,
+        },
+      });
+    }
   });
 
   revalidatePath('/inventory');

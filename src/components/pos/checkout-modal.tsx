@@ -7,25 +7,7 @@ import { Button, Input } from '@/components/ui';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/toast';
 import { formatCurrency } from '@/lib/utils';
-import { usePosStore } from '@/store/use-pos-store';
-
-interface CartItem {
-  id: string;
-  productId: string;
-  name: string;
-  sku?: string;
-  unitPrice: number;
-  quantity: number;
-  discount: number;
-  total: number;
-  notes?: string;
-}
-
-interface Customer {
-  id: string;
-  name: string;
-  phone?: string;
-}
+import { usePosStore, type CartItem, type Customer } from '@/store/use-pos-store';
 
 interface CheckoutModalProps {
   open: boolean;

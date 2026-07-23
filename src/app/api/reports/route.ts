@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import type { Prisma } from '@prisma/client';
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
@@ -39,17 +40,21 @@ export async function GET(request: Request) {
   const page = Math.max(parseInt(searchParams.get('page') || '1', 10), 1);
   const skip = (page - 1) * limit;
 
-  const where: any = { paymentStatus: 'COMPLETED' };
-  if (startDate) where.createdAt = { ...where.createdAt, gte: startDate };
-  if (endDate) where.createdAt = { ...where.createdAt, lte: endDate };
+  const saleWhere: Prisma.SaleWhereInput = { paymentStatus: 'COMPLETED' };
+  if (startDate || endDate) {
+    const createdAt: Prisma.SaleWhereInput['createdAt'] = {};
+    if (startDate) createdAt.gte = startDate;
+    if (endDate) createdAt.lte = endDate;
+    saleWhere.createdAt = createdAt;
+  }
 
-  let data: any = null;
+  let data: unknown = null;
   let total = 0;
 
   if (type === 'sales') {
     const [sales, count] = await Promise.all([
       prisma.sale.findMany({
-        where,
+        where: saleWhere,
         include: {
           cashier: { select: { name: true, email: true } },
           branch: { select: { name: true, code: true } },
@@ -60,7 +65,7 @@ export async function GET(request: Request) {
         skip,
         take: limit,
       }),
-      prisma.sale.count({ where }),
+      prisma.sale.count({ where: saleWhere }),
     ]);
 
     total = count;
@@ -99,8 +104,9 @@ export async function GET(request: Request) {
     }));
     total = products.length;
   } else if (type === 'inventory') {
+    const inventoryWhere: Prisma.InventoryWhereInput = {};
     const inventory = await prisma.inventory.findMany({
-      where,
+      where: inventoryWhere,
       include: {
         product: { select: { name: true, sku: true, price: true, costPrice: true } },
         branch: { select: { name: true, code: true } },
@@ -110,7 +116,7 @@ export async function GET(request: Request) {
       take: limit,
     });
 
-    total = await prisma.inventory.count({ where });
+    total = await prisma.inventory.count({ where: inventoryWhere });
     data = inventory.map((inv) => ({
       id: inv.id,
       product: inv.product?.name || '-',
@@ -122,7 +128,7 @@ export async function GET(request: Request) {
     }));
   } else if (type === 'profit') {
     const sales = await prisma.sale.findMany({
-      where,
+      where: saleWhere,
       include: {
         cashier: { select: { name: true } },
         branch: { select: { name: true } },
@@ -133,7 +139,7 @@ export async function GET(request: Request) {
       take: limit,
     });
 
-    total = await prisma.sale.count({ where });
+    total = await prisma.sale.count({ where: saleWhere });
     data = sales.map((sale) => {
       const cost = sale.items.reduce((sum, item) => sum + (item.product?.costPrice?.toNumber?.() || 0) * item.quantity, 0);
       const profit = sale.totalAmount.toNumber() - cost;
@@ -158,7 +164,12 @@ export async function GET(request: Request) {
         },
       },
       orderBy: { name: 'asc' },
+      skip,
+      take: limit,
     });
+
+    const totalCashierCount = await prisma.user.count({ where: { role: 'CASHIER', isActive: true } });
+    total = totalCashierCount;
 
     data = cashiers.map((cashier) => {
       const totalSales = cashier.sales.reduce((sum, s) => sum + s.totalAmount.toNumber(), 0);
@@ -171,7 +182,6 @@ export async function GET(request: Request) {
         rawTotal: totalSales,
       };
     });
-    total = cashiers.length;
   } else if (type === 'branches') {
     const branches = await prisma.branch.findMany({
       where: { isActive: true },
@@ -182,7 +192,12 @@ export async function GET(request: Request) {
         },
       },
       orderBy: { name: 'asc' },
+      skip,
+      take: limit,
     });
+
+    const totalBranchCount = await prisma.branch.count({ where: { isActive: true } });
+    total = totalBranchCount;
 
     data = branches.map((branch) => {
       const totalSales = branch.sales.reduce((sum, s) => sum + s.totalAmount.toNumber(), 0);
@@ -195,10 +210,9 @@ export async function GET(request: Request) {
         rawTotal: totalSales,
       };
     });
-    total = branches.length;
   } else if (type === 'category-sales') {
     const sales = await prisma.sale.findMany({
-      where,
+      where: saleWhere,
       include: {
         branch: { select: { name: true, code: true } },
         items: {
@@ -211,7 +225,12 @@ export async function GET(request: Request) {
           },
         },
       },
+      skip,
+      take: limit,
     });
+
+    const totalSaleCount = await prisma.sale.count({ where: saleWhere });
+    total = totalSaleCount;
 
     const categoryMap: Record<string, { category: string; cash: number; card: number; bankTransfer: number; mobileMoney: number; total: number }> = {};
 
@@ -240,7 +259,6 @@ export async function GET(request: Request) {
       total: formatCurrency(cat.total),
       rawTotal: cat.total,
     }));
-    total = data.length;
   }
 
   return NextResponse.json({ type, data, total, page, limit });

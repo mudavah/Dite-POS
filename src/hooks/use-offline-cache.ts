@@ -7,7 +7,8 @@ import { db } from '@/lib/offline/dexie-db';
 export function useCachedQuery<T>(
   queryKey: string[],
   queryFn: () => Promise<T>,
-  cacheKey: 'products' | 'categories' | 'customers'
+  cacheKey: 'products' | 'categories' | 'customers',
+  writeToCache = true
 ) {
   const [cachedData, setCachedData] = React.useState<T | null>(null);
 
@@ -19,13 +20,14 @@ export function useCachedQuery<T>(
         return items as T;
       }
       const result = await queryFn();
-      const data = result as unknown as Record<string, unknown> | Record<string, unknown>[];
-      if (data) {
-        const items = Array.isArray(data) ? data : [data];
-        for (const item of items) {
-          const record = item as Record<string, unknown>;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await db[cacheKey].put({ ...record, cachedAt: new Date().toISOString() } as any);
+      if (writeToCache) {
+        const data = result as unknown as Record<string, unknown> | Record<string, unknown>[];
+        if (data) {
+          const items = Array.isArray(data) ? data : [data];
+          for (const item of items) {
+            const record = item as Record<string, unknown>;
+            await db[cacheKey].put({ ...record, cachedAt: new Date().toISOString() } as unknown as never);
+          }
         }
       }
       return result;

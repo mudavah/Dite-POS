@@ -40,7 +40,7 @@ interface CartPanelProps {
   onUpdateItemNote: (id: string, notes: string) => void;
   onUpdateItemQuantityDirect: (id: string, quantity: number) => void;
   pendingSyncCount?: number;
-  syncStatus?: 'idle' | 'syncing' | 'error' | 'conflict';
+  syncStatus?: 'idle' | 'syncing' | 'error' | 'conflict' | 'complete';
   isOnline?: boolean;
   onManualSync?: () => void;
 }

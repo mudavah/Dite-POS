@@ -3,9 +3,9 @@
 import * as React from 'react';
 import { signIn } from 'next-auth/react';
 import { Button, Input, Card, CardHeader, CardTitle, CardContent } from '@/components/ui';
-import { useToast } from '@/components/ui/toast';
 import { loginSchema } from '@/lib/validators';
 import { Eye, EyeOff } from 'lucide-react';
+import { logger } from '@/lib/logger';
 
 export default function LoginForm() {
   const [email, setEmail] = React.useState('');
@@ -13,7 +13,6 @@ export default function LoginForm() {
   const [showPassword, setShowPassword] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
   const [loginError, setLoginError] = React.useState<string | null>(null);
-  const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,7 +43,7 @@ export default function LoginForm() {
         setLoginError('Login failed. Please try again.');
       }
     } catch (error) {
-      console.error('Login error:', error);
+      logger.error('Login error', error);
       setLoginError('An error occurred. Please try again.');
     } finally {
       setIsLoading(false);

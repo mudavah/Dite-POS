@@ -1,4 +1,5 @@
 export type PaperSize = '58mm' | '80mm';
+import { logger } from '@/lib/logger';
 export type PrinterType = 'USB' | 'BLUETOOTH' | 'NETWORK' | 'NODE_HELPER';
 
 export interface PrinterConfig {
@@ -60,10 +61,10 @@ class ThermalPrinter {
 
   private async connectUSB(): Promise<boolean> {
     try {
-      if (!(navigator as any).usb) {
+      if (!navigator.usb) {
         throw new Error('WebUSB not supported');
       }
-      const device = await (navigator as any).usb.requestDevice({ filters: [] });
+      const device = await navigator.usb.requestDevice({ filters: [] });
       await device.open();
       if (device.configuration === null) {
         await device.selectConfiguration(1);
@@ -72,23 +73,23 @@ class ThermalPrinter {
       this.config!.deviceId = device.serialNumber || undefined;
       return true;
     } catch (error) {
-      console.error('USB connection failed:', error);
+      logger.error('USB connection failed', error);
       return false;
     }
   }
 
   private async connectBluetooth(): Promise<boolean> {
     try {
-      if (!(navigator as any).bluetooth) {
+      if (!navigator.bluetooth) {
         throw new Error('WebBluetooth not supported');
       }
-      const device = await (navigator as any).bluetooth.requestDevice({
+      const device = await navigator.bluetooth.requestDevice({
         filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }],
       });
       this.config!.deviceId = device.id;
       return true;
     } catch (error) {
-      console.error('Bluetooth connection failed:', error);
+      logger.error('Bluetooth connection failed', error);
       return false;
     }
   }
@@ -131,7 +132,7 @@ class ThermalPrinter {
             return { success: true, message: `Printer reachable at ${endpoint}` };
           }
           return { success: false, message: `Printer responded with status ${response.status}` };
-        } catch (error) {
+        } catch {
           clearTimeout(timeout);
           return { success: false, message: `Cannot reach printer at ${endpoint}` };
         }
@@ -197,29 +198,29 @@ class ThermalPrinter {
           throw new Error(`Unsupported printer type: ${this.config.type}`);
       }
     } catch (error) {
-      console.error('Print failed:', error);
+      logger.error('Print failed', error);
       return false;
     }
   }
 
   private async printUSB(data: Uint8Array): Promise<boolean> {
-    if (!(navigator as any).usb) throw new Error('WebUSB not available');
-    const devices = await (navigator as any).usb.getDevices();
-    const device = devices.find((d: any) => d.serialNumber === this.config?.deviceId);
+    if (!navigator.usb) throw new Error('WebUSB not available');
+    const devices = await navigator.usb.getDevices();
+    const device = devices.find((d) => d.serialNumber === this.config?.deviceId);
     if (!device) throw new Error('Printer not found');
-    await device.transferOut(1, data);
+    await device.transferOut(1, data as unknown as BufferSource);
     return true;
   }
 
   private async printBluetooth(data: Uint8Array): Promise<boolean> {
-    if (!(navigator as any).bluetooth) throw new Error('WebBluetooth not available');
-    const device = await (navigator as any).bluetooth.requestDevice({
+    if (!navigator.bluetooth) throw new Error('WebBluetooth not available');
+    const device = await navigator.bluetooth.requestDevice({
       filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }],
     });
     const server = await device.gatt?.connect();
     const service = await server?.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
     const characteristic = await service?.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
-    await characteristic?.writeValue(data.buffer as ArrayBuffer);
+    await characteristic?.writeValue(Buffer.from(data.buffer) as unknown as BufferSource);
     return true;
   }
 

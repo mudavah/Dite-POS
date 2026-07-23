@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { usePosStore } from '@/store/use-pos-store';
 import { syncEngine } from '@/lib/offline/sync-engine';
+import { logger } from '@/lib/logger';
 
 export function ConnectivityProvider({ children }: { children: React.ReactNode }) {
   const setOnline = usePosStore((s) => s.setOnline);
@@ -17,8 +18,8 @@ export function ConnectivityProvider({ children }: { children: React.ReactNode }
       const hasConflict = queue.some((i) => i.status === 'CONFLICT');
       setPendingSyncCount(pending);
       setSyncStatus(pending > 0 ? (hasConflict ? 'conflict' : 'error') : 'idle');
-    } catch {
-      // ignore
+    } catch (error) {
+      logger.error('Failed to update sync status', error);
     }
   }, [setPendingSyncCount, setSyncStatus]);
 

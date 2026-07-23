@@ -32,13 +32,13 @@ async function fetchProducts(search?: string, categoryId?: string): Promise<Prod
   const params = new URLSearchParams();
   if (search) params.set('search', search);
   if (categoryId) params.set('categoryId', categoryId);
-  const res = await fetch(`/api/pos/products?${params.toString()}`, { cache: 'no-store' });
+  const res = await fetch(`/api/pos/products?${params.toString()}`);
   if (!res.ok) throw new Error('Failed to fetch products');
   return res.json();
 }
 
 async function fetchCategories(): Promise<Category[]> {
-  const res = await fetch('/api/pos/categories', { cache: 'no-store' });
+  const res = await fetch('/api/pos/categories');
   if (!res.ok) throw new Error('Failed to fetch categories');
   return res.json();
 }
@@ -52,7 +52,8 @@ export function ProductGrid({ onSelect }: ProductGridProps) {
   const { data: products = [], isLoading: productsLoading } = useCachedQuery(
     ['pos-products', search, activeCategory],
     () => fetchProducts(search || undefined, activeCategory === 'all' ? undefined : activeCategory),
-    'products'
+    'products',
+    false
   );
 
   const { data: categories = [], isLoading: categoriesLoading } = useCachedQuery(

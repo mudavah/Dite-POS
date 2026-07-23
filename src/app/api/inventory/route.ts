@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { StockMovementType } from '@prisma/client';
 
 export async function GET(request: Request) {
   const session = await auth();
@@ -13,7 +14,7 @@ export async function GET(request: Request) {
   const search = searchParams.get('search') || '';
   const lowStock = searchParams.get('lowStock') === 'true';
 
-  let where: any = {};
+  const where: Record<string, unknown> = {};
   if (branchId) {
     where.branchId = branchId;
   }
@@ -85,7 +86,12 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { inventoryId, quantity, type, notes, totalStock } = body;
+  const { inventoryId, quantity, type, notes } = body as {
+    inventoryId: string;
+    quantity: number;
+    type?: string;
+    notes?: string;
+  };
 
   const inventory = await prisma.inventory.findUnique({
     where: { id: inventoryId },
@@ -95,18 +101,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Inventory not found' }, { status: 404 });
   }
 
-  if (totalStock !== undefined) {
-    await prisma.inventory.update({
-      where: { id: inventoryId },
-      data: { totalStock },
-    });
-    return NextResponse.json({ success: true, totalStock });
-  }
-
   const movement = await prisma.stockMovement.create({
     data: {
       inventoryId,
-      type,
+      type: Object.values(StockMovementType).includes(type as StockMovementType)
+        ? (type as StockMovementType)
+        : StockMovementType.ADJUSTMENT,
       quantity,
       notes,
       createdById: session.user.id,

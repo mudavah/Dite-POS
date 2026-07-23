@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { sanitizeText } from '@/lib/utils';
+import { createSale } from '@/lib/actions/sales';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(_: NextRequest) {
+function isValidUuid(value: string | undefined): boolean {
+  if (!value) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+export async function GET() {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -39,102 +44,54 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'User is not assigned to a branch' }, { status: 400 });
       }
 
-      const items = salePayload.items || [];
-      const subtotal = items.reduce((sum: number, item: { unitPrice: number; quantity: number; discount?: number }) => sum + item.unitPrice * item.quantity, 0);
-      const discountAmount = items.reduce((sum: number, item: { discount?: number }) => sum + (item.discount || 0), 0);
-      const totalAmount = subtotal - discountAmount;
+      if (!isValidUuid(item.entityId)) {
+        return NextResponse.json({ error: 'Invalid sale reference' }, { status: 400 });
+      }
 
       const existingSale = await prisma.sale.findUnique({
-        where: { id: salePayload.saleId || item.entityId },
+        where: { id: item.entityId },
       });
 
       if (existingSale) {
         return NextResponse.json({ success: true, message: 'Sale already synced' });
       }
 
-      const sale = await prisma.$transaction(async (tx) => {
-        const sale = await tx.sale.create({
-          data: {
-            id: salePayload.saleId || item.entityId,
-            branchId,
-            cashierId,
-            customerName: sanitizeText(salePayload.customerName),
-            customerPhone: sanitizeText(salePayload.customerPhone),
-            subtotal,
-            discountAmount,
-            totalAmount,
-            paymentMethod: salePayload.paymentMethod,
-            amountPaid: salePayload.amountPaid,
-            changeAmount: salePayload.changeAmount || 0,
-            paymentStatus: 'COMPLETED',
-            notes: sanitizeText(salePayload.notes),
-            items: {
-              create: items.map((item: { productId: string; productName: string; sku?: string; quantity: number; unitPrice: number; discount?: number; notes?: string }) => ({
-                productId: item.productId,
-                productName: sanitizeText(item.productName) || item.sku || '',
-                sku: item.sku,
-                quantity: item.quantity,
-                unitPrice: item.unitPrice,
-                discount: item.discount || 0,
-                total: (item.unitPrice * item.quantity) - (item.discount || 0),
-                notes: sanitizeText(item.notes),
-              })),
-            },
-          },
-          include: { items: true },
-        });
+      const items = salePayload.items || [];
+      const subtotal = items.reduce((sum: number, item: { unitPrice: number; quantity: number; discount?: number }) => sum + item.unitPrice * item.quantity, 0);
+      const discountAmount = items.reduce((sum: number, item: { discount?: number }) => sum + (item.discount || 0), 0);
+      const totalAmount = subtotal - discountAmount;
 
-        for (const item of items) {
-          const inventory = await tx.inventory.findFirst({
-            where: { branchId, productId: item.productId },
-          });
+      const saleId = crypto.randomUUID();
 
-          if (inventory) {
-            const updated = await tx.inventory.updateMany({
-              where: { id: inventory.id, quantity: { gte: item.quantity } },
-              data: { quantity: { decrement: item.quantity } },
-            });
+      const { sale, receiptNo } = await createSale(
+        {
+          items: items.map((item: { productId: string; productName: string; sku?: string; quantity: number; unitPrice: number; discount?: number; notes?: string }) => ({
+            productId: item.productId,
+            productName: item.productName,
+            sku: item.sku,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            discount: item.discount || 0,
+            total: (item.unitPrice * item.quantity) - (item.discount || 0),
+            notes: item.notes,
+          })),
+          paymentMethod: salePayload.paymentMethod,
+          amountPaid: salePayload.amountPaid,
+          changeAmount: salePayload.changeAmount || 0,
+          customerId: salePayload.customerId,
+          customerName: salePayload.customerName,
+          customerPhone: salePayload.customerPhone,
+          notes: salePayload.notes,
+          subtotal,
+          discountAmount,
+          totalAmount,
+          branchId,
+          cashierId,
+        },
+        saleId
+      );
 
-            if (updated.count === 0) {
-              throw new Error(`Insufficient stock for ${item.productName || item.sku}`);
-            }
-
-            await tx.stockMovement.create({
-              data: {
-                inventoryId: inventory.id,
-                type: 'SALE',
-                quantity: -item.quantity,
-                reference: sale.id,
-                notes: `Offline sale ${sale.id}`,
-                createdById: cashierId,
-              },
-            });
-          }
-        }
-
-        const settings = await tx.branchSetting.findUnique({ where: { branchId } });
-        if (!settings) {
-          throw new Error('Branch settings not found');
-        }
-
-        const updatedSettings = await tx.branchSetting.update({
-          where: { branchId },
-          data: { receiptNextNum: { increment: 1 } },
-        });
-        const receiptNo = `${settings.receiptPrefix || 'RCP'}-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(updatedSettings.receiptNextNum).padStart(5, '0')}`;
-
-        await tx.receipt.create({
-          data: {
-            saleId: sale.id,
-            receiptNo,
-            branchId,
-          },
-        });
-
-        return { sale, receiptNo };
-      });
-
-      return NextResponse.json({ success: true, saleId: sale.sale.id, receiptNo: sale.receiptNo });
+      return NextResponse.json({ success: true, saleId: sale.id, receiptNo });
     }
 
     return NextResponse.json({ success: true, message: 'Sync item processed' });

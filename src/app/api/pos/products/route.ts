@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import type { Prisma } from '@prisma/client';
 
 export async function GET(request: Request) {
   const session = await auth();
@@ -12,7 +13,7 @@ export async function GET(request: Request) {
   const search = searchParams.get('search') || '';
   const categoryId = searchParams.get('categoryId') || '';
 
-  const where: any = { isActive: true, isArchived: false };
+  const where: Prisma.ProductWhereInput = { isActive: true, isArchived: false };
 
   if (search) {
     where.OR = [

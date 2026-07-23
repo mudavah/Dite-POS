@@ -127,19 +127,19 @@ export default function SettingsPage() {
 
     try {
       if (printerForm.type === 'USB') {
-        if (!(navigator as any).usb) {
+        if (!navigator.usb) {
           throw new Error('WebUSB not supported. Use Chrome or Edge on desktop.');
         }
-        const device = await (navigator as any).usb.requestDevice({ filters: [] });
+        const device = await navigator.usb.requestDevice({ filters: [] });
         await device.open();
         if (device.configuration === null) await device.selectConfiguration(1);
         await device.claimInterface(0);
         setPrinterForm((f) => ({ ...f, deviceId: device.serialNumber || device.productName || '', vendorId: device.vendorId ? String(device.vendorId) : f.vendorId, productId: device.productId ? String(device.productId) : f.productId }));
       } else if (printerForm.type === 'BLUETOOTH') {
-        if (!(navigator as any).bluetooth) {
+        if (!navigator.bluetooth) {
           throw new Error('WebBluetooth not supported. Use Chrome or Edge on desktop.');
         }
-        const device = await (navigator as any).bluetooth.requestDevice({
+        const device = await navigator.bluetooth.requestDevice({
           filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }],
         });
         setPrinterForm((f) => ({ ...f, deviceId: device.id, name: f.name || device.name || 'Bluetooth Printer' }));

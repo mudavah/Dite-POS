@@ -3,6 +3,8 @@
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { StockMovementType } from '@prisma/client';
+import { logger } from '@/lib/logger';
 
 async function requireAuth() {
   const session = await auth();
@@ -12,7 +14,7 @@ async function requireAuth() {
   return session;
 }
 
-export async function adjustStock(data: { inventoryId: string; quantity: number; type: string; notes?: string }) {
+export async function adjustStock(data: { inventoryId: string; quantity: number; type: StockMovementType; notes?: string }) {
   await requireAuth();
 
   const inventory = await prisma.inventory.findUnique({
@@ -26,23 +28,28 @@ export async function adjustStock(data: { inventoryId: string; quantity: number;
   const session = await auth();
   const createdById = session?.user?.id || 'system';
 
-  await prisma.stockMovement.create({
-    data: {
-      inventoryId: data.inventoryId,
-      type: data.type as any,
-      quantity: data.quantity,
-      notes: data.notes,
-      createdById,
-    },
-  });
+  try {
+    await prisma.stockMovement.create({
+      data: {
+        inventoryId: data.inventoryId,
+        type: data.type,
+        quantity: data.quantity,
+        notes: data.notes,
+        createdById,
+      },
+    });
 
-  await prisma.inventory.update({
-    where: { id: data.inventoryId },
-    data: { quantity: { increment: data.quantity } },
-  });
+    await prisma.inventory.update({
+      where: { id: data.inventoryId },
+      data: { quantity: { increment: data.quantity } },
+    });
 
-  revalidatePath('/inventory');
-  return { success: true };
+    revalidatePath('/inventory');
+    return { success: true };
+  } catch (error) {
+    logger.error('Failed to adjust stock', error);
+    return { error: 'Failed to adjust stock' };
+  }
 }
 
 export async function getInventory(branchId?: string) {

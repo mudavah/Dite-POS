@@ -15,7 +15,7 @@ import { PendingSalesModal } from '@/components/pos/pending-sales-modal';
 import { ReceiptPreviewModal } from '@/components/pos/receipt-preview-modal';
 import { useToast } from '@/components/ui/toast';
 import { useCartPersistence } from '@/lib/offline/cart-persistence';
-import { usePosStore, subtotal, totalDiscount } from '@/store/use-pos-store';
+import { usePosStore, subtotal, totalDiscount, type CartItem } from '@/store/use-pos-store';
 
 interface PosTerminalProps {
   user: {
@@ -31,18 +31,6 @@ interface HeldSale {
   id: string;
   customerName?: string;
   itemsJson: string;
-}
-
-interface CartItem {
-  id: string;
-  productId: string;
-  name: string;
-  sku?: string;
-  unitPrice: number;
-  quantity: number;
-  discount: number;
-  total: number;
-  notes?: string;
 }
 
 export function PosTerminal({ user }: PosTerminalProps) {
@@ -123,10 +111,9 @@ export function PosTerminal({ user }: PosTerminalProps) {
   };
 
   const handleRecallSale = (sale: HeldSale) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const items: CartItem[] = JSON.parse(sale.itemsJson).map((item: any) => ({
-      ...item,
-      id: `${item.productId}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    const items: CartItem[] = JSON.parse(sale.itemsJson).map((item: unknown) => ({
+      ...(item as CartItem),
+      id: `${(item as CartItem).productId}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
     }));
     clearCart();
     items.forEach((item) => {

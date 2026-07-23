@@ -1,14 +1,14 @@
 'use client';
 
 import * as React from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Printer, Download, Share2, RefreshCw } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Printer, Download, Share2 } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useMiniPrinter } from '@/hooks/use-mini-printer';
 import { buildEscpos, type ReceiptData } from '@/lib/printer/receipt-template';
-import { Receipt, type ReceiptItem } from '@/components/pos/receipt';
+import { Receipt } from '@/components/pos/receipt';
 
 interface ReceiptPreviewModalProps {
   saleId: string;
@@ -53,14 +53,14 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint }: R
       cashierName: data.cashier?.name || 'Unknown',
       customerName: data.customerName,
       customerPhone: data.customerPhone,
-      items: (data.items || []).map((i: any) => ({
-        productName: i.productName || i.product?.name || 'Unknown',
-        sku: i.sku,
-        quantity: i.quantity,
-        unitPrice: i.unitPrice,
-        discount: i.discount || 0,
-        total: i.total,
-      })),
+        items: (data.items || []).map((i) => ({
+          productName: i.productName || 'Unknown',
+          sku: i.sku,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+          discount: i.discount || 0,
+          total: i.total,
+        })),
       subtotal: data.subtotal || 0,
       discountAmount: data.discountAmount || 0,
       total: data.totalAmount || 0,

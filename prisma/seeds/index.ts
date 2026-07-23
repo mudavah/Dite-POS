@@ -3,6 +3,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { hash } from 'bcryptjs';
 import dotenv from 'dotenv';
 import path from 'path';
+import { logger } from '@/lib/logger';
 
 dotenv.config({ path: path.resolve(__dirname, '..', '..', '.env') });
 
@@ -10,12 +11,17 @@ const prisma = new PrismaClient({
   adapter: new PrismaPg(process.env.DATABASE_URL || ''),
 });
 
-const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD || 'ChangeMe123!';
-const CASHIER_PASSWORD = process.env.SEED_CASHIER_PASSWORD || 'ChangeMe123!';
+const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD;
+const CASHIER_PASSWORD = process.env.SEED_CASHIER_PASSWORD;
+
+if (!ADMIN_PASSWORD || !CASHIER_PASSWORD) {
+  throw new Error('SEED_ADMIN_PASSWORD and SEED_CASHIER_PASSWORD environment variables are required for seeding');
+}
+
+const adminPasswordHash = await hash(ADMIN_PASSWORD, 12);
+const cashierPasswordHash = await hash(CASHIER_PASSWORD, 12);
 
 async function main() {
-  const adminPassword = await hash(ADMIN_PASSWORD, 12);
-  const cashierPassword = await hash(CASHIER_PASSWORD, 12);
 
   await prisma.heldSale.deleteMany({});
   await prisma.receipt.deleteMany({});
@@ -46,7 +52,7 @@ async function main() {
     data: {
       email: 'admin@shop.com',
       name: 'Admin User',
-      password: adminPassword,
+      password: adminPasswordHash,
       role: 'ADMIN',
       branchId: branch.id,
       isActive: true,
@@ -57,7 +63,7 @@ async function main() {
     data: {
       email: 'cashier@shop.com',
       name: 'John Cashier',
-      password: cashierPassword,
+      password: cashierPasswordHash,
       role: 'CASHIER',
       branchId: branch.id,
       isActive: true,
@@ -98,13 +104,11 @@ async function main() {
   }
 
   for (const product of createdProducts) {
-    const totalStock = Math.floor(Math.random() * 100) + 20;
     await prisma.inventory.create({
       data: {
         branchId: branch.id,
         productId: product.id,
         quantity: Math.floor(Math.random() * 100) + 10,
-        totalStock,
       },
     });
   }
@@ -131,16 +135,16 @@ async function main() {
     },
   });
 
-  console.log('Seed completed successfully');
-  console.log('Admin:', admin.email);
-  console.log('Cashier:', cashier.email);
-  console.log('Branch:', branch.name);
-  console.log('Products created:', createdProducts.length);
+  logger.info('Seed completed successfully');
+  logger.info('Admin:', admin.email);
+  logger.info('Cashier:', cashier.email);
+  logger.info('Branch:', branch.name);
+  logger.info('Products created:', createdProducts.length);
 }
 
 main()
   .catch((e) => {
-    console.error(e);
+    logger.error('Seed failed', e);
     process.exit(1);
   })
   .finally(async () => {

@@ -4,9 +4,10 @@ import { prisma } from '@/lib/prisma';
 import { compare } from 'bcryptjs';
 import { loginSchema } from '@/lib/validators';
 import { UserRole } from '@prisma/client';
+import { logger } from '@/lib/logger';
 
 if (process.env.NODE_ENV === 'production') {
-  console.log('[auth] module loaded, AUTH_SECRET present:', !!process.env.AUTH_SECRET);
+  logger.info('Auth module loaded', { hasSecret: !!process.env.AUTH_SECRET });
 }
 
 type AppUser = { id: string; email: string; name?: string | null; role: UserRole; branchId?: string | null };

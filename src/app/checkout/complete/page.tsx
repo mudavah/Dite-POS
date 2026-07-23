@@ -8,10 +8,10 @@ import { CheckCircle2, ShoppingCart, Printer, Download, Share2 } from 'lucide-re
 import { Button } from '@/components/ui';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
-import { Receipt, type ReceiptData } from '@/components/pos/receipt';
-import { usePosStore } from '@/store/use-pos-store';
+import { Receipt, type ReceiptData, type ReceiptItem } from '@/components/pos/receipt';
 import { useQuery } from '@tanstack/react-query';
 import { useReactToPrint } from 'react-to-print';
+import { logger } from '@/lib/logger';
 
 async function fetchReceipt(saleId: string) {
   const res = await fetch(`/api/pos/sales/${saleId}`);
@@ -22,7 +22,6 @@ async function fetchReceipt(saleId: string) {
 function ReceiptActionsInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const isOnline = usePosStore((s) => s.isOnline);
   const receiptRef = React.useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -48,7 +47,14 @@ function ReceiptActionsInner() {
       db.salesQueue.get(saleId).then((item) => {
         if (item && item.payload) {
           try {
-            const payload = JSON.parse(item.payload);
+            const payload = JSON.parse(item.payload) as {
+              customerName?: string;
+              items?: Array<{ productName: string; sku?: string; quantity: number; unitPrice: number; discount?: number; total: number }>;
+              totalAmount?: number;
+              amountPaid?: number;
+              changeAmount?: number;
+              paymentMethod?: string;
+            };
             db.receipts.where('saleId').equals(saleId).first().then((receipt) => {
               setOfflineSale({
                 shopName: 'Dite POS',
@@ -57,7 +63,7 @@ function ReceiptActionsInner() {
                 date: item.createdAt,
                 cashierName: 'Current User',
                 customerName: payload.customerName,
-                items: (payload.items || []).map((i: any) => ({
+                items: (payload.items || []).map((i) => ({
                   productName: i.productName,
                   sku: i.sku,
                   quantity: i.quantity,
@@ -65,8 +71,8 @@ function ReceiptActionsInner() {
                   discount: i.discount || 0,
                   total: i.total,
                 })),
-                subtotal: (payload.items || []).reduce((sum: number, i: any) => sum + i.unitPrice * i.quantity, 0),
-                discountAmount: (payload.items || []).reduce((sum: number, i: any) => sum + (i.discount || 0), 0),
+                subtotal: (payload.items || []).reduce((sum, i) => sum + i.unitPrice * i.quantity, 0),
+                discountAmount: (payload.items || []).reduce((sum, i) => sum + (i.discount || 0), 0),
                 total: payload.totalAmount || parseFloat(total || '0'),
                 amountPaid: payload.amountPaid || parseFloat(total || '0'),
                 changeAmount: payload.changeAmount || 0,
@@ -77,8 +83,8 @@ function ReceiptActionsInner() {
                 isOffline: true,
               });
             });
-          } catch {
-            // ignore
+          } catch (error) {
+            logger.error('Failed to parse offline sale payload', error);
           }
         }
       });
@@ -98,8 +104,8 @@ function ReceiptActionsInner() {
         cashierName: sale.cashier?.name || 'Unknown',
         customerName: sale.customerName,
         customerPhone: sale.customerPhone,
-        items: (sale.items || []).map((i: any) => ({
-          productName: i.productName || i.product?.name || 'Unknown',
+        items: (sale.items || []).map((i: ReceiptItem) => ({
+          productName: i.productName,
           sku: i.sku,
           quantity: i.quantity,
           unitPrice: i.unitPrice,
@@ -128,23 +134,6 @@ function ReceiptActionsInner() {
       @page {
         size: auto;
         margin: 0mm;
-      }
-      @media print {
-        body * {
-          visibility: hidden;
-        }
-        #receipt-print-area, #receipt-print-area * {
-          visibility: visible;
-        }
-        #receipt-print-area {
-          position: absolute;
-          left: 0;
-          top: 0;
-          width: 100%;
-          max-width: 80mm;
-          margin: 0;
-          padding: 0;
-        }
       }
     `,
   });

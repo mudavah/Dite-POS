@@ -194,7 +194,6 @@ model Inventory {
   productId  String
   quantity   Int      @default(0)
   reserved   Int      @default(0)
-  totalStock Int      @default(0)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { formatCurrency } from '@/lib/utils';
 
 export async function GET() {
   const session = await auth();

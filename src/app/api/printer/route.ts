@@ -39,7 +39,7 @@ async function printToNetworkPrinter(ipAddress: string, port: number, data: Buff
   });
 }
 
-export async function GET(_: NextRequest) {
+export async function GET(_request: NextRequest) {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Receipt data required' }, { status: 400 });
       }
       const escposData = buildEscpos(data, config?.paperSize || '80mm');
-      return new NextResponse(escposData.buffer as any, {
+      return new NextResponse(Buffer.from(escposData.buffer).toString('binary'), {
         headers: { 'Content-Type': 'application/octet-stream' },
       });
     }

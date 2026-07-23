@@ -37,7 +37,7 @@ export default function PendingSalesPage() {
           onOpenChange={(open) => {
             if (!open) router.push('/pos');
           }}
-          onComplete={(saleId) => {
+          onComplete={(_saleId) => {
             router.push('/pos');
           }}
         />

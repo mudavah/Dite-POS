@@ -4,6 +4,7 @@ import * as React from 'react';
 import { usePosStore } from '@/store/use-pos-store';
 import { WifiOff, Wifi, RefreshCw, Clock } from 'lucide-react';
 import { Button } from '@/components/ui';
+import { logger } from '@/lib/logger';
 
 export function PosHeader() {
   const isOnline = usePosStore((s) => s.isOnline);
@@ -19,8 +20,8 @@ export function PosHeader() {
       if (res.ok) {
         setLastSyncAt(new Date().toISOString());
       }
-    } catch {
-      // ignore
+    } catch (error) {
+      logger.error('Manual sync failed', error);
     }
   };
 

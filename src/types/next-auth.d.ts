@@ -25,3 +25,12 @@ declare module 'next-auth/jwt' {
     branchId?: string | null;
   }
 }
+
+declare global {
+  interface Navigator {
+    usb?: USB;
+    bluetooth?: Bluetooth;
+  }
+}
+
+export {};

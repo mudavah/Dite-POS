@@ -6,13 +6,29 @@ import { Card, CardContent, CardHeader, CardTitle, Button, Input, Badge } from '
 import { Plus, Trash2, MoreVertical, ArrowRightLeft } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 
-async function fetchBranches() {
+interface Branch {
+  id: string;
+  name: string;
+  code: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { users: number; inventories: number };
+  sales?: Array<{ totalAmount: { toNumber: () => number } }>;
+  monthlySales?: number;
+  saleCount?: number;
+}
+
+async function fetchBranches(): Promise<Branch[]> {
   const res = await fetch('/api/branches');
   if (!res.ok) throw new Error('Failed to fetch branches');
   return res.json();
 }
 
-async function createBranch(data: any) {
+async function createBranch(data: Omit<Branch, 'id' | 'createdAt' | 'updatedAt'>): Promise<Branch> {
   const res = await fetch('/api/branches', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -22,13 +38,12 @@ async function createBranch(data: any) {
   return res.json();
 }
 
-async function deleteBranch(id: string) {
+async function deleteBranch(id: string): Promise<void> {
   const res = await fetch(`/api/branches/${id}`, { method: 'DELETE' });
   if (!res.ok) throw new Error('Failed to delete');
-  return res.json();
 }
 
-async function transferStock(data: any) {
+async function transferStock(data: { fromBranchId: string; toBranchId: string; productId: string; quantity: number; notes?: string }): Promise<{ success: boolean }> {
   const res = await fetch('/api/branches/transfer', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -42,23 +57,23 @@ export default function BranchesPage() {
   const queryClient = useQueryClient();
   const [showAddModal, setShowAddModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
-  const [form, setForm] = useState({ name: '', code: '', address: '', phone: '', email: '' });
+  const [form, setForm] = useState({ name: '', code: '', address: '', phone: '', email: '', isActive: true });
   const [transferForm, setTransferForm] = useState({ fromBranchId: '', toBranchId: '', productId: '', quantity: '', notes: '' });
 
   const { data: branches, isLoading } = useQuery({ queryKey: ['branches'], queryFn: fetchBranches });
 
-  const createMutation = useMutation({ mutationFn: createBranch, onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['branches'] }); setShowAddModal(false); setForm({ name: '', code: '', address: '', phone: '', email: '' }); } });
+  const createMutation = useMutation({ mutationFn: createBranch, onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['branches'] }); setShowAddModal(false); setForm({ name: '', code: '', address: '', phone: '', email: '', isActive: true }); } });
   const deleteMutation = useMutation({ mutationFn: deleteBranch, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['branches'] }) });
   const transferMutation = useMutation({ mutationFn: transferStock, onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['branches'] }); setShowTransferModal(false); } });
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
-    createMutation.mutate(form);
+    createMutation.mutate({ ...form, isActive: true });
   };
 
   const handleTransfer = (e: React.FormEvent) => {
     e.preventDefault();
-    transferMutation.mutate(transferForm);
+    transferMutation.mutate({ ...transferForm, quantity: Number(transferForm.quantity) || 0 });
   };
 
   return (
@@ -84,7 +99,7 @@ export default function BranchesPage() {
         {isLoading ? (
           <div className="col-span-full text-center py-8 text-muted-foreground">Loading...</div>
         ) : (
-          branches?.map((branch: any) => (
+          branches?.map((branch: Branch) => (
             <Card key={branch.id}>
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -194,7 +209,7 @@ export default function BranchesPage() {
                     required
                   >
                     <option value="">Select branch</option>
-                    {branches?.map((b: any) => (
+                    {branches?.map((b: Branch) => (
                       <option key={b.id} value={b.id}>{b.name}</option>
                     ))}
                   </select>
@@ -208,7 +223,7 @@ export default function BranchesPage() {
                     required
                   >
                     <option value="">Select branch</option>
-                    {branches?.map((b: any) => (
+                    {branches?.map((b: Branch) => (
                       <option key={b.id} value={b.id}>{b.name}</option>
                     ))}
                   </select>

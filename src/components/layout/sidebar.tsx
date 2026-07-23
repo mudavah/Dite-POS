@@ -11,6 +11,7 @@ import { signOut } from 'next-auth/react';
 import { Button } from '@/components/ui';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { logger } from '@/lib/logger';
 
 const SIDEBAR_COLLAPSED_KEY = 'sidebar-collapsed';
 
@@ -158,7 +159,8 @@ const getLocalStorageSnapshot = () => {
   if (typeof window === 'undefined') return false;
   try {
     return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
-  } catch {
+  } catch (error) {
+    logger.warn('localStorage read failed', { error: error instanceof Error ? error.message : 'Unknown' });
     return false;
   }
 };
@@ -172,8 +174,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     const next = !isCollapsed;
     try {
       localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next));
-    } catch {
-      // ignore localStorage errors
+    } catch (error) {
+      logger.warn('localStorage write failed', { error: error instanceof Error ? error.message : 'Unknown' });
     }
   };
 

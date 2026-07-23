@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { db } from '@/lib/offline/dexie-db';
+import { logger } from '@/lib/logger';
 
 export interface CartItem {
   id: string;
@@ -26,7 +27,7 @@ interface PosState {
   isOnline: boolean;
   pendingSyncCount: number;
   lastSyncAt: string | null;
-  syncStatus: 'idle' | 'syncing' | 'error' | 'conflict';
+  syncStatus: 'idle' | 'syncing' | 'error' | 'conflict' | 'complete';
   cartSheetOpen: boolean;
   checkoutOpen: boolean;
 
@@ -101,7 +102,7 @@ export const usePosStore = create<PosState>((set, get) => ({
         };
       }
       const newItem: CartItem = {
-        id: `${product.id}-${Date.now()}`,
+        id: crypto.randomUUID(),
         productId: product.id,
         name: product.name,
         sku: product.sku,
@@ -163,8 +164,8 @@ export const usePosStore = create<PosState>((set, get) => ({
         selectedCustomer: selectedCustomer ? JSON.stringify(selectedCustomer) : null,
         updatedAt: new Date().toISOString(),
       });
-    } catch {
-      // ignore persistence errors
+    } catch (error) {
+      logger.error('Failed to persist cart', error);
     }
   },
 
@@ -176,12 +177,12 @@ export const usePosStore = create<PosState>((set, get) => ({
         const selectedCustomer = draft.selectedCustomer ? (JSON.parse(draft.selectedCustomer) as Customer) : null;
         set({ cart, selectedCustomer });
       }
-    } catch {
-      // ignore restore errors
+    } catch (error) {
+      logger.error('Failed to restore cart', error);
     }
   },
 
-  completeOfflineSale: async (payload, branchId, _cashierId: string) => {
+  completeOfflineSale: async (payload, branchId) => {
     const saleId = crypto.randomUUID();
     const now = new Date().toISOString();
     const receiptNo = `OFF-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(Date.now() % 100000).padStart(5, '0')}`;

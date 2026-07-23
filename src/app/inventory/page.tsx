@@ -169,7 +169,6 @@ export default function InventoryPage() {
                     <th className="p-3 text-left font-medium">Product</th>
                     <th className="p-3 text-left font-medium">SKU</th>
                     <th className="p-3 text-left font-medium">Branch</th>
-                    <th className="p-3 text-left font-medium">Total Stock</th>
                     <th className="p-3 text-left font-medium">Quantity</th>
                     <th className="p-3 text-left font-medium">Reserved</th>
                     <th className="p-3 text-left font-medium">Available</th>
@@ -191,7 +190,6 @@ export default function InventoryPage() {
                         </td>
                         <td className="p-3 font-mono">{item.product.sku}</td>
                         <td className="p-3">{item.branch.name}</td>
-                        <td className="p-3">{item.totalStock ?? '-'}</td>
                         <td className="p-3">{item.quantity}</td>
                         <td className="p-3">{item.reserved}</td>
                         <td className="p-3">{available}</td>
@@ -209,28 +207,17 @@ export default function InventoryPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => {
-                              const newTotal = prompt('Enter total stock count:', String(item.totalStock || 0));
-                              if (newTotal !== null && !isNaN(Number(newTotal))) {
+                              const newQty = prompt('Adjust quantity:', String(item.quantity));
+                              if (newQty !== null && !isNaN(Number(newQty))) {
                                 fetch('/api/inventory', {
                                   method: 'POST',
                                   headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ inventoryId: item.id, totalStock: Number(newTotal) }),
+                                  body: JSON.stringify({ inventoryId: item.id, quantity: Number(newQty) - item.quantity, type: 'ADJUSTMENT', notes: 'Manual adjustment' }),
                                 }).then(() => {
                                   queryClient.invalidateQueries({ queryKey: ['inventory'] });
                                 });
                               }
                             }}
-                          >
-                            Set Stock
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedItem(item);
-                              setShowAdjustModal(true);
-                            }}
-                            className="ml-2"
                           >
                             Adjust
                           </Button>
@@ -240,7 +227,7 @@ export default function InventoryPage() {
                   })}
                   {data?.inventory?.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="p-8 text-center text-muted-foreground">
+                      <td colSpan={7} className="p-8 text-center text-muted-foreground">
                         No inventory found
                       </td>
                     </tr>

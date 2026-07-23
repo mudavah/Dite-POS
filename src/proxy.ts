@@ -57,21 +57,10 @@ export async function proxy(request: NextRequest) {
       '/branches',
       '/users',
     ];
-    const sharedPaths = ['/pos', '/pending-sales', '/inventory'];
-    const apiPaths = ['/api/pos/', '/api/sync'];
-
     if (role === 'CASHIER') {
       const isAdminPath = adminOnlyPaths.some((path) => pathname.startsWith(path));
       if (isAdminPath) {
         return NextResponse.redirect(new URL('/pos', request.url));
-      }
-    }
-
-    if (role === 'ADMIN') {
-      const isSharedPath = sharedPaths.some((path) => pathname.startsWith(path));
-      const isApiPath = apiPaths.some((path) => pathname.startsWith(path));
-      if (!isSharedPath && !isApiPath) {
-        return NextResponse.redirect(new URL('/dashboard', request.url));
       }
     }
   }

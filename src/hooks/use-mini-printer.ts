@@ -22,10 +22,10 @@ export function useMiniPrinter() {
 
   const connectUSB = async (): Promise<boolean> => {
     try {
-      if (!(navigator as any).usb) {
+      if (!navigator.usb) {
         throw new Error('WebUSB is not supported in this browser. Use Chrome or Edge.');
       }
-      const device = await (navigator as any).usb.requestDevice({ filters: [] });
+      const device = await navigator.usb.requestDevice({ filters: [] });
       await device.open();
       if (device.configuration === null) {
         await device.selectConfiguration(1);
@@ -33,8 +33,8 @@ export function useMiniPrinter() {
       await device.claimInterface(0);
       setPrinter({
         type: 'USB',
-        deviceId: device.serialNumber || device.productName,
-        name: device.productName,
+        deviceId: device.serialNumber || device.productName || undefined,
+        name: device.productName || undefined,
         connected: true,
       });
       return true;
@@ -47,16 +47,16 @@ export function useMiniPrinter() {
 
   const connectBluetooth = async (): Promise<boolean> => {
     try {
-      if (!(navigator as any).bluetooth) {
+      if (!navigator.bluetooth) {
         throw new Error('WebBluetooth is not supported in this browser. Use Chrome or Edge.');
       }
-      const device = await (navigator as any).bluetooth.requestDevice({
+      const device = await navigator.bluetooth.requestDevice({
         filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }],
       });
       setPrinter({
         type: 'BLUETOOTH',
         deviceId: device.id,
-        name: device.name,
+        name: device.name || undefined,
         connected: true,
       });
       return true;
@@ -91,22 +91,22 @@ export function useMiniPrinter() {
     setIsPrinting(true);
     try {
       if (printer.type === 'USB') {
-        const devices = await (navigator as any).usb.getDevices();
-        const device = devices.find((d: any) => d.serialNumber === printer.deviceId);
+        const devices = await navigator.usb.getDevices();
+        const device = devices.find((d) => d.serialNumber === printer.deviceId);
         if (!device) throw new Error('Printer not found. Reconnect USB.');
-        await device.transferOut(1, data);
+        await device.transferOut(1, data as unknown as BufferSource);
         setPrinter((p) => ({ ...p, error: undefined }));
         return true;
       }
 
       if (printer.type === 'BLUETOOTH') {
-        const device = await (navigator as any).bluetooth.requestDevice({
+        const device = await navigator.bluetooth.requestDevice({
           filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }],
         });
         const server = await device.gatt?.connect();
         const service = await server?.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
         const characteristic = await service?.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
-        await characteristic?.writeValue(data.buffer as ArrayBuffer);
+        await characteristic?.writeValue(Buffer.from(data.buffer));
         setPrinter((p) => ({ ...p, error: undefined }));
         return true;
       }
