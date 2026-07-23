@@ -30,7 +30,7 @@ export async function proxy(request: NextRequest) {
 
   if (token) {
     const role = token.role as string;
-    const cashierOnlyPaths = ['/pos', '/pending-sales'];
+    const cashierOnlyPaths = ['/pos'];
     const adminOnlyPaths = [
       '/dashboard',
       '/products',
@@ -39,6 +39,7 @@ export async function proxy(request: NextRequest) {
       '/branches',
       '/users',
     ];
+    const sharedPaths = ['/pending-sales'];
 
     if (role === 'CASHIER') {
       const isAdminPath = adminOnlyPaths.some((path) => pathname.startsWith(path));
@@ -49,7 +50,8 @@ export async function proxy(request: NextRequest) {
 
     if (role === 'ADMIN') {
       const isCashierOnly = cashierOnlyPaths.some((path) => pathname.startsWith(path));
-      if (isCashierOnly && pathname !== '/pos') {
+      const isSharedPath = sharedPaths.some((path) => pathname.startsWith(path));
+      if (isCashierOnly && !isSharedPath) {
         return NextResponse.redirect(new URL('/dashboard', request.url));
       }
     }
