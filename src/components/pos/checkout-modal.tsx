@@ -38,6 +38,7 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
   const [mobileRef, setMobileRef] = React.useState('');
   const [splitAmounts, setSplitAmounts] = React.useState<Record<string, string>>({});
   const [notes, setNotes] = React.useState('');
+  const [customerName, setCustomerName] = React.useState(customer?.name || '');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -97,6 +98,7 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
     setMobileRef('');
     setSplitAmounts({});
     setNotes('');
+    setCustomerName('');
   };
 
   const handleSubmit = () => {
@@ -129,7 +131,7 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
         notes: i.notes,
       })),
       customerId: customer?.id,
-      customerName: customer?.name,
+      customerName: customerName || customer?.name || null,
       paymentMethod: method,
       amountPaid: method === 'CASH' ? cashNum : total,
       changeAmount: change,
@@ -185,11 +187,15 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
               <span>Total</span>
               <span className="text-primary">{formatCurrency(total)}</span>
             </div>
-            {customer && (
-              <div className="text-sm text-muted-foreground">
-                Customer: <span className="font-medium text-foreground">{customer.name}</span>
-              </div>
-            )}
+            <div>
+              <label className="text-sm font-medium mb-1 block">Customer Name</label>
+              <Input
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="Walk-in Customer"
+                className="h-10"
+              />
+            </div>
             {!isOnline && (
               <div className="text-sm text-warning">
                 You are offline. Sale will be saved locally and synced when connection is restored.
