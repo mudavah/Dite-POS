@@ -5,7 +5,18 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatCurrency(amount: number | string, currency: string = 'KES', symbol: string = 'KSh') {
+export function calculateVatBreakdown(grandTotal: number, vatRate: number = 0.16) {
+  const vatExclusive = grandTotal / (1 + vatRate);
+  const vatAmount = grandTotal - vatExclusive;
+  return {
+    grandTotal,
+    vatExclusive,
+    vatAmount,
+    vatRate,
+  };
+}
+
+export function formatCurrency(amount: number | string, currency: string = 'KES', symbol: string = 'KSh') { // eslint-disable-line @typescript-eslint/no-unused-vars
   const num = typeof amount === 'string' ? parseFloat(amount) : amount;
   return `${symbol} ${num.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
