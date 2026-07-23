@@ -27,7 +27,6 @@ interface PosState {
   pendingSyncCount: number;
   lastSyncAt: string | null;
   syncStatus: 'idle' | 'syncing' | 'error' | 'conflict';
-  serverTimeOffset: number;
   cartSheetOpen: boolean;
   checkoutOpen: boolean;
 
@@ -69,7 +68,6 @@ export const usePosStore = create<PosState>((set, get) => ({
   pendingSyncCount: 0,
   lastSyncAt: null,
   syncStatus: 'idle',
-  serverTimeOffset: 0,
   cartSheetOpen: false,
   checkoutOpen: false,
 

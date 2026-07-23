@@ -14,7 +14,8 @@ export async function GET() {
   weekStart.setDate(weekStart.getDate() - weekStart.getDay());
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
-  const whereClause = session.user.role === 'ADMIN' ? {} : { branchId: session.user.branchId as string | undefined };
+  const isAdmin = session.user.role === 'ADMIN';
+  const branchFilter = isAdmin ? {} : { branchId: session.user.branchId as string | undefined };
 
   const [
     todaySales,
@@ -26,19 +27,19 @@ export async function GET() {
     branchPerformance,
   ] = await Promise.all([
     prisma.sale.aggregate({
-      where: { ...whereClause, createdAt: { gte: today }, paymentStatus: 'COMPLETED' },
+      where: { ...branchFilter, createdAt: { gte: today }, paymentStatus: 'COMPLETED' },
       _sum: { totalAmount: true, subtotal: true },
     }),
     prisma.sale.aggregate({
-      where: { ...whereClause, createdAt: { gte: weekStart }, paymentStatus: 'COMPLETED' },
+      where: { ...branchFilter, createdAt: { gte: weekStart }, paymentStatus: 'COMPLETED' },
       _sum: { totalAmount: true },
     }),
     prisma.sale.aggregate({
-      where: { ...whereClause, createdAt: { gte: monthStart }, paymentStatus: 'COMPLETED' },
+      where: { ...branchFilter, createdAt: { gte: monthStart }, paymentStatus: 'COMPLETED' },
       _sum: { totalAmount: true },
     }),
     prisma.sale.findMany({
-      where: whereClause as any,
+      where: { ...branchFilter, createdAt: { gte: new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000) } },
       take: 10,
       orderBy: { createdAt: 'desc' },
       include: { cashier: { select: { name: true, email: true } }, branch: { select: { name: true, code: true } } },
@@ -46,7 +47,7 @@ export async function GET() {
     prisma.saleItem.groupBy({
       by: ['productId'],
       where: {
-        sale: { ...whereClause, createdAt: { gte: monthStart }, paymentStatus: 'COMPLETED' },
+        sale: { ...branchFilter, createdAt: { gte: monthStart }, paymentStatus: 'COMPLETED' },
       },
       _sum: { quantity: true, total: true },
       orderBy: { _sum: { total: 'desc' } },
@@ -82,7 +83,7 @@ export async function GET() {
   const revenue = monthSales._sum?.totalAmount?.toNumber() || 0;
   const cost = await prisma.saleItem.aggregate({
     where: {
-      sale: { ...whereClause, createdAt: { gte: monthStart }, paymentStatus: 'COMPLETED' },
+      sale: { ...branchFilter, createdAt: { gte: monthStart }, paymentStatus: 'COMPLETED' },
     },
     _sum: { total: true },
   });
@@ -90,7 +91,7 @@ export async function GET() {
   const profit = revenue - totalCost;
 
   const branchesPerformance = branchPerformance.map((branch) => {
-    const totalSales = branch.sales.reduce((sum: number, sale: { totalAmount: any }) => sum + sale.totalAmount.toNumber(), 0);
+    const totalSales = branch.sales.reduce((sum: number, sale: { totalAmount: { toNumber: () => number } }) => sum + sale.totalAmount.toNumber(), 0);
     return {
       id: branch.id,
       name: branch.name,

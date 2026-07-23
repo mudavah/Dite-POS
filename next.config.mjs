@@ -7,15 +7,18 @@ const nextConfig = {
   output: process.env.NODE_ENV === 'production' ? 'standalone' : undefined,
   turbopack: {},
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   images: {
-    remotePatterns: [
-      {
+    remotePatterns: (() => {
+      const hosts = process.env.NEXT_PUBLIC_ALLOWED_IMAGE_HOSTS
+        ? process.env.NEXT_PUBLIC_ALLOWED_IMAGE_HOSTS.split(',').map((h) => h.trim()).filter(Boolean)
+        : ['localhost', '127.0.0.1'];
+      return hosts.map((hostname) => ({
         protocol: 'https',
-        hostname: '**',
-      },
-    ],
+        hostname,
+      }));
+    })(),
   },
   async headers() {
     return [

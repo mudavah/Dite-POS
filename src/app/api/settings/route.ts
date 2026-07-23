@@ -8,7 +8,9 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const isAdmin = session.user.role === 'ADMIN';
   const settings = await prisma.branchSetting.findMany({
+    where: isAdmin ? {} : { branchId: session.user.branchId as string },
     include: { branch: { select: { id: true, name: true, code: true } } },
   });
 

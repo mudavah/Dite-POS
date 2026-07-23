@@ -20,13 +20,47 @@ import {
 } from 'recharts';
 import { formatCurrency } from '@/lib/utils';
 
-async function fetchDashboard() {
+interface LowStockItem {
+  id: string;
+  quantity: number;
+  product: { name: string };
+  branch: { name: string };
+}
+
+interface RecentSale {
+  id: string;
+  createdAt: string;
+  cashier: { name: string } | null;
+  totalAmount: number;
+  paymentStatus: string;
+}
+
+interface BranchPerformance {
+  id: string;
+  name: string;
+  saleCount: number;
+  totalSales: number;
+}
+
+interface DashboardData {
+  todaySales: number;
+  weekSales: number;
+  monthSales: number;
+  revenue: number;
+  profit: number;
+  recentSales: RecentSale[];
+  topProducts: Array<Record<string, unknown>>;
+  lowStock: LowStockItem[];
+  branchPerformance: BranchPerformance[];
+}
+
+async function fetchDashboard(): Promise<DashboardData> {
   const res = await fetch('/api/dashboard');
   if (!res.ok) throw new Error('Failed to fetch dashboard');
   return res.json();
 }
 
-const statCards = [
+const statCards: Array<{ title: string; key: 'todaySales' | 'weekSales' | 'monthSales' | 'revenue' | 'profit'; icon: React.ElementType; color: string }> = [
   { title: 'Today&apos;s Sales', key: 'todaySales', icon: DollarSign, color: 'text-blue-400' },
   { title: 'Weekly Sales', key: 'weekSales', icon: TrendingUp, color: 'text-green-400' },
   { title: 'Monthly Sales', key: 'monthSales', icon: ShoppingCart, color: 'text-purple-400' },
@@ -35,7 +69,7 @@ const statCards = [
 ];
 
 export default function DashboardPage() {
-  const { data, isLoading } = useQuery({ queryKey: ['dashboard'], queryFn: fetchDashboard });
+  const { data, isLoading } = useQuery<DashboardData>({ queryKey: ['dashboard'], queryFn: fetchDashboard });
 
   return (
     <div className="space-y-6">
@@ -53,7 +87,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {isLoading ? '...' : formatCurrency(data?.[card.key] || 0)}
+                {isLoading ? '...' : formatCurrency((data as DashboardData | undefined)?.[card.key] || 0)}
               </div>
             </CardContent>
           </Card>
@@ -96,8 +130,8 @@ export default function DashboardPage() {
             <div className="space-y-4">
               {isLoading ? (
                 <div className="text-muted-foreground">Loading...</div>
-              ) : data?.lowStock?.length > 0 ? (
-                data.lowStock.map((item: any) => (
+              ) : data && data.lowStock.length > 0 ? (
+                data.lowStock.map((item: LowStockItem) => (
                   <div key={item.id} className="flex items-center justify-between">
                     <div>
                       <p className="font-medium">{item.product.name}</p>
@@ -124,7 +158,7 @@ export default function DashboardPage() {
               <div className="text-muted-foreground">Loading...</div>
             ) : (
               <div className="space-y-4">
-                {data?.recentSales?.map((sale: any) => (
+                {data?.recentSales?.map((sale: RecentSale) => (
                   <div key={sale.id} className="flex items-center justify-between">
                     <div>
                       <p className="font-medium">#{sale.id.slice(-8)}</p>
@@ -157,7 +191,7 @@ export default function DashboardPage() {
               <div className="text-muted-foreground">Loading...</div>
             ) : (
               <div className="space-y-4">
-                {data?.branchPerformance?.map((branch: any) => (
+                {data?.branchPerformance?.map((branch: BranchPerformance) => (
                   <div key={branch.id} className="flex items-center justify-between">
                     <div>
                       <p className="font-medium">{branch.name}</p>

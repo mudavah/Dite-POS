@@ -12,7 +12,6 @@ if (process.env.NODE_ENV === 'production') {
 type AppUser = { id: string; email: string; name?: string | null; role: UserRole; branchId?: string | null };
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  trustHost: true,
   debug: process.env.NODE_ENV === 'development',
   providers: [
     Credentials({
