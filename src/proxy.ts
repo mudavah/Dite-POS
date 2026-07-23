@@ -39,6 +39,7 @@ export async function proxy(request: NextRequest) {
       '/users',
     ];
     const sharedPaths = ['/pos', '/pending-sales', '/inventory'];
+    const apiPaths = ['/api/pos/', '/api/sync'];
 
     if (role === 'CASHIER') {
       const isAdminPath = adminOnlyPaths.some((path) => pathname.startsWith(path));
@@ -49,7 +50,8 @@ export async function proxy(request: NextRequest) {
 
     if (role === 'ADMIN') {
       const isSharedPath = sharedPaths.some((path) => pathname.startsWith(path));
-      if (!isSharedPath) {
+      const isApiPath = apiPaths.some((path) => pathname.startsWith(path));
+      if (!isSharedPath && !isApiPath) {
         return NextResponse.redirect(new URL('/dashboard', request.url));
       }
     }
