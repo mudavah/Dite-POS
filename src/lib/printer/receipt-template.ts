@@ -17,7 +17,8 @@ export interface ReceiptData {
   branchAddress?: string;
   branchPhone?: string;
   receiptNo: string;
-  date: Date;
+  saleId: string;
+  date: string;
   cashierName: string;
   customerName?: string;
   customerPhone?: string;

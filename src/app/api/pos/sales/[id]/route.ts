@@ -2,10 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 
-export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await auth();
   if (!session?.user) {
@@ -51,6 +48,7 @@ export async function GET(
     amountPaid: sale.amountPaid.toNumber(),
     changeAmount: sale.changeAmount.toNumber(),
     customerName: sale.customerName,
+    customerPhone: sale.customerPhone,
     cashier: sale.cashier,
     branch: sale.branch,
     shopName: sale.branch?.settings?.shopName || 'Dite POS',
@@ -60,7 +58,7 @@ export async function GET(
     currency: sale.branch?.settings?.currency || 'KES',
     currencySymbol: sale.branch?.settings?.currencySymbol || 'KSh',
     footerText: sale.branch?.settings?.footerText,
-    items: sale.items.map((i: any) => ({
+    items: sale.items.map((i) => ({
       productId: i.productId,
       productName: i.productName,
       sku: i.sku,
