@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, Button, Input, Badge } from '@/components/ui';
 import { Save, Printer, Monitor, Store as StoreIcon, Moon, Usb, Bluetooth, Wifi, FileText } from 'lucide-react';
+import { useToast } from '@/components/ui/toast';
 
 async function fetchSettings() {
   const res = await fetch('/api/settings');
@@ -52,7 +53,11 @@ async function fetchBranches() {
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('shop');
+
+  const shopInitializedRef = useRef(false);
+  const printerInitializedRef = useRef(false);
 
   const { data: settings, isLoading: settingsLoading } = useQuery({ queryKey: ['settings'], queryFn: fetchSettings });
   const { data: printerConfigs, isLoading: printerLoading } = useQuery({ queryKey: ['printer-configs'], queryFn: fetchPrinterConfigs });
@@ -65,12 +70,44 @@ export default function SettingsPage() {
   const [connecting, setConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
-  const shopMutation = useMutation({ mutationFn: updateSettings, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings'] }) });
-  const printerMutation = useMutation({ mutationFn: savePrinterConfig, onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['printer-configs'] }); setPrinterForm({ id: '', branchId: '', name: '', type: 'USB', protocol: 'ESC_POS', paperSize: '80mm', vendorId: '', productId: '', endpoint: '', deviceId: '', ipAddress: '', macAddress: '', port: '9100', isDefault: false, isActive: true }); } });
-  const deletePrinterMutation = useMutation({ mutationFn: deletePrinterConfig, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['printer-configs'] }) });
+  const shopMutation = useMutation({
+    mutationFn: updateSettings,
+    onSuccess: () => {
+      shopInitializedRef.current = false;
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      toast({ title: 'Changes saved successfully', variant: 'success' });
+    },
+    onError: (error: any) => {
+      toast({ title: error?.message || 'Failed to save settings', variant: 'destructive' });
+    }
+  });
+  const printerMutation = useMutation({
+    mutationFn: savePrinterConfig,
+    onSuccess: () => {
+      printerInitializedRef.current = false;
+      queryClient.invalidateQueries({ queryKey: ['printer-configs'] });
+      setPrinterForm({ id: '', branchId: '', name: '', type: 'USB', protocol: 'ESC_POS', paperSize: '80mm', vendorId: '', productId: '', endpoint: '', deviceId: '', ipAddress: '', macAddress: '', port: '9100', isDefault: false, isActive: true });
+      toast({ title: 'Printer configuration saved successfully', variant: 'success' });
+    },
+    onError: (error: any) => {
+      toast({ title: error?.message || 'Failed to save printer config', variant: 'destructive' });
+    }
+  });
+  const deletePrinterMutation = useMutation({
+    mutationFn: deletePrinterConfig,
+    onSuccess: () => {
+      printerInitializedRef.current = false;
+      queryClient.invalidateQueries({ queryKey: ['printer-configs'] });
+      setPrinterForm({ id: '', branchId: '', name: '', type: 'USB', protocol: 'ESC_POS', paperSize: '80mm', vendorId: '', productId: '', endpoint: '', deviceId: '', ipAddress: '', macAddress: '', port: '9100', isDefault: false, isActive: true });
+      toast({ title: 'Printer configuration deleted', variant: 'success' });
+    },
+    onError: (error: any) => {
+      toast({ title: error?.message || 'Failed to delete printer config', variant: 'destructive' });
+    }
+  });
 
   useEffect(() => {
-    if (settings?.length) {
+    if (settings?.length && !shopInitializedRef.current) {
       const s = settings[0];
       setShopForm({
         branchId: s.branchId,
@@ -82,11 +119,12 @@ export default function SettingsPage() {
         branchPhone: s.branchPhone || '',
         branchAddress: s.branchAddress || '',
       });
+      shopInitializedRef.current = true;
     }
   }, [settings]);
 
   useEffect(() => {
-    if (printerConfigs?.length) {
+    if (printerConfigs?.length && !printerInitializedRef.current) {
       const p = printerConfigs[0];
       setPrinterForm({
         id: p.id || '',
@@ -105,22 +143,21 @@ export default function SettingsPage() {
         isDefault: p.isDefault || false,
         isActive: p.isActive ?? true,
       });
+      printerInitializedRef.current = true;
     }
   }, [printerConfigs]);
 
   const handleSaveShop = (e: React.FormEvent) => {
     e.preventDefault();
-    const { branchId, ...rest } = shopForm;
-    shopMutation.mutate(rest);
+    shopMutation.mutate(shopForm);
   };
 
   const handleSavePrinter = (e: React.FormEvent) => {
     e.preventDefault();
-    const { id, ...rest } = printerForm;
-    if (id) {
-      printerMutation.mutate({ id, ...rest });
+    if (printerForm.id) {
+      printerMutation.mutate({ id: printerForm.id, ...printerForm });
     } else {
-      printerMutation.mutate(rest);
+      printerMutation.mutate(printerForm);
     }
   };
 
@@ -157,10 +194,20 @@ export default function SettingsPage() {
     }
   };
 
+  const etrsMutation = useMutation({
+    mutationFn: updateSettings,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      toast({ title: 'eTRS configuration saved successfully', variant: 'success' });
+    },
+    onError: (error: any) => {
+      toast({ title: error?.message || 'Failed to save eTRS config', variant: 'destructive' });
+    }
+  });
+
   const handleSaveEtrs = (e: React.FormEvent) => {
     e.preventDefault();
-    const { branchId, ...rest } = etrsForm;
-    updateSettings(rest);
+    etrsMutation.mutate(etrsForm);
   };
 
   const toggleDarkMode = () => {
@@ -486,7 +533,7 @@ Footer: ${shopForm.footerText || 'Thank you for your purchase!'}`}
                 <input type="checkbox" id="etrsSimulated" checked={etrsForm.isSimulated} onChange={(e) => setEtrsForm({ ...etrsForm, isSimulated: e.target.checked })} className="h-4 w-4 rounded border-input" />
                 <label htmlFor="etrsSimulated" className="text-sm font-medium">Use simulation mode</label>
               </div>
-              <Button type="submit" disabled={shopMutation.isPending}>
+              <Button type="submit" disabled={etrsMutation.isPending}>
                 <Save className="h-4 w-4 mr-2" />
                 Save Changes
               </Button>

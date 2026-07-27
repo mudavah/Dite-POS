@@ -5,7 +5,7 @@ import { Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { AppLayout } from '@/components/layout/sidebar';
 import { CheckCircle2, ShoppingCart, Printer, Download, Share2, FileText } from 'lucide-react';
-import { Button, Input } from '@/components/ui';
+import { Button } from '@/components/ui';
 import { formatCurrency, formatDate, calculateVatBreakdown } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
 import { useQuery } from '@tanstack/react-query';
@@ -54,10 +54,7 @@ function ReceiptActionsInner() {
 
   const [offlineSale, setOfflineSale] = React.useState<ReceiptData | null>(null);
   const [showPreview, setShowPreview] = React.useState(false);
-  const [editableFields, setEditableFields] = React.useState({
-    customerPin: '',
-    customerTin: '',
-  });
+  const [printTemplate, setPrintTemplate] = React.useState<ReceiptTemplate>('existing');
 
   React.useEffect(() => {
     if (!saleId || sale) return;
@@ -172,24 +169,13 @@ function ReceiptActionsInner() {
     if (!base) return null;
     return {
       ...(base as ReceiptData),
-      customerPin: editableFields.customerPin || base.customerPin,
-      customerTin: editableFields.customerTin || (base as any).customerTin,
+      customerPin: base.customerPin,
+      customerTin: (base as ReceiptData).customerTin,
       kraPin: base.kraPin,
       branchAddress: base.branchAddress,
       branchPhone: base.branchPhone,
     };
-  }, [sale, offlineSale, offlineReceiptNo, editableFields]);
-
-  React.useEffect(() => {
-    if (receiptData) {
-      setEditableFields({
-        customerPin: receiptData.customerPin || '',
-        customerTin: (receiptData as any).customerTin || '',
-      });
-    }
-  }, [receiptData]);
-
-  const [printTemplate, setPrintTemplate] = React.useState<ReceiptTemplate>('existing');
+  }, [sale, offlineSale, offlineReceiptNo]);
 
   const handlePrintThermal = async (size: '58mm' | '80mm') => {
     if (!receiptData) return;
@@ -209,8 +195,8 @@ function ReceiptActionsInner() {
         time: new Date().toLocaleTimeString('en-KE'),
         cashierName: receiptData.cashierName,
         customerName: receiptData.customerName,
-        customerPin: editableFields.customerPin || receiptData.customerPin || '',
-        customerTin: editableFields.customerTin || '',
+        customerPin: receiptData.customerPin || '',
+        customerTin: '',
         country: 'Kenya',
         items: receiptData.items.map((i) => ({
           qty: i.quantity,
@@ -375,8 +361,8 @@ function ReceiptActionsInner() {
         y = rightText(y, 'Date', formatDate(receiptData!.date));
         y = rightText(y, 'Time', new Date(receiptData!.date).toLocaleTimeString('en-KE'));
         y = rightText(y, 'Customer', receiptData!.customerName || 'Walk-in Customer');
-        if (editableFields.customerPin || receiptData!.customerPin) y = rightText(y, 'Customer PIN', editableFields.customerPin || receiptData!.customerPin || '');
-        if (editableFields.customerTin) y = rightText(y, 'Customer TIN', editableFields.customerTin);
+        y = rightText(y, 'Customer PIN', receiptData!.customerPin || '');
+        y = rightText(y, 'Customer TIN', '');
         y = rightText(y, 'Country', 'Kenya');
 
         y += 2;
@@ -411,7 +397,7 @@ function ReceiptActionsInner() {
 
         const vat = calculateVatBreakdown(receiptData!.total);
         doc.setFont('helvetica', 'normal');
-        y = rightText(y, 'SUBTOTAL', formatCurrency(receiptData!.subtotal, receiptData!.currency, receiptData!.currencySymbol));
+        y = rightText(y, 'SUBTOTAL', formatCurrency(vat.vatExclusive, receiptData!.currency, receiptData!.currencySymbol));
         y = rightText(y, 'TOTAL AMOUNT', formatCurrency(receiptData!.total, receiptData!.currency, receiptData!.currencySymbol));
         y = rightText(y, 'CASH', formatCurrency(receiptData!.amountPaid, receiptData!.currency, receiptData!.currencySymbol));
         if (receiptData!.changeAmount > 0) y = rightText(y, 'CHANGE', formatCurrency(receiptData!.changeAmount, receiptData!.currency, receiptData!.currencySymbol));
@@ -464,14 +450,14 @@ function ReceiptActionsInner() {
       `Date: ${formatDate(receiptData.date)}`,
       `Time: ${new Date(receiptData.date).toLocaleTimeString('en-KE')}`,
       `Customer: ${receiptData.customerName || 'Walk-in Customer'}`,
-      `Customer PIN: ${editableFields.customerPin || receiptData.customerPin || ''}`,
-      `Customer TIN: ${editableFields.customerTin || ''}`,
-      `Country: Kenya`,
+      `Customer PIN: ${receiptData.customerPin || ''}`,
+      `Customer TIN: `,
+      'Country: Kenya',
       '',
       'QTY  DESCRIPTION        VAT    PRICE       AMOUNT',
       ...receiptData.items.map(i => `${i.quantity}  ${i.productName}  A  ${formatCurrency(i.unitPrice, receiptData.currency, receiptData.currencySymbol)}  ${formatCurrency(i.total, receiptData.currency, receiptData.currencySymbol)}`),
       '',
-      `SUBTOTAL: ${formatCurrency(receiptData.subtotal, receiptData.currency, receiptData.currencySymbol)}`,
+      `SUBTOTAL: ${formatCurrency(vat.vatExclusive, receiptData.currency, receiptData.currencySymbol)}`,
       `TOTAL AMOUNT: ${formatCurrency(receiptData.total, receiptData.currency, receiptData.currencySymbol)}`,
       `CASH: ${formatCurrency(receiptData.amountPaid, receiptData.currency, receiptData.currencySymbol)}`,
       `CHANGE: ${formatCurrency(receiptData.changeAmount, receiptData.currency, receiptData.currencySymbol)}`,
@@ -553,98 +539,84 @@ function ReceiptActionsInner() {
       </div>
 
       {receiptData && (
-        <>
-          <div className="rounded-lg border border-border bg-card p-4 space-y-2">
-            <div className="flex flex-wrap gap-4 text-sm">
-              {receiptData.receiptNo && (
-                <div>
-                  <span className="text-muted-foreground">Receipt: </span>
-                  <span className="font-medium">{receiptData.receiptNo}</span>
-                </div>
-              )}
-              {receiptData.saleId && (
-                <div>
-                  <span className="text-muted-foreground">Sale ID: </span>
-                  <span className="font-medium">{receiptData.saleId}</span>
-                </div>
-              )}
+        <div className="rounded-lg border border-border bg-card p-4 space-y-2">
+          <div className="flex flex-wrap gap-4 text-sm">
+            {receiptData.receiptNo && (
               <div>
-                <span className="text-muted-foreground">Total: </span>
-                <span className="font-medium">{formatCurrency(receiptData.total, receiptData.currency, receiptData.currencySymbol)}</span>
+                <span className="text-muted-foreground">Receipt: </span>
+                <span className="font-medium">{receiptData.receiptNo}</span>
               </div>
-              {receiptData.syncStatus && (
-                <div>
-                  <span className="text-muted-foreground">Status: </span>
-                  <span className={`font-medium ${receiptData.syncStatus === 'PENDING_SYNC' ? 'text-warning' : 'text-success'}`}>
-                    {receiptData.syncStatus === 'PENDING_SYNC' ? 'Pending Synchronization' : 'Synced'}
-                  </span>
-                </div>
-              )}
-              {receiptData.isOffline && (
-                <div>
-                  <span className="text-muted-foreground">Mode: </span>
-                  <span className="font-medium text-warning">Offline</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            <div className="col-span-2 sm:col-span-3 flex items-center gap-2 mb-2">
-              <label htmlFor="checkout-template" className="text-sm font-medium">Template:</label>
-              <select
-                id="checkout-template"
-                value={printTemplate}
-                onChange={(e) => setPrintTemplate(e.target.value as ReceiptTemplate)}
-                className="h-8 rounded border border-input bg-background px-2 text-sm"
-              >
-                <option value="existing">Existing Receipt</option>
-                <option value="fiscal">Fiscal Receipt</option>
-                <option value="both">Both Receipts</option>
-              </select>
-            </div>
-
-            <div className="col-span-2 sm:col-span-3 rounded-lg border border-border bg-card p-4 space-y-3">
-              <p className="text-sm font-medium">Receipt Details</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium">Customer PIN</label>
-                  <Input value={editableFields.customerPin} onChange={(e) => setEditableFields((f) => ({ ...f, customerPin: e.target.value }))} placeholder="Enter customer PIN" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium">Customer TIN</label>
-                  <Input value={editableFields.customerTin} onChange={(e) => setEditableFields((f) => ({ ...f, customerTin: e.target.value }))} placeholder="Enter customer TIN" />
-                </div>
+            )}
+            {receiptData.saleId && (
+              <div>
+                <span className="text-muted-foreground">Sale ID: </span>
+                <span className="font-medium">{receiptData.saleId}</span>
               </div>
+            )}
+            <div>
+              <span className="text-muted-foreground">Total: </span>
+              <span className="font-medium">{formatCurrency(receiptData.total, receiptData.currency, receiptData.currencySymbol)}</span>
             </div>
-
-            <Button variant="outline" onClick={() => handlePrintThermal('58mm')} className="h-10 gap-2">
-              <Printer className="h-4 w-4" />
-              58mm
-            </Button>
-            <Button variant="outline" onClick={() => handlePrintThermal('80mm')} className="h-10 gap-2">
-              <Printer className="h-4 w-4" />
-              80mm
-            </Button>
-            <Button variant="outline" onClick={() => handleDownloadPDF()} className="h-10 gap-2">
-              <Download className="h-4 w-4" />
-              PDF
-            </Button>
-            <Button variant="outline" onClick={handleShare} className="h-10 gap-2">
-              <Share2 className="h-4 w-4" />
-              Share
-            </Button>
-            <Button variant="outline" onClick={() => setShowPreview(true)} className="h-10 gap-2">
-              <FileText className="h-4 w-4" />
-              View
-            </Button>
-            <Button onClick={handleNewSale} className="h-10 gap-2">
-              <ShoppingCart className="h-4 w-4" />
-              New Sale
-            </Button>
+            {receiptData.syncStatus && (
+              <div>
+                <span className="text-muted-foreground">Status: </span>
+                <span className={`font-medium ${receiptData.syncStatus === 'PENDING_SYNC' ? 'text-warning' : 'text-success'}`}>
+                  {receiptData.syncStatus === 'PENDING_SYNC' ? 'Pending Synchronization' : 'Synced'}
+                </span>
+              </div>
+            )}
+            {receiptData.isOffline && (
+              <div>
+                <span className="text-muted-foreground">Mode: </span>
+                <span className="font-medium text-warning">Offline</span>
+              </div>
+            )}
           </div>
-        </>
+        </div>
       )}
+
+      {receiptData && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <div className="col-span-2 sm:col-span-3 flex items-center gap-2 mb-2">
+            <label htmlFor="checkout-template" className="text-sm font-medium">Template:</label>
+            <select
+              id="checkout-template"
+              value={printTemplate}
+              onChange={(e) => setPrintTemplate(e.target.value as ReceiptTemplate)}
+              className="h-8 rounded border border-input bg-background px-2 text-sm"
+            >
+              <option value="existing">Existing Receipt</option>
+              <option value="fiscal">Fiscal Receipt</option>
+              <option value="both">Both Receipts</option>
+            </select>
+          </div>
+          <Button variant="outline" onClick={() => handlePrintThermal('58mm')} className="h-10 gap-2">
+            <Printer className="h-4 w-4" />
+            58mm
+          </Button>
+          <Button variant="outline" onClick={() => handlePrintThermal('80mm')} className="h-10 gap-2">
+            <Printer className="h-4 w-4" />
+            80mm
+          </Button>
+          <Button variant="outline" onClick={() => handleDownloadPDF()} className="h-10 gap-2">
+            <Download className="h-4 w-4" />
+            PDF
+          </Button>
+          <Button variant="outline" onClick={handleShare} className="h-10 gap-2">
+            <Share2 className="h-4 w-4" />
+            Share
+          </Button>
+          <Button variant="outline" onClick={() => setShowPreview(true)} className="h-10 gap-2">
+            <FileText className="h-4 w-4" />
+            View
+          </Button>
+          <Button onClick={handleNewSale} className="h-10 gap-2">
+            <ShoppingCart className="h-4 w-4" />
+            New Sale
+          </Button>
+        </div>
+      )}
+
       {receiptData && showPreview && (
         <ReceiptPreviewModal
           saleId={saleId || receiptData.saleId}
