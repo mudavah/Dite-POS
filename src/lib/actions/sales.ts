@@ -120,8 +120,7 @@ export async function createSale(
         });
 
         return { sale, receiptNo };
-      },
-      { maxWait: 5000, timeout: 10000 }
+      }
     );
 
     const duration = Date.now() - startTime;
@@ -142,7 +141,7 @@ export async function createSale(
       throw error;
     }
 
-    const prismaError = error as { code?: string; meta?: { target?: string } } | undefined;
+    const prismaError = error as { code?: string; meta?: { target?: string }; message?: string } | undefined;
     if (prismaError?.code === 'P2002') {
       const field = prismaError.meta?.target;
       logger.error('createSale: unique constraint violation', error, { field, durationMs: duration });
@@ -151,7 +150,17 @@ export async function createSale(
 
     if (prismaError?.code === 'P2003') {
       logger.error('createSale: foreign key violation', error, { durationMs: duration });
-      throw new CheckoutError('CHECKOUT_FOREIGN_KEY', 'A referenced record was not found', 409);
+      throw new CheckoutError('CHECKOUT_FOREIGN_KEY', 'A referenced record was not found', 400);
+    }
+
+    if (prismaError?.code === 'P2024') {
+      logger.error('createSale: transaction timeout', error, { durationMs: duration });
+      throw new CheckoutError('CHECKOUT_TIMEOUT', 'Transaction timed out. Please try again.', 504);
+    }
+
+    if (prismaError?.code === 'P2025') {
+      logger.error('createSale: record not found', error, { durationMs: duration, message: prismaError.message });
+      throw new CheckoutError('CHECKOUT_NOT_FOUND', prismaError.message || 'A required record was not found', 404);
     }
 
     if (prismaError?.code === 'P2034') {
@@ -159,7 +168,12 @@ export async function createSale(
       throw new CheckoutError('CHECKOUT_DEADLOCK', 'Transaction conflict, please retry', 409);
     }
 
-    logger.error('createSale: unexpected error', error, { durationMs: duration, branchId, cashierId, itemCount: items.length });
+    if (prismaError?.code && prismaError.code.startsWith('P')) {
+      logger.error('createSale: prisma error', error, { code: prismaError.code, message: prismaError.message, durationMs: duration });
+      throw new CheckoutError('CHECKOUT_DATABASE', `Database error: ${prismaError.message || prismaError.code}`, 500, { prismaCode: prismaError.code });
+    }
+
+    logger.error('createSale: unexpected error', error, { durationMs: duration, branchId, cashierId, itemCount: items.length, errorType: error instanceof Error ? error.constructor.name : typeof error });
     throw new CheckoutError('CHECKOUT_UNKNOWN', error instanceof Error ? error.message : 'Unknown error', 500);
   }
 }

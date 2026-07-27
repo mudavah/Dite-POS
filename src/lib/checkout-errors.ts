@@ -37,7 +37,7 @@ export class CheckoutStockError extends CheckoutError {
 
 export class CheckoutBranchError extends CheckoutError {
   constructor(branchId: string) {
-    super('CHECKOUT_BRANCH_NOT_FOUND', `Branch settings not found for branch ${branchId}`, 500, { branchId });
+    super('CHECKOUT_BRANCH_NOT_FOUND', `Branch settings not found for branch ${branchId}`, 400, { branchId });
   }
 }
 
