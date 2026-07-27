@@ -43,7 +43,6 @@ export function ReceiptPrinter({ config, data, template, onPrint }: ReceiptPrint
             { retries: 2 }
           );
           if (!existingResult.success) {
-            setError(existingResult.message);
             onPrint?.(existingResult);
             return;
           }

@@ -97,7 +97,7 @@ class ReceiptService {
           if (!existingResult.success) {
             return existingResult;
           }
-          await this.feedPaper(config);
+          await this.feedPaper();
           const fiscalResult = await this.printReceipt(sale, 'fiscal');
           if (!fiscalResult.success) {
             return fiscalResult;
