@@ -14,11 +14,32 @@ export const productSchema = z.object({
   costPrice: z.coerce.number().positive().optional().nullable(),
   categoryId: z.string().optional().nullable(),
   lowStockThreshold: z.coerce.number().int().nonnegative().default(10),
+  maxStock: z.coerce.number().int().positive().default(1000),
   isActive: z.boolean().default(true),
   brand: z.string().max(100).optional().nullable(),
   unit: z.string().max(20).default('pcs'),
   reorderLevel: z.coerce.number().int().nonnegative().default(10),
+  taxRate: z.coerce.number().nonnegative().default(0),
+  discount: z.coerce.number().nonnegative().default(0),
   image: z.string().optional().nullable(),
+  openingStock: z.coerce.number().int().nonnegative().default(0),
+  defaultSupplierId: z.string().optional().nullable(),
+});
+
+export const importRowSchema = z.object({
+  productName: z.string().min(1, 'Product name is required'),
+  sku: z.string().max(50).optional().nullable(),
+  barcode: z.string().max(100).optional().nullable(),
+  category: z.string().max(100).optional().nullable(),
+  brand: z.string().max(100).optional().nullable(),
+  buyingPrice: z.coerce.number().nonnegative().default(0),
+  sellingPrice: z.coerce.number().nonnegative().default(0),
+  quantity: z.coerce.number().int().nonnegative().default(0),
+  unit: z.string().max(20).default('pcs'),
+  reorderLevel: z.coerce.number().int().nonnegative().default(10),
+  supplier: z.string().max(200).optional().nullable(),
+  tax: z.coerce.number().nonnegative().default(0),
+  description: z.string().max(1000).optional().nullable(),
 });
 
 export const categorySchema = z.object({
@@ -114,6 +135,7 @@ export const purchaseSchema = z.object({
 
 export type LoginInput = z.infer<typeof loginSchema>;
 export type ProductInput = z.infer<typeof productSchema>;
+export type ImportRowInput = z.infer<typeof importRowSchema>;
 export type CategoryInput = z.infer<typeof categorySchema>;
 export type BranchInput = z.infer<typeof branchSchema>;
 export type UserInput = z.infer<typeof userSchema>;

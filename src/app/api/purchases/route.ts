@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { purchaseSchema } from '@/lib/validators';
 import { auditLog } from '@/lib/actions/audit';
 import { revalidatePath } from 'next/cache';
+import { StockMovementType } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 
 function generatePurchaseNumber() {
   const date = new Date();
@@ -56,7 +58,10 @@ export async function GET(request: Request) {
             quantity: true,
             buyingPrice: true,
             sellingPrice: true,
+            discount: true,
+            tax: true,
             lineTotal: true,
+            productId: true,
           },
         },
       },
@@ -112,6 +117,8 @@ export async function POST(request: Request) {
         status: validated.data.status || 'DRAFT',
         notes: validated.data.notes || undefined,
         subtotal: validated.data.items.reduce((sum, item) => sum + item.lineTotal, 0),
+        discountAmount: validated.data.items.reduce((sum, item) => sum + item.discount, 0),
+        taxAmount: validated.data.items.reduce((sum, item) => sum + item.tax, 0),
         grandTotal: validated.data.items.reduce((sum, item) => sum + item.lineTotal, 0),
         items: {
           create: validated.data.items.map((item) => ({
@@ -145,6 +152,7 @@ export async function POST(request: Request) {
 
   revalidatePath('/purchases');
   revalidatePath('/inventory');
+  revalidatePath('/dashboard');
 
   return NextResponse.json({ ...purchase, purchaseNumber }, { status: 201 });
 }

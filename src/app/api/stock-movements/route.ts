@@ -30,7 +30,7 @@ export async function GET(request: Request) {
       include: {
         inventory: {
           select: {
-            product: { select: { name: true, sku: true } },
+            product: { select: { name: true, sku: true, costPrice: true, price: true } },
             branch: { select: { name: true } },
           },
         },

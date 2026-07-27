@@ -79,3 +79,9 @@ export {
   TooltipTrigger,
 } from './tooltip';
 export { Sheet, SheetTrigger, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from './sheet';
+export { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './dialog';
+export { Tabs, TabsList, TabsTrigger, TabsContent } from './tabs';
+export { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select';
+export { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './dropdown-menu';
+export { Label } from './label';
+export { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './table';

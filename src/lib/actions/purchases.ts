@@ -6,6 +6,7 @@ import { auth } from '@/lib/auth';
 import { supplierSchema, purchaseSchema } from '@/lib/validators';
 import { auditLog } from '@/lib/actions/audit';
 import { StockMovementType } from '@prisma/client';
+import { sanitizeText } from '@/lib/utils';
 
 async function requireAuth() {
   const session = await auth();
@@ -130,6 +131,8 @@ export async function createPurchase(data: unknown) {
       status: validated.data.status || 'DRAFT',
       notes: validated.data.notes || undefined,
       subtotal: validated.data.items.reduce((sum, item) => sum + item.lineTotal, 0),
+      discountAmount: validated.data.items.reduce((sum, item) => sum + item.discount, 0),
+      taxAmount: validated.data.items.reduce((sum, item) => sum + item.tax, 0),
       grandTotal: validated.data.items.reduce((sum, item) => sum + item.lineTotal, 0),
       items: {
         create: validated.data.items.map((item) => ({
@@ -169,6 +172,7 @@ export async function createPurchase(data: unknown) {
 
   revalidatePath('/purchases');
   revalidatePath('/inventory');
+  revalidatePath('/dashboard');
   return { data: purchase };
 }
 
@@ -191,25 +195,65 @@ export async function receivePurchase(purchaseId: string) {
     return { error: 'Purchase already received' };
   }
 
+  if (purchase.status === 'CANCELLED') {
+    return { error: 'Cannot receive a cancelled purchase' };
+  }
+
   await prisma.$transaction(async (tx) => {
     await tx.purchase.update({
       where: { id: purchaseId },
       data: {
         status: 'RECEIVED',
         receivedAt: new Date(),
+        outstandingBalance: {
+          decrement: (purchase.amountPaid as any) || 0,
+        },
       },
     });
 
     for (const item of purchase.items) {
+      let product = null;
+
+      if (item.productId) {
+        product = await tx.product.findUnique({ where: { id: item.productId } });
+      } else if (item.sku) {
+        product = await tx.product.findUnique({ where: { sku: item.sku } });
+      } else if (item.barcode) {
+        product = await tx.product.findUnique({ where: { barcode: item.barcode } });
+      }
+
+      if (!product && item.productName) {
+        const sku = item.sku || `AUTO-${Date.now()}-${item.productName.replace(/\s+/g, '-').slice(0, 20)}`;
+        product = await tx.product.create({
+          data: {
+            name: sanitizeText(item.productName) || item.productName,
+            sku,
+            barcode: item.barcode || undefined,
+            description: item.notes || undefined,
+            price: item.sellingPrice,
+            costPrice: item.buyingPrice,
+            lowStockThreshold: 10,
+            maxStock: 1000,
+            taxRate: item.tax || 0,
+            discount: item.discount || 0,
+            unit: 'pcs',
+            reorderLevel: 10,
+            isActive: true,
+          },
+        });
+      }
+
+      const branchId = purchase.branchId;
+
       let inventory = await tx.inventory.findUnique({
-        where: { branchId_productId: { branchId: purchase.branchId, productId: item.productId! } },
+        where: { branchId_productId: { branchId, productId: product!.id } },
       });
 
       if (!inventory) {
         inventory = await tx.inventory.create({
           data: {
-            branchId: purchase.branchId,
-            productId: item.productId!,
+            branchId,
+            productId: product!.id,
             quantity: item.quantity,
           },
         });
@@ -220,13 +264,15 @@ export async function receivePurchase(purchaseId: string) {
         });
       }
 
+      const oldStock = inventory.quantity - item.quantity;
+
       await tx.stockMovement.create({
         data: {
           inventoryId: inventory.id,
           type: StockMovementType.PURCHASE,
           quantity: item.quantity,
           reference: purchase.purchaseNumber,
-          notes: `Purchase ${purchase.purchaseNumber}`,
+          notes: `Purchase ${purchase.purchaseNumber} - ${item.productName}`,
           createdById: session.user.id,
         },
       });
@@ -234,21 +280,21 @@ export async function receivePurchase(purchaseId: string) {
       await tx.inventoryTransaction.create({
         data: {
           inventoryId: inventory.id,
-          productId: item.productId!,
-          branchId: purchase.branchId,
+          productId: product!.id,
+          branchId,
           type: StockMovementType.PURCHASE,
           quantity: item.quantity,
-          previousStock: inventory.quantity,
-          newStock: inventory.quantity + item.quantity,
+          previousStock: oldStock,
+          newStock: inventory.quantity,
           referenceNumber: purchase.purchaseNumber,
           notes: `Purchase ${purchase.purchaseNumber}`,
           createdById: session.user.id,
         },
       });
 
-      if (item.productId) {
+      if (product) {
         await tx.product.update({
-          where: { id: item.productId },
+          where: { id: product.id },
           data: {
             costPrice: item.buyingPrice,
             price: item.sellingPrice,
@@ -262,13 +308,14 @@ export async function receivePurchase(purchaseId: string) {
       action: 'PURCHASE_RECEIVED',
       entity: 'Purchase',
       entityId: purchaseId,
-      newValues: JSON.stringify({ status: 'RECEIVED', receivedAt: new Date() }),
+      newValues: JSON.stringify({ status: 'RECEIVED', receivedAt: new Date(), itemCount: purchase.items.length }),
     });
   });
 
   revalidatePath('/purchases');
   revalidatePath('/inventory');
   revalidatePath('/dashboard');
+  revalidatePath('/products');
   return { success: true };
 }
 

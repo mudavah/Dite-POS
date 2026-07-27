@@ -2,11 +2,12 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle, Button, Input } from '@/components/ui';
-import { ArrowLeft, Save, Plus, X } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, Button, Input, Badge } from '@/components/ui';
+import { ArrowLeft, Save, Plus, X, ShoppingCart, Package, DollarSign, Tag } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
 import { useQuery } from '@tanstack/react-query';
+import { useSession } from 'next-auth/react';
 
 async function fetchSuppliers() {
   const res = await fetch('/api/suppliers');
@@ -23,6 +24,7 @@ async function fetchProducts() {
 export default function NewPurchasePage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { data: session } = useSession();
   const [items, setItems] = useState([
     { productId: '', productName: '', sku: '', barcode: '', quantity: 1, buyingPrice: 0, sellingPrice: 0, discount: 0, tax: 0, lineTotal: 0, notes: '' },
   ]);
@@ -57,12 +59,27 @@ export default function NewPurchasePage() {
   };
 
   const removeItem = (index: number) => {
+    if (items.length <= 1) return;
     setItems(items.filter((_, i) => i !== index));
   };
 
+  const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
+  const taxAmount = items.reduce((sum, item) => sum + item.tax, 0);
+  const discountAmount = items.reduce((sum, item) => sum + item.discount, 0);
+  const grandTotal = subtotal + taxAmount - discountAmount;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
+
+    if (!form.supplierId) {
+      toast({ title: 'Error', description: 'Please select a supplier', variant: 'destructive' });
+      return;
+    }
+
+    if (items.length === 0) {
+      toast({ title: 'Error', description: 'Please add at least one item', variant: 'destructive' });
+      return;
+    }
 
     const res = await fetch('/api/purchases', {
       method: 'POST',
@@ -83,7 +100,9 @@ export default function NewPurchasePage() {
           notes: item.notes,
         })),
         subtotal,
-        grandTotal: subtotal,
+        discountAmount,
+        taxAmount,
+        grandTotal,
       }),
     });
 
@@ -97,7 +116,7 @@ export default function NewPurchasePage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.back()}>
@@ -105,7 +124,7 @@ export default function NewPurchasePage() {
           </Button>
           <div>
             <h1 className="text-3xl font-bold">New Purchase</h1>
-            <p className="text-muted-foreground">Create a new purchase order</p>
+            <p className="text-muted-foreground">Create a new purchase order and receive stock</p>
           </div>
         </div>
         <Button type="submit" form="purchase-form">
@@ -122,7 +141,10 @@ export default function NewPurchasePage() {
           <CardContent className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Supplier</label>
+                <label className="text-sm font-medium flex items-center gap-2">
+                  <ShoppingCart className="h-4 w-4" />
+                  Supplier <span className="text-destructive">*</span>
+                </label>
                 <select
                   value={form.supplierId}
                   onChange={(e) => setForm({ ...form, supplierId: e.target.value })}
@@ -169,23 +191,23 @@ export default function NewPurchasePage() {
                 </select>
               </div>
             </div>
-<div className="space-y-2">
-                <label className="text-sm font-medium">Delivery Note</label>
-                <Input
-                  value={form.deliveryNote}
-                  onChange={(e) => setForm({ ...form, deliveryNote: e.target.value })}
-                  placeholder="Delivery note reference"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Notes</label>
-                <textarea
-                  value={form.notes}
-                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  rows={3}
-                />
-              </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Delivery Note</label>
+              <Input
+                value={form.deliveryNote}
+                onChange={(e) => setForm({ ...form, deliveryNote: e.target.value })}
+                placeholder="Delivery note reference"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Notes</label>
+              <textarea
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                rows={3}
+              />
+            </div>
           </CardContent>
         </Card>
 
@@ -202,7 +224,7 @@ export default function NewPurchasePage() {
           <CardContent className="space-y-4">
             {items.map((item, index) => (
               <div key={index} className="flex items-start gap-2 p-4 border rounded-md">
-                <div className="flex-1 grid gap-2 md:grid-cols-4">
+                <div className="flex-1 grid gap-2 md:grid-cols-5">
                   <div>
                     <label className="text-xs font-medium">Product</label>
                     <select
@@ -214,6 +236,7 @@ export default function NewPurchasePage() {
                         updateItem(index, 'sku', product?.sku || '');
                         updateItem(index, 'barcode', product?.barcode || '');
                         updateItem(index, 'sellingPrice', product?.price || 0);
+                        updateItem(index, 'buyingPrice', product?.costPrice || 0);
                       }}
                       className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
                     >
@@ -255,16 +278,53 @@ export default function NewPurchasePage() {
                       className="h-9"
                     />
                   </div>
+                  <div>
+                    <label className="text-xs font-medium">Disc/Tax</label>
+                    <div className="flex gap-1">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        value={item.discount}
+                        onChange={(e) => updateItem(index, 'discount', parseFloat(e.target.value) || 0)}
+                        className="h-9 w-1/2"
+                        placeholder="Disc"
+                      />
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        value={item.tax}
+                        onChange={(e) => updateItem(index, 'tax', parseFloat(e.target.value) || 0)}
+                        className="h-9 w-1/2"
+                        placeholder="Tax"
+                      />
+                    </div>
+                  </div>
                 </div>
                 <Button type="button" variant="ghost" size="icon" onClick={() => removeItem(index)}>
                   <X className="h-4 w-4" />
                 </Button>
               </div>
             ))}
-            <div className="flex justify-end border-t pt-4">
-              <div className="text-right">
-                <p className="text-sm text-muted-foreground">Subtotal</p>
-                <p className="text-xl font-bold">{formatCurrency(items.reduce((sum, item) => sum + item.lineTotal, 0))}</p>
+            <div className="border-t pt-4 space-y-2">
+              <div className="flex justify-end gap-8 text-sm">
+                <div className="text-right">
+                  <p className="text-muted-foreground">Subtotal</p>
+                  <p className="text-lg font-bold">{formatCurrency(subtotal)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-muted-foreground">Discount</p>
+                  <p className="text-lg font-bold text-destructive">-{formatCurrency(discountAmount)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-muted-foreground">Tax</p>
+                  <p className="text-lg font-bold">{formatCurrency(taxAmount)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-muted-foreground">Grand Total</p>
+                  <p className="text-2xl font-bold">{formatCurrency(grandTotal)}</p>
+                </div>
               </div>
             </div>
           </CardContent>

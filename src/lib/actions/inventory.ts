@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth';
 import { StockMovementType } from '@prisma/client';
 import { logger } from '@/lib/logger';
+import { auditLog } from '@/lib/actions/audit';
 
 async function requireAuth() {
   const session = await auth();
@@ -44,6 +45,14 @@ export async function adjustStock(data: { inventoryId: string; quantity: number;
       data: { quantity: { increment: data.quantity } },
     });
 
+    await auditLog({
+      userId: createdById,
+      action: 'STOCK_ADJUSTMENT',
+      entity: 'Inventory',
+      entityId: data.inventoryId,
+      newValues: JSON.stringify({ type: data.type, quantity: data.quantity, inventoryId: data.inventoryId }),
+    });
+
     revalidatePath('/inventory');
     return { success: true };
   } catch (error) {
@@ -60,7 +69,7 @@ export async function getInventory(branchId?: string) {
   const inventory = await prisma.inventory.findMany({
     where,
     include: {
-      product: { select: { name: true, sku: true, price: true, isActive: true, lowStockThreshold: true, costPrice: true } },
+      product: { select: { name: true, sku: true, price: true, isActive: true, lowStockThreshold: true, costPrice: true, taxRate: true, discount: true } },
       branch: { select: { name: true, code: true } },
       movements: { take: 5, orderBy: { createdAt: 'desc' } },
     },
@@ -75,7 +84,13 @@ export async function getInventory(branchId?: string) {
   return {
     inventory: inventory.map((inv) => ({
       ...inv,
-      product: { ...inv.product, price: inv.product.price.toNumber(), costPrice: inv.product.costPrice?.toNumber() || null },
+      product: {
+        ...inv.product,
+        price: inv.product.price.toNumber(),
+        costPrice: inv.product.costPrice?.toNumber() || null,
+        taxRate: inv.product.taxRate.toNumber(),
+        discount: inv.product.discount.toNumber(),
+      },
     })),
     branches,
   };

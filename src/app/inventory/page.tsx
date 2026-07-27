@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, Button, Input, Badge } from '@/components/ui';
 import {
@@ -12,14 +12,27 @@ import {
   DollarSign,
   X,
   ShoppingCart,
+  Plus,
+  Trash2,
+  RefreshCw,
+  ArrowDown,
+  ArrowUp,
+  Filter,
+  Download,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
+import { useToast } from '@/components/ui/toast';
+import { StockMovementType } from '@prisma/client';
 
 async function fetchInventory(params?: Record<string, string>) {
   const query = new URLSearchParams();
   if (params?.branchId) query.set('branchId', params.branchId);
   if (params?.search) query.set('search', params.search);
   if (params?.lowStock) query.set('lowStock', params.lowStock);
+  if (params?.page) query.set('page', params.page);
+  if (params?.limit) query.set('limit', params.limit);
   const res = await fetch(`/api/inventory?${query}`);
   if (!res.ok) throw new Error('Failed to fetch inventory');
   return res.json();
@@ -35,23 +48,56 @@ async function adjustStock(data: any) {
   return res.json();
 }
 
+async function receivePurchaseAction(purchaseId: string) {
+  const res = await fetch(`/api/purchases/${purchaseId}/receive`, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to receive purchase');
+  return res.json();
+}
+
 export default function InventoryPage() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [search, setSearch] = useState('');
   const [branchId, setBranchId] = useState('');
   const [showLowStock, setShowLowStock] = useState(false);
   const [showAdjustModal, setShowAdjustModal] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [limit, setLimit] = useState(20);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['inventory', { branchId, search, lowStock: showLowStock }],
-    queryFn: () => fetchInventory({ branchId, search, lowStock: String(showLowStock) }),
+    queryKey: ['inventory', { branchId, search, lowStock: showLowStock, page: currentPage, limit }],
+    queryFn: () => fetchInventory({ branchId, search, lowStock: String(showLowStock), page: String(currentPage), limit: String(limit) }),
   });
 
-  const adjustMutation = useMutation({ mutationFn: adjustStock, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['inventory'] }) });
+  const adjustMutation = useMutation({
+    mutationFn: adjustStock,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      setShowAdjustModal(false);
+      toast({ title: 'Success', description: 'Stock adjusted successfully', variant: 'success' });
+    },
+    onError: () => {
+      toast({ title: 'Error', description: 'Failed to adjust stock', variant: 'destructive' });
+    },
+  });
+
+  const receiveMutation = useMutation({
+    mutationFn: receivePurchaseAction,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['purchases'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      toast({ title: 'Success', description: 'Purchase received successfully', variant: 'success' });
+    },
+    onError: () => {
+      toast({ title: 'Error', description: 'Failed to receive purchase', variant: 'destructive' });
+    },
+  });
 
   const [adjustForm, setAdjustForm] = useState({ quantity: '', type: 'ADJUSTMENT', notes: '' });
+  const [activeTab, setActiveTab] = useState<'overview' | 'movements'>('overview');
 
   const handleAdjust = (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,7 +105,7 @@ export default function InventoryPage() {
     adjustMutation.mutate({
       inventoryId: selectedItem.id,
       quantity: parseInt(adjustForm.quantity),
-      type: adjustForm.type,
+      type: adjustForm.type as any,
       notes: adjustForm.notes,
     });
     setShowAdjustModal(false);
@@ -67,14 +113,16 @@ export default function InventoryPage() {
     setSelectedItem(null);
   };
 
+  const totalPages = data?.totalPages || 1;
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold">Inventory</h1>
           <p className="text-muted-foreground">Manage stock across branches</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => (window.location.href = '/purchases/new')}>
             <ShoppingCart className="h-4 w-4 mr-2" />
             New Purchase
@@ -93,11 +141,11 @@ export default function InventoryPage() {
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Items</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Products</CardTitle>
             <Package className="h-4 w-4 text-blue-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data?.summary?.totalItems || 0}</div>
+            <div className="text-2xl font-bold">{data?.summary?.totalProducts || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -106,7 +154,10 @@ export default function InventoryPage() {
             <DollarSign className="h-4 w-4 text-green-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(data?.summary?.totalValue || 0)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(data?.inventory?.reduce((sum: number, inv: any) => {
+              const cost = inv.product?.costPrice?.toNumber() || inv.product?.price?.toNumber() || 0;
+              return sum + inv.quantity * cost;
+            }, 0) || 0)}</div>
           </CardContent>
         </Card>
         <Card>
@@ -135,27 +186,9 @@ export default function InventoryPage() {
 
       <Card>
         <CardHeader>
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">Inventory Overview</CardTitle>
             <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search inventory..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-8 w-[300px]"
-                />
-              </div>
-              <select
-                value={branchId}
-                onChange={(e) => setBranchId(e.target.value)}
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="">All Branches</option>
-                {data?.branches?.map((branch: any) => (
-                  <option key={branch.id} value={branch.id}>{branch.name}</option>
-                ))}
-              </select>
               <Button
                 variant={showLowStock ? 'default' : 'outline'}
                 size="sm"
@@ -171,79 +204,89 @@ export default function InventoryPage() {
           {isLoading ? (
             <div className="text-center py-8 text-muted-foreground">Loading...</div>
           ) : (
-            <div className="rounded-md border">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50">
-                  <tr>
-                    <th className="p-3 text-left font-medium">Product</th>
-                    <th className="p-3 text-left font-medium">SKU</th>
-                    <th className="p-3 text-left font-medium">Branch</th>
-                    <th className="p-3 text-left font-medium">Quantity</th>
-                    <th className="p-3 text-left font-medium">Reserved</th>
-                    <th className="p-3 text-left font-medium">Available</th>
-                    <th className="p-3 text-left font-medium">Status</th>
-                    <th className="p-3 text-left font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data?.inventory?.map((item: any) => {
-                    const available = item.quantity - item.reserved;
-                    const isLowStock = item.quantity <= item.product.lowStockThreshold;
-                    return (
-                      <tr key={item.id} className="border-t">
-                        <td className="p-3">
-                          <div>
+            <>
+              <div className="flex flex-wrap gap-2 mb-4">
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search inventory..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
+              </div>
+              <div className="rounded-md border overflow-x-auto">
+                <table className="w-full text-sm min-w-[600px]">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="p-3 text-left font-medium">Product</th>
+                      <th className="p-3 text-left font-medium">SKU</th>
+                      <th className="p-3 text-left font-medium">Quantity</th>
+                      <th className="p-3 text-left font-medium">Available</th>
+                      <th className="p-3 text-left font-medium">Cost</th>
+                      <th className="p-3 text-left font-medium">Value</th>
+                      <th className="p-3 text-left font-medium">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                   {(data?.inventory || []).map((item: any) => {
+                      const available = item.quantity - (item.reserved || 0);
+                      const isLowStock = item.quantity <= item.product.lowStockThreshold;
+                      const cost = item.product?.costPrice?.toNumber() || item.product?.price?.toNumber() || 0;
+                      return (
+                        <tr key={item.id} className="border-t">
+                          <td className="p-3">
                             <p className="font-medium">{item.product.name}</p>
-                            <p className="text-xs text-muted-foreground">{formatCurrency(item.product.price)}</p>
-                          </div>
-                        </td>
-                        <td className="p-3 font-mono">{item.product.sku}</td>
-                        <td className="p-3">{item.branch.name}</td>
-                        <td className="p-3">{item.quantity}</td>
-                        <td className="p-3">{item.reserved}</td>
-                        <td className="p-3">{available}</td>
-                        <td className="p-3">
-                          {isLowStock ? (
-                            <Badge variant="destructive">Low Stock</Badge>
-                          ) : item.quantity === 0 ? (
-                            <Badge variant="destructive">Out of Stock</Badge>
-                          ) : (
-                            <Badge variant="success">In Stock</Badge>
-                          )}
-                        </td>
-                        <td className="p-3">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              const newQty = prompt('Adjust quantity:', String(item.quantity));
-                              if (newQty !== null && !isNaN(Number(newQty))) {
-                                fetch('/api/inventory', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ inventoryId: item.id, quantity: Number(newQty) - item.quantity, type: 'ADJUSTMENT', notes: 'Manual adjustment' }),
-                                }).then(() => {
-                                  queryClient.invalidateQueries({ queryKey: ['inventory'] });
-                                });
-                              }
-                            }}
-                          >
-                            Adjust
-                          </Button>
+                            <p className="text-xs text-muted-foreground">{formatCurrency(cost)}</p>
+                          </td>
+                          <td className="p-3 font-mono text-xs">{item.product.sku}</td>
+                          <td className="p-3">
+                            <span className={isLowStock && item.quantity > 0 ? 'text-amber-600 font-medium' : item.quantity === 0 ? 'text-destructive font-medium' : ''}>
+                              {item.quantity}
+                            </span>
+                          </td>
+                          <td className="p-3">{available}</td>
+                          <td className="p-3">{formatCurrency(cost)}</td>
+                          <td className="p-3 font-medium">{formatCurrency(item.quantity * cost)}</td>
+                          <td className="p-3">
+                            {isLowStock && item.quantity > 0 ? (
+                              <Badge variant="warning">Low Stock</Badge>
+                            ) : item.quantity === 0 ? (
+                              <Badge variant="destructive">Out of Stock</Badge>
+                            ) : (
+                              <Badge variant="success">In Stock</Badge>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {(!data?.inventory || data.inventory.length === 0) && (
+                      <tr>
+                        <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                          No inventory found
                         </td>
                       </tr>
-                    );
-                  })}
-                  {data?.inventory?.length === 0 && (
-                    <tr>
-                      <td colSpan={7} className="p-8 text-center text-muted-foreground">
-                        No inventory found
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-4">
+                  <p className="text-sm text-muted-foreground">
+                    Page {currentPage} of {totalPages}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}>
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
@@ -261,8 +304,9 @@ export default function InventoryPage() {
             </CardHeader>
             <CardContent>
               <div className="mb-4">
-                <p className="font-medium">{selectedItem.product.name}</p>
+                <p className="font-medium">{selectedItem.product?.name}</p>
                 <p className="text-sm text-muted-foreground">Current stock: {selectedItem.quantity}</p>
+                <p className="text-sm text-muted-foreground">Available: {selectedItem.quantity - (selectedItem.reserved || 0)}</p>
               </div>
               <form onSubmit={handleAdjust} className="space-y-4">
                 <div className="space-y-2">
@@ -285,6 +329,8 @@ export default function InventoryPage() {
                     <option value="ADJUSTMENT">Adjustment</option>
                     <option value="PURCHASE">Purchase</option>
                     <option value="RETURN">Return</option>
+                    <option value="SALE">Sale</option>
+                    <option value="DAMAGE">Damage</option>
                   </select>
                 </div>
                 <div className="space-y-2">
@@ -312,7 +358,7 @@ export default function InventoryPage() {
 
       {showHistory && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <Card className="w-full max-w-4xl mx-4 max-h-[80vh] overflow-auto">
+          <Card className="w-full max-w-2xl mx-4 max-h-[80vh] overflow-auto">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Stock Movement History</CardTitle>
@@ -323,20 +369,20 @@ export default function InventoryPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {data?.inventory?.flatMap((item: any) =>
-                  item.movements?.map((movement: any) => (
+                {(data?.inventory || []).flatMap((item: any) =>
+                  (item.movements || []).map((movement: any) => (
                     <div key={movement.id} className="flex items-center justify-between border-b pb-3">
                       <div>
-                        <p className="font-medium">{item.product.name}</p>
+                        <p className="font-medium">{item.product?.name || 'Unknown'}</p>
                         <p className="text-sm text-muted-foreground">
-                          {movement.type} - {movement.notes || 'No notes'}
+                          {movement.type?.replace('_', ' ')} - {movement.notes || 'No notes'}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          By {movement.createdBy?.name || 'Unknown'} on {new Date(movement.createdAt).toLocaleString()}
+                          By {movement.user?.name || 'Unknown'} on {new Date(movement.createdAt).toLocaleString()}
                         </p>
                       </div>
-                      <Badge variant={movement.quantity > 0 ? 'success' : 'destructive'}>
-                        {movement.quantity > 0 ? '+' : ''}{movement.quantity}
+                      <Badge variant={movement.quantity >= 0 ? 'success' : 'destructive'}>
+                        {movement.quantity >= 0 ? '+' : ''}{movement.quantity}
                       </Badge>
                     </div>
                   ))

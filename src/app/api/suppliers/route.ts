@@ -37,15 +37,57 @@ export async function GET(request: Request) {
   const [suppliers, total] = await Promise.all([
     prisma.supplier.findMany({
       where,
-      include: {
-        _count: { select: { purchases: true } },
-      },
+      include: { _count: { select: { purchases: true } } },
       orderBy: { createdAt: 'desc' },
       skip,
       take: limit,
     }),
     prisma.supplier.count({ where }),
   ]);
+
+  const supplierIds = suppliers.map((s) => s.id);
+
+  const purchasesBySupplier = await prisma.purchase.groupBy({
+    by: ['supplierId'],
+    where: supplierIds.length > 0 ? { supplierId: { in: supplierIds } } : undefined,
+    _sum: { grandTotal: true, outstandingBalance: true, amountPaid: true },
+    _count: { id: true },
+  });
+
+  const lastPurchaseDates = await prisma.purchase.groupBy({
+    by: ['supplierId'],
+    where: supplierIds.length > 0 ? { supplierId: { in: supplierIds } } : undefined,
+    _max: { createdAt: true },
+  });
+
+  const supplierStats = new Map<string, { totalPurchases: number; totalAmountPurchased: number; outstandingBalance: number; lastPurchaseDate: string | null }>();
+
+  for (const stat of purchasesBySupplier) {
+    supplierStats.set(stat.supplierId, {
+      totalPurchases: stat._count.id,
+      totalAmountPurchased: stat._sum.grandTotal?.toNumber() || 0,
+      outstandingBalance: stat._sum.outstandingBalance?.toNumber() || 0,
+      lastPurchaseDate: null,
+    });
+  }
+
+  for (const stat of lastPurchaseDates) {
+    const existing = supplierStats.get(stat.supplierId);
+    if (existing) {
+      existing.lastPurchaseDate = stat._max.createdAt?.toISOString() || null;
+    }
+  }
+
+  const enrichedSuppliers = suppliers.map((s) => {
+    const stats = supplierStats.get(s.id) || { totalPurchases: 0, totalAmountPurchased: 0, outstandingBalance: 0, lastPurchaseDate: null };
+    return {
+      ...s,
+      totalPurchases: stats.totalPurchases,
+      totalAmountPurchased: stats.totalAmountPurchased,
+      outstandingBalance: stats.outstandingBalance,
+      lastPurchaseDate: stats.lastPurchaseDate,
+    };
+  });
 
   const totalPurchasesResult = await prisma.purchase.aggregate({
     where: {},
@@ -60,10 +102,11 @@ export async function GET(request: Request) {
   });
 
   return NextResponse.json({
-    suppliers,
+    suppliers: enrichedSuppliers,
     total,
     page,
     limit,
+    totalPages: Math.ceil(total / limit),
     summary: {
       totalSuppliers: total,
       activeSuppliers,

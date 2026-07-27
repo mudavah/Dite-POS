@@ -8,6 +8,9 @@ import {
   ShoppingCart,
   AlertTriangle,
   Store,
+  Package,
+  ArrowDown,
+  ArrowUp,
 } from 'lucide-react';
 import {
   BarChart,
@@ -17,8 +20,14 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
 } from 'recharts';
 import { formatCurrency } from '@/lib/utils';
+import { format } from 'date-fns';
 
 interface LowStockItem {
   id: string;
@@ -52,12 +61,18 @@ interface DashboardData {
   monthPurchases: number;
   totalPurchases: number;
   totalPurchaseValue: number;
+  totalProducts: number;
+  inventoryValue: number;
+  lowStock: number;
+  outOfStock: number;
+  totalMovements: number;
   recentPurchases: Array<{ id: string; purchaseNumber: string; supplier: string; date: string; grandTotal: number; status: string; items: number }>;
   topPurchasedProducts: Array<Record<string, unknown>>;
   recentSales: RecentSale[];
   topProducts: Array<Record<string, unknown>>;
-  lowStock: LowStockItem[];
+  lowStockItems: LowStockItem[];
   branchPerformance: BranchPerformance[];
+  topSuppliers: Array<{ supplier: { name: string }; _sum: { grandTotal: number }; _count: { id: number } }>;
 }
 
 async function fetchDashboard(): Promise<DashboardData> {
@@ -66,15 +81,22 @@ async function fetchDashboard(): Promise<DashboardData> {
   return res.json();
 }
 
+const COLORS = ['#0088FE', '#00C49F', '#FFC658', '#FF8042', '#8884d8', '#82ca9d'];
+
 const statCards: Array<{ title: string; key: keyof DashboardData; icon: React.ElementType; color: string }> = [
-  { title: 'Today&apos;s Sales', key: 'todaySales', icon: DollarSign, color: 'text-blue-400' },
+  { title: "Today's Sales", key: 'todaySales', icon: DollarSign, color: 'text-blue-400' },
   { title: 'Weekly Sales', key: 'weekSales', icon: TrendingUp, color: 'text-green-400' },
   { title: 'Monthly Sales', key: 'monthSales', icon: ShoppingCart, color: 'text-purple-400' },
   { title: 'Revenue', key: 'revenue', icon: DollarSign, color: 'text-emerald-400' },
   { title: 'Profit', key: 'profit', icon: TrendingUp, color: 'text-amber-400' },
   { title: "Today's Purchases", key: 'todayPurchases', icon: ShoppingCart, color: 'text-orange-400' },
-  { title: 'Monthly Purchases', key: 'monthPurchases', icon: TrendingUp, color: 'text-red-400' },
+  { title: 'Month Purchases', key: 'monthPurchases', icon: TrendingUp, color: 'text-red-400' },
   { title: 'Purchase Value', key: 'totalPurchaseValue', icon: DollarSign, color: 'text-teal-400' },
+  { title: 'Total Products', key: 'totalProducts', icon: Package, color: 'text-indigo-400' },
+  { title: 'Inventory Value', key: 'inventoryValue', icon: DollarSign, color: 'text-green-400' },
+  { title: 'Low Stock', key: 'lowStock', icon: AlertTriangle, color: 'text-amber-400' },
+  { title: 'Out of Stock', key: 'outOfStock', icon: AlertTriangle, color: 'text-destructive' },
+  { title: 'Total Movements', key: 'totalMovements', icon: TrendingUp, color: 'text-cyan-400' },
 ];
 
 export default function DashboardPage() {
@@ -87,7 +109,7 @@ export default function DashboardPage() {
         <p className="text-muted-foreground">Welcome back! Here&apos;s what&apos;s happening today.</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((card) => (
           <Card key={card.key}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -95,7 +117,7 @@ export default function DashboardPage() {
               <card.icon className={`h-4 w-4 ${card.color}`} />
             </CardHeader>
             <CardContent>
-<div className="text-2xl font-bold">
+              <div className="text-2xl font-bold">
                 {isLoading ? '...' : formatCurrency(Number((data as DashboardData | undefined)?.[card.key]) || 0)}
               </div>
             </CardContent>
@@ -139,8 +161,8 @@ export default function DashboardPage() {
             <div className="space-y-4">
               {isLoading ? (
                 <div className="text-muted-foreground">Loading...</div>
-              ) : data && data.lowStock.length > 0 ? (
-                data.lowStock.map((item: LowStockItem) => (
+              ) : data && data.lowStockItems && data.lowStockItems.length > 0 ? (
+                data.lowStockItems.map((item: LowStockItem) => (
                   <div key={item.id} className="flex items-center justify-between">
                     <div>
                       <p className="font-medium">{item.product.name}</p>
@@ -214,6 +236,36 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {data?.topSuppliers && data.topSuppliers.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Top Suppliers (This Month)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="text-muted-foreground">Loading...</div>
+            ) : (
+              <div className="space-y-4">
+                {data.topSuppliers.map((s: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold">
+                        {i + 1}
+                      </div>
+                      <div>
+                        <p className="font-medium">{s.supplier?.name || 'Unknown'}</p>
+                        <p className="text-xs text-muted-foreground">{s._count.id} purchases</p>
+                      </div>
+                    </div>
+                    <p className="font-medium">{formatCurrency(s._sum.grandTotal?.toNumber() || 0)}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

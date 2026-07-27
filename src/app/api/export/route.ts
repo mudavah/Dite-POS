@@ -13,6 +13,7 @@ export async function GET(request: Request) {
   const formatType = searchParams.get('format') || 'csv';
   const search = searchParams.get('search') || '';
   const categoryId = searchParams.get('categoryId') || '';
+  const brand = searchParams.get('brand') || '';
   const status = searchParams.get('status') || '';
 
   const where: Record<string, unknown> = { isArchived: false };
@@ -22,10 +23,12 @@ export async function GET(request: Request) {
       { name: { contains: search, mode: 'insensitive' } },
       { sku: { contains: search, mode: 'insensitive' } },
       { barcode: { contains: search, mode: 'insensitive' } },
+      { brand: { contains: search, mode: 'insensitive' } },
     ];
   }
 
   if (categoryId) where.categoryId = categoryId;
+  if (brand) where.brand = { contains: brand, mode: 'insensitive' };
   if (status === 'active') where.isActive = true;
   else if (status === 'inactive') where.isActive = false;
 
@@ -33,26 +36,32 @@ export async function GET(request: Request) {
     where,
     include: {
       category: { select: { name: true } },
-      inventories: { select: { quantity: true, branch: { select: { name: true } } } },
+      inventories: { select: { quantity: true } },
     },
     orderBy: { name: 'asc' },
   });
 
-  const data = products.map((p) => ({
-    'Product Name': p.name,
-    SKU: p.sku,
-    Barcode: p.barcode || '',
-    Category: p.category?.name || '',
-    Brand: p.brand || '',
-    'Buying Price': p.costPrice?.toNumber() || 0,
-    'Selling Price': p.price.toNumber(),
-    Quantity: p.inventories?.reduce((sum, inv) => sum + inv.quantity, 0) || 0,
-    Unit: p.unit,
-    'Reorder Level': p.lowStockThreshold,
-    Supplier: '',
-    Tax: '',
-    Description: p.description || '',
-  }));
+  const data = products.map((p) => {
+    const totalStock = p.inventories?.reduce((sum: number, inv: any) => sum + inv.quantity, 0) || 0;
+    const costPrice = p.costPrice?.toNumber() || p.price.toNumber();
+    const inventoryValue = totalStock * costPrice;
+
+    return {
+      'Product Name': p.name,
+      SKU: p.sku,
+      Barcode: p.barcode || '',
+      Category: p.category?.name || '',
+      Brand: p.brand || '',
+      'Buying Price': costPrice,
+      'Selling Price': p.price.toNumber(),
+      'Current Stock': totalStock,
+      'Inventory Value': inventoryValue,
+      'Reorder Level': p.lowStockThreshold,
+      Unit: p.unit,
+      Tax: p.taxRate.toNumber(),
+      Description: p.description || '',
+    };
+  });
 
   const headers = Object.keys(data[0] || {});
   const csvRows = [headers.join(',')];
@@ -67,6 +76,25 @@ export async function GET(request: Request) {
         'Content-Disposition': `attachment; filename="products-export-${format(new Date(), 'yyyy-MM-dd')}.csv"`,
       },
     });
+  }
+
+  if (formatType === 'xlsx') {
+    try {
+      const XLSX = await import('xlsx');
+      const worksheet = XLSX.utils.json_to_sheet(data);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Products');
+      const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+      return new NextResponse(buffer, {
+        headers: {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': `attachment; filename="products-export-${format(new Date(), 'yyyy-MM-dd')}.xlsx"`,
+        },
+      });
+    } catch {
+      return NextResponse.json({ data, count: data.length });
+    }
   }
 
   return NextResponse.json({ data, count: data.length });

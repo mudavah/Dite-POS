@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent, CardHeader, CardTitle, Button, Input, Badge } from '@/components/ui';
+import { Card, CardContent, CardHeader, CardTitle, Button, Input, Badge, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui';
 import {
   Search,
   Plus,
@@ -13,33 +13,50 @@ import {
   DollarSign,
   Package,
   AlertTriangle,
+  Download,
+  FileSpreadsheet,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
+import { useRouter } from 'next/navigation';
 
 async function fetchPurchases(params?: Record<string, string>) {
   const query = new URLSearchParams();
   if (params?.search) query.set('search', params.search);
   if (params?.supplierId) query.set('supplierId', params.supplierId);
   if (params?.status) query.set('status', params.status);
+  if (params?.page) query.set('page', params.page);
+  if (params?.limit) query.set('limit', params.limit);
   const res = await fetch(`/api/purchases?${query}`);
   if (!res.ok) throw new Error('Failed to fetch purchases');
+  return res.json();
+}
+
+async function deletePurchase(id: string) {
+  const res = await fetch(`/api/purchases/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete purchase');
   return res.json();
 }
 
 export default function PurchasesPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const router = useRouter();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
+  const [supplierId, setSupplierId] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [limit, setLimit] = useState(20);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['purchases', { search, status }],
-    queryFn: () => fetchPurchases({ search, status }),
+    queryKey: ['purchases', { search, status, supplierId, page: currentPage, limit }],
+    queryFn: () => fetchPurchases({ search, status, supplierId, page: String(currentPage), limit: String(limit) }),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => fetch(`/api/purchases/${id}`, { method: 'DELETE' }),
+    mutationFn: deletePurchase,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchases'] });
       toast({ title: 'Success', description: 'Purchase deleted successfully', variant: 'success' });
@@ -54,6 +71,7 @@ export default function PurchasesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchases'] });
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       toast({ title: 'Success', description: 'Purchase received successfully', variant: 'success' });
     },
     onError: () => {
@@ -61,17 +79,25 @@ export default function PurchasesPage() {
     },
   });
 
+  const totalPages = data?.totalPages || 1;
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold">Purchases</h1>
           <p className="text-muted-foreground">Manage purchase orders and stock receiving</p>
         </div>
-        <Button onClick={() => (window.location.href = '/purchases/new')}>
-          <Plus className="h-4 w-4 mr-2" />
-          New Purchase
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => router.push('/purchases/new')}>
+            <Plus className="h-4 w-4 mr-2" />
+            New Purchase
+          </Button>
+          <Button variant="outline" onClick={() => (window.location.href = '/purchases/import')}>
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Import via Excel
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
@@ -122,14 +148,14 @@ export default function PurchasesPage() {
       <Card>
         <CardHeader>
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-2">
-              <div className="relative">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative flex-1 min-w-[200px]">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search purchases..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-8 w-[300px]"
+                  className="pl-8"
                 />
               </div>
               <select
@@ -151,83 +177,97 @@ export default function PurchasesPage() {
           {isLoading ? (
             <div className="text-center py-8 text-muted-foreground">Loading...</div>
           ) : (
-            <div className="rounded-md border">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50">
-                  <tr>
-                    <th className="p-3 text-left font-medium">Purchase #</th>
-                    <th className="p-3 text-left font-medium">Supplier</th>
-                    <th className="p-3 text-left font-medium">Date</th>
-                    <th className="p-3 text-left font-medium">Invoice</th>
-                    <th className="p-3 text-left font-medium">Items</th>
-                    <th className="p-3 text-left font-medium">Total</th>
-                    <th className="p-3 text-left font-medium">Status</th>
-                    <th className="p-3 text-left font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data?.purchases?.map((purchase: any) => (
-                    <tr key={purchase.id} className="border-t">
-                      <td className="p-3 font-mono">{purchase.purchaseNumber}</td>
-                      <td className="p-3">{purchase.supplier?.name || '-'}</td>
-                      <td className="p-3">{new Date(purchase.createdAt).toLocaleDateString()}</td>
-                      <td className="p-3">{purchase.invoiceNumber || '-'}</td>
-                      <td className="p-3">{purchase.items?.length || 0}</td>
-                      <td className="p-3">{formatCurrency(purchase.grandTotal)}</td>
-                      <td className="p-3">
-                        <Badge
-                          variant={
-                            purchase.status === 'RECEIVED'
-                              ? 'success'
-                              : purchase.status === 'CANCELLED'
-                              ? 'destructive'
-                              : purchase.status === 'DRAFT'
-                              ? 'secondary'
-                              : 'default'
-                          }
-                        >
-                          {purchase.status}
-                        </Badge>
-                      </td>
-                      <td className="p-3">
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => (window.location.href = `/purchases/${purchase.id}`)}
-                          >
-                            <Edit3 className="h-4 w-4" />
-                          </Button>
-                          {purchase.status !== 'RECEIVED' && purchase.status !== 'CANCELLED' && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => receiveMutation.mutate(purchase.id)}
-                            >
-                              Receive
-                            </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => deleteMutation.mutate(purchase.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {data?.purchases?.length === 0 && (
+            <>
+              <div className="rounded-md border overflow-x-auto">
+                <table className="w-full text-sm min-w-[700px]">
+                  <thead className="bg-muted/50">
                     <tr>
-                      <td colSpan={8} className="p-8 text-center text-muted-foreground">
-                        No purchases found
-                      </td>
+                      <th className="p-3 text-left font-medium">Purchase #</th>
+                      <th className="p-3 text-left font-medium">Supplier</th>
+                      <th className="p-3 text-left font-medium">Date</th>
+                      <th className="p-3 text-left font-medium">Items</th>
+                      <th className="p-3 text-left font-medium">Total</th>
+                      <th className="p-3 text-left font-medium">Status</th>
+                      <th className="p-3 text-left font-medium">Actions</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {data?.purchases?.map((purchase: any) => (
+                      <tr key={purchase.id} className="border-t">
+                        <td className="p-3 font-mono text-xs">{purchase.purchaseNumber}</td>
+                        <td className="p-3">{purchase.supplier?.name || '-'}</td>
+                        <td className="p-3 text-xs">{new Date(purchase.createdAt).toLocaleDateString()}</td>
+                        <td className="p-3">{purchase.items?.length || 0}</td>
+                        <td className="p-3 font-medium">{formatCurrency(purchase.grandTotal)}</td>
+                        <td className="p-3">
+                          <Badge
+                            variant={
+                              purchase.status === 'RECEIVED'
+                                ? 'success'
+                                : purchase.status === 'CANCELLED'
+                                ? 'destructive'
+                                : purchase.status === 'DRAFT'
+                                ? 'secondary'
+                                : 'default'
+                            }
+                          >
+                            {purchase.status}
+                          </Badge>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => router.push(`/purchases/${purchase.id}`)}
+                            >
+                              View
+                            </Button>
+                            {purchase.status !== 'RECEIVED' && purchase.status !== 'CANCELLED' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => receiveMutation.mutate(purchase.id)}
+                                disabled={receiveMutation.isPending}
+                              >
+                                Receive
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => deleteMutation.mutate(purchase.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {data?.purchases?.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                          No purchases found
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-4">
+                  <p className="text-sm text-muted-foreground">Page {currentPage} of {totalPages}</p>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}>
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>

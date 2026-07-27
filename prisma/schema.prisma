@@ -119,11 +119,11 @@ model User {
   password      String?
   role          UserRole  @default(CASHIER)
   branchId      String?
-  isActive      Boolean   @default(true)
+  isActive      Boolean  @default(true)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  branch      Branch?       @relation(fields: [branchId], references: [id])
+  branch      Branch?        @relation(fields: [branchId], references: [id])
   accounts    Account[]
   sessions    Session[]
   sales       Sale[]
@@ -132,6 +132,7 @@ model User {
   purchases   Purchase[]
   stockMovements StockMovement[]
   inventoryTransactions InventoryTransaction[]
+  importLogs  ImportLog[]
 
   @@map("users")
 }
@@ -209,9 +210,12 @@ model Product {
   isActive     Boolean  @default(true)
   isArchived   Boolean  @default(false)
   lowStockThreshold Int @default(10)
+  maxStock     Int      @default(1000)
   brand        String?
   unit         String   @default("pcs")
   reorderLevel Int      @default(10)
+  taxRate      Decimal  @default(0) @db.Decimal(5, 2)
+  discount     Decimal  @default(0) @db.Decimal(5, 2)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -468,6 +472,26 @@ model Supplier {
   @@index([name])
   @@index([status])
   @@index([email])
+}
+
+model ImportLog {
+  id          String     @id @default(cuid())
+  userId      String
+  fileName    String
+  totalRows   Int
+  imported    Int
+  updated     Int
+  skipped     Int
+  failed      Int
+  duplicates  Int
+  errors      String     @db.Text
+  status      ImportStatus @default(PENDING)
+  createdAt   DateTime   @default(now())
+  completedAt DateTime?
+
+  user User @relation(fields: userId, references: [id], onDelete: Cascade)
+
+  @@map("import_logs")
 }
 
 model Purchase {
