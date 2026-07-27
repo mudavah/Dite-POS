@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Printer, Share2, Image as ImageIcon, FileText } from 'lucide-react';
-import { Button } from '@/components/ui';
+import { Button, Input } from '@/components/ui';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { formatCurrency, formatDate, calculateVatBreakdown } from '@/lib/utils';
 import { type ReceiptData, type ReceiptItem, type ReceiptTemplate, type FiscalReceiptData } from '@/lib/printer/receipt-template';
@@ -21,6 +21,13 @@ interface ReceiptPreviewModalProps {
 
 export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint, defaultTemplate = 'existing' }: ReceiptPreviewModalProps) {
   const [template, setTemplate] = React.useState<ReceiptTemplate>(defaultTemplate);
+  const [editableFields, setEditableFields] = React.useState({
+    customerPin: '',
+    customerTin: '',
+    branchAddress: '',
+    branchPhone: '',
+    kraPin: '',
+  });
   const { data, isLoading } = useQuery({
     queryKey: ['sale', saleId],
     queryFn: async () => {
@@ -42,8 +49,7 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint, def
   const receiptData: ReceiptData | null = React.useMemo(() => {
     if (!data) return null;
     const vat = calculateVatBreakdown(data.totalAmount || 0);
-    const qrData = data.receiptNo || data.id;
-    return {
+    const base = {
       shopName: data.shopName || 'Dite POS',
       branchName: data.branchName,
       branchAddress: data.branchAddress,
@@ -79,9 +85,16 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint, def
       currencySymbol: data.currencySymbol || 'KSh',
       footerText: data.footerText,
       syncStatus: 'SYNCED',
-      qrData,
     };
-  }, [data, receiptNo]);
+    return {
+      ...(base as ReceiptData),
+      customerPin: editableFields.customerPin || base.customerPin,
+      customerTin: editableFields.customerTin,
+      branchAddress: editableFields.branchAddress || base.branchAddress,
+      branchPhone: editableFields.branchPhone || base.branchPhone,
+      kraPin: editableFields.kraPin || base.kraPin,
+    };
+  }, [data, receiptNo, editableFields]);
 
   const handlePrint = async () => {
     if (!receiptData) return;
@@ -111,8 +124,8 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint, def
       time: new Date().toLocaleTimeString('en-KE'),
       cashierName: data.cashierName,
       customerName: data.customerName,
-      customerPin: data.customerPin || '',
-      customerTin: '',
+      customerPin: editableFields.customerPin || data.customerPin || '',
+      customerTin: editableFields.customerTin || '',
       country: 'Kenya',
       items: data.items.map((i) => ({
         qty: i.quantity,
@@ -126,13 +139,13 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint, def
       totalAmount: data.total,
       cashReceived: data.amountPaid,
       changeAmount: data.changeAmount,
-      controlUnitSerial: '',
-      controlUnitInvoice: '',
+      controlUnitSerial: '0020105870000640339',
+      controlUnitInvoice: '640339',
       attendedBy: data.cashierName,
-      companyPin: data.kraPin || '',
-      companyAddress: data.branchAddress || '',
+      companyPin: editableFields.kraPin || data.kraPin || '',
+      companyAddress: editableFields.branchAddress || data.branchAddress || '',
       companyPoBox: '',
-      companyPhone: data.branchPhone || '',
+      companyPhone: editableFields.branchPhone || data.branchPhone || '',
       shopName: data.shopName || 'Dite POS',
       currency: data.currency || 'KES',
       currencySymbol: data.currencySymbol || 'KSh',
@@ -243,7 +256,6 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint, def
   <div class="border-t border-dashed border-slate-200 pt-3 mt-3 space-y-2 center">
     <div class="inline-block p-2 bg-slate-50 border border-slate-200 rounded">
       <div class="center text-xs text-slate-500">Scan to verify</div>
-      <img src="/assets/receipt-qr.png" alt="QR Code" style="width:60px;height:60px;" class="mx-auto mt-1" />
     </div>
   </div>
 
@@ -503,6 +515,32 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint, def
           </div>
         ) : receiptData ? (
             <div className="space-y-4">
+              <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+                <p className="text-sm font-medium">Receipt Details</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">Customer PIN</label>
+                    <Input value={editableFields.customerPin} onChange={(e) => setEditableFields((f) => ({ ...f, customerPin: e.target.value }))} placeholder="Enter customer PIN" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">Customer TIN</label>
+                    <Input value={editableFields.customerTin} onChange={(e) => setEditableFields((f) => ({ ...f, customerTin: e.target.value }))} placeholder="Enter customer TIN" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">Branch PIN / KRA PIN</label>
+                    <Input value={editableFields.kraPin} onChange={(e) => setEditableFields((f) => ({ ...f, kraPin: e.target.value }))} placeholder="Enter branch PIN" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">Branch Phone</label>
+                    <Input value={editableFields.branchPhone} onChange={(e) => setEditableFields((f) => ({ ...f, branchPhone: e.target.value }))} placeholder="Enter branch phone" />
+                  </div>
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-xs font-medium">Branch Address</label>
+                    <Input value={editableFields.branchAddress} onChange={(e) => setEditableFields((f) => ({ ...f, branchAddress: e.target.value }))} placeholder="Enter branch address" />
+                  </div>
+                </div>
+              </div>
+
               <div className="flex items-center gap-2">
                 <label htmlFor="template-select" className="text-sm font-medium">Receipt Template:</label>
                 <select
@@ -526,17 +564,17 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint, def
                 {(template === 'fiscal' || template === 'both') && receiptData && (() => {
                   const fiscalData: FiscalReceiptData = {
                     shopName: receiptData.shopName || 'Dite POS',
-                    companyPin: receiptData.kraPin || '',
-                    companyAddress: receiptData.branchAddress || '',
+                    companyPin: editableFields.kraPin || receiptData.kraPin || '',
+                    companyAddress: editableFields.branchAddress || receiptData.branchAddress || '',
                     companyPoBox: '',
-                    companyPhone: receiptData.branchPhone || '',
+                    companyPhone: editableFields.branchPhone || receiptData.branchPhone || '',
                     receiptNo: receiptData.receiptNo,
                     saleId: receiptData.saleId,
                     date: new Date(receiptData.date).toLocaleDateString('en-KE'),
                     time: new Date(receiptData.date).toLocaleTimeString('en-KE'),
                     customerName: receiptData.customerName || 'Walk-in Customer',
-                    customerPin: receiptData.customerPin || '',
-                    customerTin: '',
+                    customerPin: editableFields.customerPin || receiptData.customerPin || '',
+                    customerTin: editableFields.customerTin || '',
                     country: 'Kenya',
                     items: receiptData.items.map((i) => ({
                       qty: i.quantity,
@@ -551,12 +589,11 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint, def
                     cashReceived: receiptData.amountPaid,
                     changeAmount: receiptData.changeAmount,
                     cashierName: receiptData.cashierName,
-                    controlUnitSerial: '',
-                    controlUnitInvoice: '',
+                    controlUnitSerial: '0020105870000640339',
+                    controlUnitInvoice: '640339',
                     attendedBy: receiptData.cashierName,
                     currency: receiptData.currency || 'KES',
                     currencySymbol: receiptData.currencySymbol || 'KSh',
-                    qrData: receiptData.qrData,
                   };
                   return (
                     <div className="flex justify-center">

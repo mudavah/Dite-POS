@@ -142,7 +142,6 @@ class ReceiptService {
       paymentMethod: 'CASH',
       currency: sale.currency,
       currencySymbol: sale.currencySymbol,
-      qrData: sale.receiptNo,
     };
   }
 
@@ -174,12 +173,11 @@ class ReceiptService {
       cashReceived: sale.cashReceived,
       changeAmount: sale.changeAmount,
       cashierName: sale.cashierName,
-      controlUnitSerial: sale.controlUnitSerial,
-      controlUnitInvoice: sale.controlUnitInvoice,
+      controlUnitSerial: '0020105870000640339',
+      controlUnitInvoice: '640339',
       attendedBy: sale.attendedBy,
       currency: sale.currency,
       currencySymbol: sale.currencySymbol,
-      qrData: sale.receiptNo,
     };
   }
 

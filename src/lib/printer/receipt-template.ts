@@ -50,7 +50,6 @@ export interface ReceiptData {
   currency: string;
   currencySymbol: string;
   footerText?: string;
-  qrData?: string;
   receiptPrefix?: string;
   syncStatus?: 'PENDING_SYNC' | 'SYNCED';
   isOffline?: boolean;
@@ -82,7 +81,6 @@ export interface FiscalReceiptData {
   attendedBy: string;
   currency: string;
   currencySymbol: string;
-  qrData?: string;
 }
 
 const PAPER_WIDTHS: Record<PaperSize, number> = {
@@ -161,10 +159,6 @@ function generateTextTemplate(data: ReceiptData, paperSize: PaperSize): string {
     lines.push(`Change: ${data.currencySymbol || 'KSh'} ${formatCurrency(data.changeAmount || 0, data.currency, data.currencySymbol)}`);
   }
   lines.push(sep);
-  if (data.qrData) {
-    lines.push(center('[QR CODE]', width));
-    lines.push(center(data.qrData, width));
-  }
   if (data.footerText) {
     lines.push(center(data.footerText, width));
   }
@@ -252,7 +246,6 @@ function generateHtmlTemplate(data: ReceiptData, paperSize: PaperSize): string {
       <tr><td>Change</td><td class="right">${formatCurrency(data.changeAmount, data.currency, data.currencySymbol)}</td></tr>
     </table>
     <div class="border-top"></div>
-    ${data.qrData ? `<div class="center">[QR: ${escapeHtml(data.qrData)}]</div>` : ''}
     ${data.footerText ? `<div class="center">${escapeHtml(data.footerText)}</div>` : ''}
     ${data.branchWebsite && !data.footerText ? `<div class="center">${escapeHtml(data.branchWebsite)}</div>` : ''}
     <div class="center">Thank you for shopping with us.</div>

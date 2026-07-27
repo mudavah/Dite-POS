@@ -95,17 +95,6 @@ export function ReceiptTemplateExisting({ data, paperSize = '80mm' }: ReceiptTem
         )}
       </div>
 
-      <div style={centerStyle} className="border-t border-dashed border-slate-400 pt-2 mt-2 text-xs">
-        <div style={centerStyle} className="w-16 h-16 mx-auto bg-white border border-slate-300 rounded flex items-center justify-center">
-          {data.qrData ? (
-            <img src="/assets/receipt-qr.png" alt="QR Code" style={{ width: 64, height: 64 }} />
-          ) : (
-            <span className="text-slate-400 text-[10px]">QR</span>
-          )}
-        </div>
-        <div className="mt-1 text-slate-500">Scan to verify</div>
-      </div>
-
       <div style={centerStyle} className="border-t border-dashed border-slate-400 pt-2 mt-2 text-xs space-y-0.5">
         <p className="font-medium">Thank you for shopping with us.</p>
         <p>Please come again.</p>
