@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { useToast } from '@/components/ui/toast';
 import { formatCurrency } from '@/lib/utils';
 import { usePosStore, type CartItem, type Customer } from '@/store/use-pos-store';
+import { CheckoutTimeoutError, CheckoutError, CheckoutSyncError, CheckoutAuthError, CheckoutDuplicateError, isCheckoutError } from '@/lib/checkout-errors';
 
 interface CheckoutModalProps {
   open: boolean;
@@ -55,20 +56,44 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
     mutationFn: async (payload: Record<string, unknown>) => {
       if (!isOnline) {
         const result = await usePosStore.getState().completeOfflineSale(payload, branchId, cashierId);
-        if (!result) throw new Error('Failed to save offline sale');
+        if (!result) throw new CheckoutSyncError('Failed to save offline sale', false);
         return { queued: true, ...result };
       }
 
-      const res = await fetch('/api/pos/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || 'Checkout failed');
+      const controller = new AbortController();
+      const timeoutMs = 30000;
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+      try {
+        const res = await fetch('/api/pos/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          const message = err.message || `Checkout failed with status ${res.status}`;
+          if (res.status === 401) throw new CheckoutAuthError(message);
+          if (res.status === 409) throw new CheckoutDuplicateError(err.saleId || '', err.receiptNo || '');
+          if (res.status === 504) throw new CheckoutTimeoutError(timeoutMs);
+          throw new CheckoutError('CHECKOUT_FAILED', message, res.status);
+        }
+        return res.json();
+      } catch (err: unknown) {
+        clearTimeout(timeoutId);
+        if (err instanceof CheckoutTimeoutError) throw err;
+        if (err instanceof CheckoutAuthError) throw err;
+        if (err instanceof CheckoutDuplicateError) throw err;
+        if (err instanceof CheckoutError) throw err;
+        if (err instanceof Error) {
+          if (err.name === 'AbortError') throw new CheckoutTimeoutError(timeoutMs);
+          throw new CheckoutError('CHECKOUT_NETWORK_ERROR', err.message, 0);
+        }
+        throw new CheckoutError('CHECKOUT_UNKNOWN_ERROR', 'An unexpected error occurred', 500);
       }
-      return res.json();
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['pos-products'] });
@@ -87,8 +112,37 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
       onOpenChange(false);
       resetForm();
     },
-    onError: (err: Error) => {
-      toast({ title: 'Checkout failed', description: err.message, variant: 'destructive' });
+    onError: (err: unknown) => {
+      let description = 'An unexpected error occurred';
+      if (isCheckoutError(err)) {
+        switch (err.code) {
+          case 'CHECKOUT_TIMEOUT':
+            description = `Request timed out after ${err.details?.timeoutMs || 30000}ms. Please check your connection and try again.`;
+            break;
+          case 'CHECKOUT_UNAUTHORIZED':
+            description = 'Session expired. Please log in again.';
+            break;
+          case 'CHECKOUT_INSUFFICIENT_STOCK':
+            description = `Stock issue: ${err.message}`;
+            break;
+          case 'CHECKOUT_DUPLICATE_SALE':
+            description = `Duplicate sale detected: ${err.details?.receiptNo}. This sale may have already been processed.`;
+            break;
+          case 'CHECKOUT_SYNC_FAILED':
+            description = err.details?.retryable
+              ? 'Network error. Sale saved offline and will sync when connection is restored.'
+              : 'Failed to save offline sale. Please try again.';
+            break;
+          case 'CHECKOUT_BRANCH_NOT_FOUND':
+            description = 'Branch configuration error. Please contact your administrator.';
+            break;
+          default:
+            description = err.message;
+        }
+      } else if (err instanceof Error) {
+        description = err.message;
+      }
+      toast({ title: 'Checkout failed', description, variant: 'destructive' });
     },
   });
 

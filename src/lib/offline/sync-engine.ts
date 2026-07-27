@@ -1,12 +1,25 @@
 import { db, type OfflineSale } from './dexie-db';
+import { logger } from '@/lib/logger';
 
 export type SyncAction = 'CREATE' | 'UPDATE' | 'DELETE';
 export type { OfflineSale } from './dexie-db';
 
 const MAX_RETRIES = 5;
 const BASE_DELAY = 1000;
+const MAX_DELAY = 30000;
+
+function getBackoffDelayImpl(retries: number): number {
+  return Math.min(BASE_DELAY * Math.pow(2, retries), MAX_DELAY);
+}
+
+export function getBackoffDelay(retries: number): number {
+  return getBackoffDelayImpl(retries);
+}
 
 export const syncEngine = {
+  getBackoffDelay(retries: number): number {
+    return getBackoffDelayImpl(retries);
+  },
   async queueMutation(item: Omit<OfflineSale, 'id' | 'createdAt' | 'updatedAt' | 'retries'>): Promise<string> {
     const queueItem: OfflineSale = {
       ...item,
@@ -29,11 +42,20 @@ export const syncEngine = {
       .toArray();
 
     for (const item of queue) {
-      if (item.status === 'FAILED' && item.retries >= MAX_RETRIES) continue;
+      if (item.status === 'FAILED' && item.retries >= MAX_RETRIES) {
+        logger.warn('sync: max retries exceeded', { saleId: item.entityId, retries: item.retries });
+        continue;
+      }
 
       item.status = 'SYNCING';
       item.updatedAt = new Date().toISOString();
       await db.salesQueue.put(item);
+      this.notifyListeners();
+
+      const delay = item.retries > 0 ? getBackoffDelay(item.retries) : 0;
+      if (delay > 0) {
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
 
       try {
         const response = await fetch('/api/sync', {
@@ -46,8 +68,9 @@ export const syncEngine = {
           item.status = 'SYNCED';
           item.updatedAt = new Date().toISOString();
           await db.salesQueue.put(item);
+          logger.info('sync: item synced', { saleId: item.entityId });
 
-          const result = await response.json();
+          const result = await response.json().catch(() => ({}));
           if (result.saleId) {
             const receipt = await db.receipts.where('saleId').equals(item.entityId).first();
             if (receipt) {
@@ -61,6 +84,9 @@ export const syncEngine = {
           item.status = 'CONFLICT';
           item.updatedAt = new Date().toISOString();
           await db.salesQueue.put(item);
+          logger.warn('sync: conflict detected', { saleId: item.entityId });
+        } else if (response.status === 429 || response.status >= 500) {
+          throw new Error(`Sync failed with status ${response.status}, retrying`);
         } else {
           throw new Error(`Sync failed with status ${response.status}`);
         }
@@ -70,6 +96,7 @@ export const syncEngine = {
         item.status = item.retries >= MAX_RETRIES ? 'FAILED' : 'PENDING';
         item.updatedAt = new Date().toISOString();
         await db.salesQueue.put(item);
+        logger.error('sync: item failed', error, { saleId: item.entityId, retries: item.retries, maxRetries: MAX_RETRIES });
       }
     }
 
@@ -99,10 +126,6 @@ export const syncEngine = {
     item.updatedAt = new Date().toISOString();
     await db.salesQueue.put(item);
     await this.processQueue();
-  },
-
-  getBackoffDelay(retries: number): number {
-    return Math.min(BASE_DELAY * Math.pow(2, retries), 30000);
   },
 
   async clearSynced(): Promise<void> {
