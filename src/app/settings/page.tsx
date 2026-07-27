@@ -154,10 +154,11 @@ export default function SettingsPage() {
 
   const handleSavePrinter = (e: React.FormEvent) => {
     e.preventDefault();
-    if (printerForm.id) {
-      printerMutation.mutate({ id: printerForm.id, ...printerForm });
+    const { id, ...rest } = printerForm;
+    if (id) {
+      printerMutation.mutate({ id, ...rest });
     } else {
-      printerMutation.mutate(printerForm);
+      printerMutation.mutate(rest);
     }
   };
 
