@@ -11,6 +11,8 @@ import { useToast } from '@/components/ui/toast';
 import { useQuery } from '@tanstack/react-query';
 import { type ReceiptData, type ReceiptItem } from '@/components/pos/receipt';
 import { ReceiptPreviewModal } from '@/components/pos/receipt-preview-modal';
+import { receiptService, type PrintReceiptInput } from '@/lib/printer/receipt-service';
+import type { ReceiptTemplate } from '@/lib/printer/receipt-template';
 
 async function fetchReceipt(saleId: string) {
   const res = await fetch(`/api/pos/sales/${saleId}`);
@@ -157,22 +159,49 @@ function ReceiptActionsInner() {
     return offlineSale;
   }, [sale, offlineSale, offlineReceiptNo]);
 
+  const [printTemplate, setPrintTemplate] = React.useState<ReceiptTemplate>('existing');
+
   const handlePrintThermal = async (size: '58mm' | '80mm') => {
     if (!receiptData) return;
     try {
-      const res = await fetch('/api/printer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'print',
-          paperSize: size,
-          data: receiptData,
-        }),
-      });
-      if (res.ok) {
+      const saleData: PrintReceiptInput = {
+        saleId: receiptData.saleId,
+        receiptNo: receiptData.receiptNo,
+        date: receiptData.date,
+        time: new Date().toLocaleTimeString('en-KE'),
+        cashierName: receiptData.cashierName,
+        customerName: receiptData.customerName,
+        customerPin: receiptData.customerPin || '',
+        customerTin: '',
+        country: 'Kenya',
+        items: receiptData.items.map((i) => ({
+          qty: i.quantity,
+          description: i.productName,
+          vatCode: 'A',
+          unitPrice: i.unitPrice,
+          discount: i.discount,
+          lineTotal: i.total,
+        })),
+        subtotal: receiptData.subtotal,
+        totalAmount: receiptData.total,
+        cashReceived: receiptData.amountPaid,
+        changeAmount: receiptData.changeAmount,
+        controlUnitSerial: '',
+        controlUnitInvoice: '',
+        attendedBy: receiptData.cashierName,
+        companyPin: receiptData.kraPin || '',
+        companyAddress: receiptData.branchAddress || '',
+        companyPoBox: '',
+        companyPhone: receiptData.branchPhone || '',
+        shopName: receiptData.shopName || 'Dite POS',
+        currency: receiptData.currency || 'KES',
+        currencySymbol: receiptData.currencySymbol || 'KSh',
+      };
+      const result = await receiptService.printReceipt(saleData, printTemplate);
+      if (result.success) {
         toast({ title: 'Receipt sent to printer' });
       } else {
-        toast({ title: 'Failed to print receipt', variant: 'destructive' });
+        toast({ title: result.message || 'Failed to print receipt', variant: 'destructive' });
       }
     } catch {
       toast({ title: 'Failed to print receipt', variant: 'destructive' });
@@ -401,6 +430,19 @@ function ReceiptActionsInner() {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div className="col-span-2 sm:col-span-3 flex items-center gap-2 mb-2">
+              <label htmlFor="checkout-template" className="text-sm font-medium">Template:</label>
+              <select
+                id="checkout-template"
+                value={printTemplate}
+                onChange={(e) => setPrintTemplate(e.target.value as ReceiptTemplate)}
+                className="h-8 rounded border border-input bg-background px-2 text-sm"
+              >
+                <option value="existing">Existing Receipt</option>
+                <option value="fiscal">Fiscal Receipt</option>
+                <option value="both">Both Receipts</option>
+              </select>
+            </div>
             <Button variant="outline" onClick={() => handlePrintThermal('58mm')} className="h-10 gap-2">
               <Printer className="h-4 w-4" />
               58mm

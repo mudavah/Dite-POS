@@ -6,18 +6,20 @@ import { Printer, Share2, Image as ImageIcon, FileText } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { formatCurrency, formatDate, calculateVatBreakdown } from '@/lib/utils';
-import { useMiniPrinter } from '@/hooks/use-mini-printer';
-import { buildEscpos, type ReceiptData } from '@/lib/printer/receipt-template';
+import { type ReceiptData, type ReceiptTemplate } from '@/lib/printer/receipt-template';
 import { Receipt, type ReceiptItem } from '@/components/pos/receipt';
+import { receiptService } from '@/lib/printer/receipt-service';
 
 interface ReceiptPreviewModalProps {
   saleId: string;
   receiptNo?: string;
   onClose: () => void;
   onReprint?: () => void;
+  defaultTemplate?: ReceiptTemplate;
 }
 
-export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint }: ReceiptPreviewModalProps) {
+export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint, defaultTemplate = 'existing' }: ReceiptPreviewModalProps) {
+  const [template, setTemplate] = React.useState<ReceiptTemplate>(defaultTemplate);
   const { data, isLoading } = useQuery({
     queryKey: ['sale', saleId],
     queryFn: async () => {
@@ -35,10 +37,6 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint }: R
       return res.json();
     },
   });
-
-  const printerConfig = printerConfigs[0];
-  const printerType = printerConfig?.type || 'NETWORK';
-  const { printer: miniPrinter, connect, print } = useMiniPrinter();
 
   const receiptData: ReceiptData | null = React.useMemo(() => {
     if (!data) return null;
@@ -87,47 +85,58 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint }: R
   const handlePrint = async () => {
     if (!receiptData) return;
 
-    if (printerType === 'USB' || printerType === 'BLUETOOTH') {
-      if (!miniPrinter.connected) {
-        const connected = await connect();
-        if (!connected) {
-          alert('Failed to connect to printer');
-          return;
-        }
-      }
-      const escposData = buildEscpos(receiptData, printerConfig?.paperSize || '80mm');
-      const success = await print(escposData);
-      if (success) {
-        alert('Receipt sent to printer');
-        onReprint?.();
-      } else {
-        alert(miniPrinter.error || 'Failed to print receipt');
-      }
+    const config = printerConfigs[0];
+    if (!config) {
+      alert('No printer configured. Please configure a printer in Settings.');
       return;
     }
 
-    const res = await fetch('/api/printer', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'print',
-        config: printerConfig ? {
-          ...printerConfig,
-          ipAddress: printerConfig.ipAddress,
-          port: printerConfig.port,
-          macAddress: printerConfig.macAddress,
-        } : undefined,
-        data: receiptData,
-      }),
-    });
-    if (res.ok) {
+    const saleData = buildSaleData(receiptData);
+    const result = await receiptService.printReceipt(saleData, template);
+
+    if (result.success) {
       alert('Receipt sent to printer');
       onReprint?.();
     } else {
-      const err = await res.json().catch(() => ({}));
-      alert(err.message || 'Failed to print receipt');
+      alert(result.message || 'Failed to print receipt');
     }
   };
+
+  function buildSaleData(data: ReceiptData) {
+    return {
+      saleId: data.saleId,
+      receiptNo: data.receiptNo,
+      date: data.date,
+      time: new Date().toLocaleTimeString('en-KE'),
+      cashierName: data.cashierName,
+      customerName: data.customerName,
+      customerPin: data.customerPin || '',
+      customerTin: '',
+      country: 'Kenya',
+      items: data.items.map((i) => ({
+        qty: i.quantity,
+        description: i.productName,
+        vatCode: 'A',
+        unitPrice: i.unitPrice,
+        discount: i.discount,
+        lineTotal: i.total,
+      })),
+      subtotal: data.subtotal,
+      totalAmount: data.total,
+      cashReceived: data.amountPaid,
+      changeAmount: data.changeAmount,
+      controlUnitSerial: '',
+      controlUnitInvoice: '',
+      attendedBy: data.cashierName,
+      companyPin: data.kraPin || '',
+      companyAddress: data.branchAddress || '',
+      companyPoBox: '',
+      companyPhone: data.branchPhone || '',
+      shopName: data.shopName || 'Dite POS',
+      currency: data.currency || 'KES',
+      currencySymbol: data.currencySymbol || 'KSh',
+    };
+  }
 
   function escapeHtmlAttr(str: string): string {
     return str
@@ -233,7 +242,7 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint }: R
   <div class="border-t border-dashed border-slate-200 pt-3 mt-3 space-y-2 center">
     <div class="inline-block p-2 bg-slate-50 border border-slate-200 rounded">
       <div class="center text-xs text-slate-500">Scan to verify</div>
-      <div class="center text-xs text-slate-400 mt-1">QR: ${escapeHtmlAttr(receiptData.qrData || receiptData.receiptNo)}</div>
+      <img src="/assets/receipt-qr.png" alt="QR Code" style="width:60px;height:60px;" class="mx-auto mt-1" />
     </div>
   </div>
 
@@ -493,6 +502,20 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint }: R
           </div>
         ) : receiptData ? (
           <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <label htmlFor="template-select" className="text-sm font-medium">Receipt Template:</label>
+              <select
+                id="template-select"
+                value={template}
+                onChange={(e) => setTemplate(e.target.value as ReceiptTemplate)}
+                className="h-8 rounded border border-input bg-background px-2 text-sm"
+              >
+                <option value="existing">Existing Receipt</option>
+                <option value="fiscal">Fiscal Receipt</option>
+                <option value="both">Both Receipts</option>
+              </select>
+            </div>
+
             <div className="flex justify-center">
               <Receipt data={receiptData} format="full" />
             </div>

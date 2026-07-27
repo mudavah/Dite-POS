@@ -2,6 +2,7 @@ import type { PaperSize } from './thermal-printer';
 import { formatCurrency, calculateVatBreakdown } from '@/lib/utils';
 
 export type TemplateFormat = 'html' | 'text' | 'escpos';
+export type ReceiptTemplate = 'existing' | 'fiscal' | 'both';
 
 export interface ReceiptItem {
   productName: string;
@@ -10,6 +11,15 @@ export interface ReceiptItem {
   unitPrice: number;
   discount: number;
   total: number;
+}
+
+export interface FiscalReceiptItem {
+  qty: number;
+  description: string;
+  vatCode: string;
+  unitPrice: number;
+  discount: number;
+  lineTotal: number;
 }
 
 export interface ReceiptData {
@@ -28,6 +38,7 @@ export interface ReceiptData {
   customerPhone?: string;
   customerEmail?: string;
   customerPin?: string;
+  customerTin?: string;
   paymentMethod: string;
   paymentReference?: string;
   items: ReceiptItem[];
@@ -46,9 +57,37 @@ export interface ReceiptData {
   saleNotes?: string;
 }
 
+export interface FiscalReceiptData {
+  shopName: string;
+  companyPin: string;
+  companyAddress: string;
+  companyPoBox: string;
+  companyPhone: string;
+  receiptNo: string;
+  saleId: string;
+  date: string;
+  time: string;
+  customerName: string;
+  customerPin: string;
+  customerTin: string;
+  country: string;
+  items: FiscalReceiptItem[];
+  subtotal: number;
+  totalAmount: number;
+  cashReceived: number;
+  changeAmount: number;
+  cashierName: string;
+  controlUnitSerial: string;
+  controlUnitInvoice: string;
+  attendedBy: string;
+  currency: string;
+  currencySymbol: string;
+  qrData?: string;
+}
+
 const PAPER_WIDTHS: Record<PaperSize, number> = {
   '58mm': 48,
-  '80mm': 64,
+  '80mm': 80,
 };
 
 function escapeHtml(str: string): string {
@@ -139,8 +178,8 @@ function generateTextTemplate(data: ReceiptData, paperSize: PaperSize): string {
 }
 
 function generateHtmlTemplate(data: ReceiptData, paperSize: PaperSize): string {
-  const width = paperSize === '58mm' ? '280px' : '380px';
-  const fontSize = paperSize === '58mm' ? '10px' : '12px';
+  const width = paperSize === '58mm' ? '280px' : '320px';
+  const fontSize = paperSize === '58mm' ? '10px' : '11px';
   const vat = calculateVatBreakdown(data.total);
   const displayCustomer = data.customerName || 'Walk-in Customer';
 
@@ -227,6 +266,165 @@ export function textToEscpos(text: string): Uint8Array {
 
 export function buildEscpos(data: ReceiptData, paperSize: PaperSize = '80mm'): Uint8Array {
   const text = generateTextTemplate(data, paperSize);
+  const bytes: number[] = [];
+
+  bytes.push(0x1B, 0x40);
+
+  for (const char of text) {
+    bytes.push(char.charCodeAt(0));
+  }
+
+  bytes.push(0x1D, 0x56, 0x42, 0x00);
+  return new Uint8Array(bytes);
+}
+
+export function generateFiscalReceiptTemplate(
+  data: FiscalReceiptData,
+  format: TemplateFormat = 'text',
+  paperSize: PaperSize = '80mm'
+): string {
+  switch (format) {
+    case 'html':
+      return generateFiscalHtmlTemplate(data, paperSize);
+    case 'text':
+    default:
+      return generateFiscalTextTemplate(data, paperSize);
+  }
+}
+
+function generateFiscalTextTemplate(data: FiscalReceiptData, paperSize: PaperSize): string {
+  const width = PAPER_WIDTHS[paperSize];
+  const lines: string[] = [];
+  const sep = '-'.repeat(width);
+
+  lines.push(center(data.shopName || 'Dite POS', width));
+  lines.push(center(data.companyPin, width));
+  lines.push(center(data.companyAddress, width));
+  lines.push(center(`P.O. Box ${data.companyPoBox}`, width));
+  lines.push(center(data.companyPhone, width));
+  lines.push(sep);
+  lines.push(center('FISCAL RECEIPT', width));
+  lines.push(sep);
+  lines.push(`Receipt No: ${data.receiptNo}`);
+  lines.push(`Date: ${data.date}`);
+  lines.push(`Time: ${data.time}`);
+  lines.push(`Customer: ${data.customerName}`);
+  lines.push(`Customer PIN: ${data.customerPin}`);
+  lines.push(`Customer TIN: ${data.customerTin}`);
+  lines.push(`Country: ${data.country}`);
+  lines.push(sep);
+  lines.push(center('QTY  DESCRIPTION  VAT  PRICE  AMOUNT', width));
+  lines.push(sep);
+
+  for (const item of data.items) {
+    const desc = item.description.length > 30 ? item.description.slice(0, 30) + '..' : item.description;
+    lines.push(`${String(item.qty).padStart(4)}  ${desc.padEnd(20)}  ${item.vatCode.padEnd(4)}  ${formatCurrency(item.unitPrice, data.currency, data.currencySymbol).padStart(8)}  ${formatCurrency(item.lineTotal, data.currency, data.currencySymbol).padStart(8)}`);
+  }
+
+  lines.push(sep);
+  lines.push(`SUBTOTAL`.padEnd(width - 12) + formatCurrency(data.subtotal, data.currency, data.currencySymbol).padStart(12));
+  lines.push(`TOTAL AMOUNT`.padEnd(width - 12) + formatCurrency(data.totalAmount, data.currency, data.currencySymbol).padStart(12));
+  lines.push(`CASH`.padEnd(width - 12) + formatCurrency(data.cashReceived, data.currency, data.currencySymbol).padStart(12));
+  lines.push(`CHANGE`.padEnd(width - 12) + formatCurrency(data.changeAmount, data.currency, data.currencySymbol).padStart(12));
+  lines.push(sep);
+  lines.push(`VAT CODE  RATE  TAXABLE AMOUNT  VAT AMOUNT`);
+  lines.push(`A         16%   ${formatCurrency(data.subtotal, data.currency, data.currencySymbol).padStart(12)}  ${formatCurrency(data.totalAmount - data.subtotal, data.currency, data.currencySymbol).padStart(8)}`);
+  lines.push(sep);
+  lines.push(center('[QR CODE]', width));
+  lines.push(sep);
+  lines.push(`Control Unit Serial: ${data.controlUnitSerial}`);
+  lines.push(`Control Unit Invoice: ${data.controlUnitInvoice}`);
+  lines.push(`Attended By: ${data.attendedBy}`);
+  lines.push('');
+  lines.push(center('Thank you for your visit.', width));
+  lines.push('');
+
+  return lines.join('\n');
+}
+
+function generateFiscalHtmlTemplate(data: FiscalReceiptData, paperSize: PaperSize): string {
+  const width = paperSize === '58mm' ? '280px' : '320px';
+  const fontSize = paperSize === '58mm' ? '9px' : '10px';
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Fiscal Receipt ${escapeHtml(data.receiptNo)}</title>
+  <style>
+    @media print {
+      body { margin: 0; padding: 0; }
+      .receipt { width: ${width}; font-family: monospace; font-size: ${fontSize}; margin: 0 auto; }
+    }
+    .receipt { width: ${width}; font-family: monospace; font-size: ${fontSize}; margin: 0 auto; color: #000; background: #fff; }
+    .center { text-align: center; }
+    .right { text-align: right; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 1px 0; font-size: ${fontSize}; }
+    .border-top { border-top: 1px dashed #000; }
+    .border-bottom { border-bottom: 1px dashed #000; }
+    .bold { font-weight: bold; }
+    .total { font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="receipt">
+    <div class="center bold">${escapeHtml(data.shopName || 'Dite POS')}</div>
+    <div class="center">${escapeHtml(data.companyPin)}</div>
+    <div class="center">${escapeHtml(data.companyAddress)}</div>
+    <div class="center">P.O. Box ${escapeHtml(data.companyPoBox)}</div>
+    <div class="center">${escapeHtml(data.companyPhone)}</div>
+    <div class="border-top"></div>
+    <div class="center bold">FISCAL RECEIPT</div>
+    <div class="border-top"></div>
+    <table>
+      <tr><td>Receipt No:</td><td class="right">${escapeHtml(data.receiptNo)}</td></tr>
+      <tr><td>Date:</td><td class="right">${escapeHtml(data.date)}</td></tr>
+      <tr><td>Time:</td><td class="right">${escapeHtml(data.time)}</td></tr>
+      <tr><td>Customer:</td><td class="right">${escapeHtml(data.customerName)}</td></tr>
+      <tr><td>Customer PIN:</td><td class="right">${escapeHtml(data.customerPin)}</td></tr>
+      <tr><td>Customer TIN:</td><td class="right">${escapeHtml(data.customerTin)}</td></tr>
+      <tr><td>Country:</td><td class="right">${escapeHtml(data.country)}</td></tr>
+    </table>
+    <div class="border-top"></div>
+    <table>
+      <tr><th>QTY</th><th>DESCRIPTION</th><th>VAT</th><th>PRICE</th><th>AMOUNT</th></tr>
+      ${data.items.map(item => `
+        <tr>
+          <td>${item.qty}</td>
+          <td>${escapeHtml(item.description)}</td>
+          <td>${escapeHtml(item.vatCode)}</td>
+          <td class="right">${formatCurrency(item.unitPrice, data.currency, data.currencySymbol)}</td>
+          <td class="right">${formatCurrency(item.lineTotal, data.currency, data.currencySymbol)}</td>
+        </tr>
+      `).join('')}
+    </table>
+    <div class="border-top"></div>
+    <table>
+      <tr><td>SUBTOTAL</td><td class="right">${formatCurrency(data.subtotal, data.currency, data.currencySymbol)}</td></tr>
+      <tr><td>TOTAL AMOUNT</td><td class="right">${formatCurrency(data.totalAmount, data.currency, data.currencySymbol)}</td></tr>
+      <tr><td>CASH</td><td class="right">${formatCurrency(data.cashReceived, data.currency, data.currencySymbol)}</td></tr>
+      <tr><td>CHANGE</td><td class="right">${formatCurrency(data.changeAmount, data.currency, data.currencySymbol)}</td></tr>
+    </table>
+    <div class="border-top"></div>
+    <table>
+      <tr><th>VAT CODE</th><th>RATE</th><th>TAXABLE AMOUNT</th><th>VAT AMOUNT</th></tr>
+      <tr><td>A</td><td>16%</td><td class="right">${formatCurrency(data.subtotal, data.currency, data.currencySymbol)}</td><td class="right">${formatCurrency(data.totalAmount - data.subtotal, data.currency, data.currencySymbol)}</td></tr>
+    </table>
+    <div class="border-top"></div>
+    <div class="center"><img src="/assets/receipt-qr.png" alt="QR Code" style="width:100px;height:100px;" /></div>
+    <div class="border-top"></div>
+    <div class="center">Control Unit Serial: ${escapeHtml(data.controlUnitSerial)}</div>
+    <div class="center">Control Unit Invoice: ${escapeHtml(data.controlUnitInvoice)}</div>
+    <div class="center">Attended By: ${escapeHtml(data.attendedBy)}</div>
+    <div class="center" style="margin-top:8px;">Thank you for your visit.</div>
+  </div>
+</body>
+</html>`;
+}
+
+export function buildFiscalEscpos(data: FiscalReceiptData, paperSize: PaperSize = '80mm'): Uint8Array {
+  const text = generateFiscalTextTemplate(data, paperSize);
   const bytes: number[] = [];
 
   bytes.push(0x1B, 0x40);

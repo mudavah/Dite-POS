@@ -167,6 +167,7 @@ model BranchSetting {
   branchId       String   @unique
   receiptPrefix  String   @default("RCP")
   receiptNextNum Int      @default(1)
+  receiptTemplate String  @default("existing")
   currency       String   @default("KES")
   currencySymbol String   @default("KSh")
   footerText     String?

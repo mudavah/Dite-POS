@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, Button, Input, Badge } from '@/components/ui';
-import { Save, Printer, Monitor, Store as StoreIcon, Moon, Usb, Bluetooth, Wifi } from 'lucide-react';
+import { Save, Printer, Monitor, Store as StoreIcon, Moon, Usb, Bluetooth, Wifi, FileText } from 'lucide-react';
 
 async function fetchSettings() {
   const res = await fetch('/api/settings');
@@ -236,7 +236,22 @@ export default function SettingsPage() {
             <CardTitle>Receipt Template</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-muted-foreground">Receipt template configuration is managed per branch in Shop Information settings. Configure shop name and footer text above.</p>
+            <div className="space-y-2">
+              <label htmlFor="receipt-template" className="text-sm font-medium">Default Receipt Template</label>
+              <select
+                id="receipt-template"
+                value={settings?.receiptTemplate || 'existing'}
+                onChange={(e) => {
+                  const updated = { ...settings[0], receiptTemplate: e.target.value };
+                  shopMutation.mutate(updated);
+                }}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="existing">Existing Receipt</option>
+                <option value="fiscal">Fiscal Receipt</option>
+                <option value="both">Both Receipts</option>
+              </select>
+            </div>
             <div className="border rounded-md p-4 bg-muted/30">
               <pre className="text-xs text-muted-foreground whitespace-pre-wrap">
 {`Receipt Template Preview:

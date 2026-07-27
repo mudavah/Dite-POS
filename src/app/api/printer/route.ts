@@ -2,39 +2,41 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { printer, type PrinterConfig } from '@/lib/printer/thermal-printer';
-import { buildEscpos, type ReceiptData } from '@/lib/printer/receipt-template';
+import { buildEscpos, buildFiscalEscpos, type ReceiptData, type FiscalReceiptData, type ReceiptTemplate } from '@/lib/printer/receipt-template';
 import * as net from 'net';
+import { logger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
-async function printToNetworkPrinter(ipAddress: string, port: number, data: Buffer): Promise<boolean> {
+async function printToNetworkPrinter(ipAddress: string, port: number, data: Buffer): Promise<{ success: boolean; message: string }> {
   return new Promise((resolve) => {
     const client = new net.Socket();
 
     const timeout = setTimeout(() => {
       client.destroy();
-      resolve(false);
-    }, 10000);
+      resolve({ success: false, message: `Timeout connecting to ${ipAddress}:${port}` });
+    }, 15000);
 
     client.connect(port, ipAddress, () => {
       clearTimeout(timeout);
       client.write(data);
       setTimeout(() => {
         client.end();
-        resolve(true);
-      }, 500);
+        resolve({ success: true, message: `Print sent to ${ipAddress}:${port}` });
+      }, 2000);
     });
 
-    client.on('error', () => {
+    client.on('error', (err) => {
       clearTimeout(timeout);
       client.destroy();
-      resolve(false);
+      logger.error('Network printer error', err);
+      resolve({ success: false, message: `Connection error: ${err.message}` });
     });
 
     client.on('timeout', () => {
       clearTimeout(timeout);
       client.destroy();
-      resolve(false);
+      resolve({ success: false, message: `Connection timeout to ${ipAddress}:${port}` });
     });
   });
 }
@@ -60,10 +62,11 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { action, config, data } = body as {
+  const { action, config, data, template } = body as {
     action: 'print' | 'reprint' | 'preview' | 'cut' | 'buzzer' | 'test';
     config?: PrinterConfig;
-    data?: ReceiptData;
+    data?: ReceiptData | FiscalReceiptData;
+    template?: ReceiptTemplate;
   };
 
   if (action === 'test') {
@@ -74,13 +77,8 @@ export async function POST(req: NextRequest) {
     if (config.type === 'NETWORK' && config.ipAddress) {
       const port = config.port || 9100;
       const testData = Buffer.from('Test print from Dite POS\n');
-      const success = await printToNetworkPrinter(config.ipAddress, port, testData);
-      return NextResponse.json({
-        success,
-        message: success
-          ? `Successfully sent test data to ${config.ipAddress}:${port}`
-          : `Failed to connect to ${config.ipAddress}:${port}`,
-      });
+      const result = await printToNetworkPrinter(config.ipAddress, port, testData);
+      return NextResponse.json(result);
     }
 
     printer.setConfig(config);
@@ -98,37 +96,48 @@ export async function POST(req: NextRequest) {
       if (!data) {
         return NextResponse.json({ error: 'Receipt data required' }, { status: 400 });
       }
-      const escposData = buildEscpos(data, config?.paperSize || '80mm');
 
-      let success = false;
+      const selectedTemplate = template || 'existing';
+      let escposData: Uint8Array;
+
+      if (selectedTemplate === 'fiscal' || selectedTemplate === 'both') {
+        const fiscalData = data as FiscalReceiptData;
+        escposData = buildFiscalEscpos(fiscalData, config?.paperSize || '80mm');
+      } else {
+        const receiptData = data as ReceiptData;
+        escposData = buildEscpos(receiptData, config?.paperSize || '80mm');
+      }
+
+      let result;
       if (config?.type === 'NETWORK' && config.ipAddress) {
         const port = config.port || 9100;
-        success = await printToNetworkPrinter(config.ipAddress, port, Buffer.from(escposData.buffer));
+        result = await printToNetworkPrinter(config.ipAddress, port, Buffer.from(escposData.buffer));
       } else {
-        success = await printer.print(escposData);
+        result = await printer.print(escposData, { retries: 2 });
       }
 
-      if (action === 'reprint') {
-        await printer.cut();
+      if ((action === 'reprint' || selectedTemplate === 'both') && config?.cutter) {
+        await printer.cut({ retries: 1 });
       }
-      return NextResponse.json({ success });
+
+      return NextResponse.json(result);
     }
     case 'preview': {
       if (!data) {
         return NextResponse.json({ error: 'Receipt data required' }, { status: 400 });
       }
-      const escposData = buildEscpos(data, config?.paperSize || '80mm');
+      const escposData = buildEscpos(data as ReceiptData, config?.paperSize || '80mm');
       return new NextResponse(Buffer.from(escposData.buffer).toString('binary'), {
         headers: { 'Content-Type': 'application/octet-stream' },
       });
     }
     case 'cut': {
-      const success = await printer.cut();
-      return NextResponse.json({ success });
+      const result = await printer.cut();
+      return NextResponse.json(result);
     }
     case 'buzzer': {
-      const success = await printer.buzzer();
-      return NextResponse.json({ success });
+      const result = await printer.buzzer();
+      return NextResponse.json(result);
     }
     default:
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });

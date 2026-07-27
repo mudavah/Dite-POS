@@ -1,7 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import { QRCodeSVG } from 'qrcode.react';
 import { formatCurrency, formatDate, calculateVatBreakdown } from '@/lib/utils';
 
 export interface ReceiptItem {
@@ -186,13 +185,7 @@ export function Receipt({ data, paperSize = '80mm', format = 'full' }: ReceiptPr
         <div className="border-t border-dashed border-slate-200 pt-3 space-y-2">
           <div className="flex justify-center">
             <div className="inline-block p-2 bg-white border border-slate-200 rounded-lg">
-              {data.qrData ? (
-                <QRCodeSVG value={data.qrData} size={96} level="M" includeMargin={false} />
-              ) : (
-                <div className="w-24 h-24 bg-slate-50 flex items-center justify-center text-xs text-slate-400 border border-slate-200 rounded">
-                  QR: {data.receiptNo}
-                </div>
-              )}
+              <img src="/assets/receipt-qr.png" alt="QR Code" style={{ width: 96, height: 96 }} />
             </div>
           </div>
           <p className="text-xs text-slate-500 text-center">Scan to verify receipt</p>
@@ -212,8 +205,8 @@ export function Receipt({ data, paperSize = '80mm', format = 'full' }: ReceiptPr
 }
 
 function ThermalReceipt({ data, paperSize }: { data: ReceiptData; paperSize: '58mm' | '80mm' }) {
-  const width = paperSize === '58mm' ? 280 : 380;
-  const padding = paperSize === '58mm' ? 12 : 16;
+  const width = paperSize === '58mm' ? 280 : 320;
+  const padding = paperSize === '58mm' ? 10 : 14;
   const vat = calculateVatBreakdown(data.total);
   const displayCustomer = data.customerName || 'Walk-in Customer';
 
@@ -290,11 +283,7 @@ function ThermalReceipt({ data, paperSize }: { data: ReceiptData; paperSize: '58
 
       <div className="border-t border-dashed border-slate-400 pt-2 mt-2 text-center text-xs">
         <div style={centerStyle} className="w-16 h-16 mx-auto bg-white border border-slate-300 rounded flex items-center justify-center">
-          {data.qrData ? (
-            <QRCodeSVG value={data.qrData} size={56} level="M" includeMargin={false} />
-          ) : (
-            <span className="text-slate-400 text-[10px]">QR</span>
-          )}
+          <img src="/assets/receipt-qr.png" alt="QR Code" style={{ width: 56, height: 56 }} />
         </div>
         <div className="mt-1 text-slate-500">Scan to verify</div>
       </div>
