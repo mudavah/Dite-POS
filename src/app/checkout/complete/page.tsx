@@ -57,9 +57,6 @@ function ReceiptActionsInner() {
   const [editableFields, setEditableFields] = React.useState({
     customerPin: '',
     customerTin: '',
-    branchAddress: '',
-    branchPhone: '',
-    kraPin: '',
   });
 
   React.useEffect(() => {
@@ -177,9 +174,9 @@ function ReceiptActionsInner() {
       ...(base as ReceiptData),
       customerPin: editableFields.customerPin || base.customerPin,
       customerTin: editableFields.customerTin || (base as any).customerTin,
-      branchAddress: editableFields.branchAddress || base.branchAddress,
-      branchPhone: editableFields.branchPhone || base.branchPhone,
-      kraPin: editableFields.kraPin || base.kraPin,
+      kraPin: base.kraPin,
+      branchAddress: base.branchAddress,
+      branchPhone: base.branchPhone,
     };
   }, [sale, offlineSale, offlineReceiptNo, editableFields]);
 
@@ -188,9 +185,6 @@ function ReceiptActionsInner() {
       setEditableFields({
         customerPin: receiptData.customerPin || '',
         customerTin: (receiptData as any).customerTin || '',
-        branchAddress: receiptData.branchAddress || '',
-        branchPhone: receiptData.branchPhone || '',
-        kraPin: receiptData.kraPin || '',
       });
     }
   }, [receiptData]);
@@ -233,10 +227,10 @@ function ReceiptActionsInner() {
         controlUnitSerial: '0020105870000640339',
         controlUnitInvoice: '640339',
         attendedBy: receiptData.cashierName,
-        companyPin: editableFields.kraPin || receiptData.kraPin || '',
-        companyAddress: editableFields.branchAddress || receiptData.branchAddress || '',
+        companyPin: receiptData.kraPin || '',
+        companyAddress: receiptData.branchAddress || '',
         companyPoBox: '',
-        companyPhone: editableFields.branchPhone || receiptData.branchPhone || '',
+        companyPhone: receiptData.branchPhone || '',
         shopName: receiptData.shopName || 'Dite POS',
         currency: receiptData.currency || 'KES',
         currencySymbol: receiptData.currencySymbol || 'KSh',
@@ -365,9 +359,9 @@ function ReceiptActionsInner() {
         doc.setFont('helvetica', 'bold');
         y = centerText(y, receiptData!.shopName || 'Dite POS', 12);
         doc.setFont('helvetica', 'normal');
-        if (editableFields.kraPin || receiptData!.kraPin) y = centerText(y, editableFields.kraPin || receiptData!.kraPin || '', 9);
-        if (editableFields.branchAddress || receiptData!.branchAddress) y = centerText(y, editableFields.branchAddress || receiptData!.branchAddress || '', 8);
-        if (editableFields.branchPhone || receiptData!.branchPhone) y = centerText(y, editableFields.branchPhone || receiptData!.branchPhone || '', 8);
+        if (receiptData!.kraPin) y = centerText(y, receiptData!.kraPin || '', 9);
+        if (receiptData!.branchAddress) y = centerText(y, receiptData!.branchAddress || '', 8);
+        if (receiptData!.branchPhone) y = centerText(y, receiptData!.branchPhone || '', 8);
         if (receiptData!.branchWebsite) y = centerText(y, receiptData!.branchWebsite, 8);
 
         y += 2;
@@ -460,9 +454,9 @@ function ReceiptActionsInner() {
     const isFiscal = printTemplate === 'fiscal';
     const fullReceiptText = isFiscal ? [
       `${receiptData.shopName || 'Dite POS'}`,
-      editableFields.kraPin || receiptData.kraPin || '',
-      editableFields.branchAddress || receiptData.branchAddress || '',
-      editableFields.branchPhone || receiptData.branchPhone || '',
+      receiptData.kraPin || '',
+      receiptData.branchAddress || '',
+      receiptData.branchPhone || '',
       '',
       'FISCAL RECEIPT',
       '',
@@ -620,18 +614,6 @@ function ReceiptActionsInner() {
                 <div className="space-y-1">
                   <label className="text-xs font-medium">Customer TIN</label>
                   <Input value={editableFields.customerTin} onChange={(e) => setEditableFields((f) => ({ ...f, customerTin: e.target.value }))} placeholder="Enter customer TIN" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium">Branch PIN / KRA PIN</label>
-                  <Input value={editableFields.kraPin} onChange={(e) => setEditableFields((f) => ({ ...f, kraPin: e.target.value }))} placeholder="Enter branch PIN" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium">Branch Phone</label>
-                  <Input value={editableFields.branchPhone} onChange={(e) => setEditableFields((f) => ({ ...f, branchPhone: e.target.value }))} placeholder="Enter branch phone" />
-                </div>
-                <div className="space-y-1 sm:col-span-2">
-                  <label className="text-xs font-medium">Branch Address</label>
-                  <Input value={editableFields.branchAddress} onChange={(e) => setEditableFields((f) => ({ ...f, branchAddress: e.target.value }))} placeholder="Enter branch address" />
                 </div>
               </div>
             </div>

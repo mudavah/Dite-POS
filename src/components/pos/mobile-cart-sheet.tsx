@@ -104,8 +104,8 @@ export function MobileCartSheet({ user, onCheckoutComplete }: MobileCartSheetPro
   };
 
   return (
-    <>
-      <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2 md:hidden">
+    <div className="md:hidden">
+      <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2">
         {cart.length > 0 && (
           <>
             {pendingSyncCount > 0 && (
@@ -141,7 +141,16 @@ export function MobileCartSheet({ user, onCheckoutComplete }: MobileCartSheetPro
                 <div>
                   <SheetTitle className="text-lg">Cart ({itemCount})</SheetTitle>
                   <SheetDescription>
-                    {selectedCustomer ? selectedCustomer.name : 'Walk-in Customer'}
+                    {selectedCustomer ? (
+                      <div className="flex flex-col">
+                        <span>{selectedCustomer.name}</span>
+                        {selectedCustomer.pin || selectedCustomer.tin ? (
+                          <span className="text-[10px] text-muted-foreground">
+                            {[selectedCustomer.pin, selectedCustomer.tin].filter(Boolean).join(' | ')}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : 'Walk-in Customer'}
                   </SheetDescription>
                 </div>
                 {cart.length > 0 && (
@@ -330,6 +339,6 @@ export function MobileCartSheet({ user, onCheckoutComplete }: MobileCartSheetPro
           onClose={() => setLastSale(null)}
         />
       )}
-    </>
+    </div>
   );
 }

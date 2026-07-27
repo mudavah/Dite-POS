@@ -58,7 +58,7 @@ export default function SettingsPage() {
   const { data: printerConfigs, isLoading: printerLoading } = useQuery({ queryKey: ['printer-configs'], queryFn: fetchPrinterConfigs });
   const { data: branches } = useQuery({ queryKey: ['branches'], queryFn: fetchBranches });
 
-  const [shopForm, setShopForm] = useState({ branchId: '', shopName: '', currency: 'KES', currencySymbol: 'KSh', footerText: '' });
+  const [shopForm, setShopForm] = useState({ branchId: '', shopName: '', currency: 'KES', currencySymbol: 'KSh', footerText: '', kraPin: '', branchPhone: '', branchAddress: '' });
   const [printerForm, setPrinterForm] = useState({ id: '', branchId: '', name: '', type: 'USB', protocol: 'ESC_POS', paperSize: '80mm', vendorId: '', productId: '', endpoint: '', deviceId: '', ipAddress: '', macAddress: '', port: '9100', isDefault: false, isActive: true });
   const [etrsForm, setEtrsForm] = useState({ branchId: '', deviceId: '', isActive: false, isSimulated: true, deviceName: '' });
   const [darkMode, setDarkMode] = useState(true);
@@ -78,6 +78,9 @@ export default function SettingsPage() {
         currency: s.currency || 'KES',
         currencySymbol: s.currencySymbol || 'KSh',
         footerText: s.footerText || '',
+        kraPin: s.kraPin || '',
+        branchPhone: s.branchPhone || '',
+        branchAddress: s.branchAddress || '',
       });
     }
   }, [settings]);
@@ -217,10 +220,24 @@ export default function SettingsPage() {
                   <Input value={shopForm.currencySymbol} onChange={(e) => setShopForm({ ...shopForm, currencySymbol: e.target.value })} />
                 </div>
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Footer Text</label>
-                <textarea value={shopForm.footerText} onChange={(e) => setShopForm({ ...shopForm, footerText: e.target.value })} className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" rows={3} />
-              </div>
+               <div className="space-y-2">
+                 <label className="text-sm font-medium">Footer Text</label>
+                 <textarea value={shopForm.footerText} onChange={(e) => setShopForm({ ...shopForm, footerText: e.target.value })} className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" rows={3} />
+               </div>
+               <div className="grid gap-4 md:grid-cols-2">
+                 <div className="space-y-2">
+                   <label className="text-sm font-medium">Branch PIN (KRA PIN)</label>
+                   <Input value={shopForm.kraPin} onChange={(e) => setShopForm({ ...shopForm, kraPin: e.target.value })} placeholder="e.g. P051234567X" />
+                 </div>
+                 <div className="space-y-2">
+                   <label className="text-sm font-medium">Branch Phone</label>
+                   <Input value={shopForm.branchPhone} onChange={(e) => setShopForm({ ...shopForm, branchPhone: e.target.value })} placeholder="e.g. +254 700 000000" />
+                 </div>
+               </div>
+               <div className="space-y-2">
+                 <label className="text-sm font-medium">Branch Address</label>
+                 <Input value={shopForm.branchAddress} onChange={(e) => setShopForm({ ...shopForm, branchAddress: e.target.value })} placeholder="e.g. Nairobi, Kenya" />
+               </div>
               <Button type="submit" disabled={shopMutation.isPending}>
                 <Save className="h-4 w-4 mr-2" />
                 Save Changes

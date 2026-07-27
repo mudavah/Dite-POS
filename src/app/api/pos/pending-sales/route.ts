@@ -37,6 +37,8 @@ export async function GET(request: Request) {
       branch: sale.branch,
       customerName: sale.customerName,
       customerPhone: sale.customerPhone,
+      customerPin: sale.customerPin,
+      customerTin: sale.customerTin,
       subtotal: sale.subtotal.toNumber(),
       discountAmount: sale.discountAmount.toNumber(),
       totalAmount: sale.totalAmount.toNumber(),

@@ -19,6 +19,8 @@ export interface Customer {
   name: string;
   phone?: string;
   email?: string;
+  pin?: string;
+  tin?: string;
 }
 
 interface PosState {

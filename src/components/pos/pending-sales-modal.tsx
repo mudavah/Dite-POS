@@ -16,6 +16,8 @@ interface PendingSale {
   branch: { id: string; name: string; code: string };
   customerName?: string;
   customerPhone?: string;
+  customerPin?: string;
+  customerTin?: string;
   subtotal: number;
   discountAmount: number;
   totalAmount: number;
@@ -59,11 +61,11 @@ export function PendingSalesModal({ open, onOpenChange, onComplete }: PendingSal
   });
 
   const completeMutation = useMutation({
-    mutationFn: async (saleId: string) => {
+    mutationFn: async ({ saleId, customerPin, customerTin }: { saleId: string; customerPin?: string; customerTin?: string }) => {
       const res = await fetch(`/api/pos/pending-sales/${saleId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ customerPin, customerTin }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -84,8 +86,8 @@ export function PendingSalesModal({ open, onOpenChange, onComplete }: PendingSal
     },
   });
 
-  const handleComplete = (saleId: string) => {
-    completeMutation.mutate(saleId);
+  const handleComplete = (sale: PendingSale) => {
+    completeMutation.mutate({ saleId: sale.id, customerPin: sale.customerPin, customerTin: sale.customerTin });
   };
 
   return (
@@ -131,6 +133,16 @@ export function PendingSalesModal({ open, onOpenChange, onComplete }: PendingSal
                         Customer: <span className="font-medium text-foreground">{sale.customerName}</span>
                       </p>
                     )}
+                    {sale.customerPin && (
+                      <p className="text-xs text-muted-foreground">
+                        PIN: <span className="font-medium text-foreground">{sale.customerPin}</span>
+                      </p>
+                    )}
+                    {sale.customerTin && (
+                      <p className="text-xs text-muted-foreground">
+                        TIN: <span className="font-medium text-foreground">{sale.customerTin}</span>
+                      </p>
+                    )}
                     {sale.notes && (
                       <p className="text-xs text-muted-foreground flex items-center gap-1">
                         <Tag className="h-3 w-3" /> {sale.notes}
@@ -170,7 +182,7 @@ export function PendingSalesModal({ open, onOpenChange, onComplete }: PendingSal
                 <div className="flex gap-2 pt-2">
                   <Button
                     size="sm"
-                    onClick={() => handleComplete(sale.id)}
+                    onClick={() => handleComplete(sale)}
                     disabled={completeMutation.isPending}
                     className="flex-1 gap-2"
                   >

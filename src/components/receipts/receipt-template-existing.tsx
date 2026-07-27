@@ -1,7 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import { QRCodeSVG } from 'qrcode.react';
 import { formatCurrency, formatDate, calculateVatBreakdown } from '@/lib/utils';
 import type { ReceiptData } from '@/lib/printer/receipt-template';
 

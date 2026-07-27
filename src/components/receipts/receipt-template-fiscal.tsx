@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import type { FiscalReceiptData } from '@/lib/printer/receipt-template';
 import { formatCurrency } from '@/lib/utils';
 
@@ -93,7 +94,7 @@ export function ReceiptTemplateFiscal({ data, paperSize = '80mm' }: ReceiptTempl
       </div>
 
       <div style={centerStyle} className="border-t border-dashed border-slate-400 pt-2 mt-2 text-xs">
-        <img src="/assets/receipt-qr.png" alt="QR Code" style={{ width: 80, height: 80 }} />
+        <QRCodeSVG value={`${data.shopName || 'Dite POS'}|${data.receiptNo}|${data.saleId}`} size={80} level="M" />
       </div>
 
       <div className="border-t border-dashed border-slate-400 pt-2 mt-2 text-xs space-y-0.5">

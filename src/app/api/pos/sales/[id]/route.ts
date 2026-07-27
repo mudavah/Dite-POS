@@ -9,29 +9,31 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const sale = await prisma.sale.findUnique({
-    where: { id },
-    include: {
-      items: true,
-      cashier: { select: { name: true } },
-      receipts: true,
-      branch: {
-        select: {
-          name: true,
-          address: true,
-          phone: true,
-          settings: {
-            select: {
-              shopName: true,
-              currency: true,
-              currencySymbol: true,
-              footerText: true,
-            },
-          },
-        },
-      },
-    },
-  });
+    const sale = await prisma.sale.findUnique({
+     where: { id },
+     include: {
+       items: true,
+       cashier: { select: { name: true } },
+       receipts: true,
+       branch: {
+         select: {
+           name: true,
+           address: true,
+           phone: true,
+           email: true,
+           settings: {
+             select: {
+               shopName: true,
+               currency: true,
+               currencySymbol: true,
+               footerText: true,
+               kraPin: true,
+             },
+           },
+         },
+       },
+     },
+   });
 
   if (!sale) {
     return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
@@ -49,12 +51,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     changeAmount: sale.changeAmount.toNumber(),
     customerName: sale.customerName,
     customerPhone: sale.customerPhone,
+    customerPin: sale.customerPin,
+    customerTin: sale.customerTin,
     cashier: sale.cashier,
     branch: sale.branch,
     shopName: sale.branch?.settings?.shopName || 'Dite POS',
     branchName: sale.branch?.name,
     branchAddress: sale.branch?.address,
     branchPhone: sale.branch?.phone,
+    branchEmail: sale.branch?.email,
+    kraPin: sale.branch?.settings?.kraPin,
     currency: sale.branch?.settings?.currency || 'KES',
     currencySymbol: sale.branch?.settings?.currencySymbol || 'KSh',
     footerText: sale.branch?.settings?.footerText,

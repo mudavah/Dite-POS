@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Minus, Plus, Trash2, ClipboardList, Tag, User, X, RotateCcw, Clock } from 'lucide-react';
 import { Button, Badge, Input, CardHeader, CardTitle, CardContent } from '@/components/ui';
 import { formatCurrency } from '@/lib/utils';
+import type { Customer } from '@/store/use-pos-store';
 
 interface CartItem {
   id: string;
@@ -16,13 +17,6 @@ interface CartItem {
   discount: number;
   total: number;
   notes?: string;
-}
-
-interface Customer {
-  id: string;
-  name: string;
-  phone?: string;
-  email?: string;
 }
 
 interface CartPanelProps {
@@ -103,7 +97,14 @@ export function CartPanel({
             className="flex-1 justify-start gap-2"
           >
             <User className="h-4 w-4" />
-            {selectedCustomer ? selectedCustomer.name : 'Walk-in Customer'}
+            <div className="flex flex-col items-start overflow-hidden">
+              <span className="truncate">{selectedCustomer ? selectedCustomer.name : 'Walk-in Customer'}</span>
+              {selectedCustomer && (selectedCustomer.pin || selectedCustomer.tin) && (
+                <span className="text-[10px] text-muted-foreground truncate">
+                  {[selectedCustomer.pin, selectedCustomer.tin].filter(Boolean).join(' | ')}
+                </span>
+              )}
+            </div>
           </Button>
           <Button variant="outline" size="sm" onClick={onOpenSummary} className="shrink-0">
             Summary
@@ -346,7 +347,12 @@ function CustomerQuickSelect({ selected, onSelect, onClear }: CustomerQuickSelec
             className="w-full flex flex-col items-start rounded-md px-3 py-2 text-left text-sm hover:bg-muted"
           >
             <span className="font-medium">{c.name}</span>
-            {c.phone && <span className="text-xs text-muted-foreground">{c.phone}</span>}
+            <div className="flex flex-col text-xs text-muted-foreground">
+              {c.phone && <span>{c.phone}</span>}
+              {[c.pin, c.tin].filter(Boolean).length > 0 && (
+                <span>{[c.pin, c.tin].filter(Boolean).join(' | ')}</span>
+              )}
+            </div>
           </button>
         ))}
       </div>

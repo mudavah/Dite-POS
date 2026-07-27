@@ -15,8 +15,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     paymentMethod?: string;
     amountPaid?: number;
     changeAmount?: number;
+    customerPin?: string;
+    customerTin?: string;
   };
-  const { paymentMethod, amountPaid, changeAmount } = body;
+  const { paymentMethod, amountPaid, changeAmount, customerPin, customerTin } = body;
 
   const sale = await prisma.sale.findUnique({
     where: { id },
@@ -44,6 +46,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           amountPaid: amountPaid ?? sale.amountPaid,
           changeAmount: changeAmount ?? sale.changeAmount,
           totalAmount,
+          ...(customerPin !== undefined ? { customerPin } : {}),
+          ...(customerTin !== undefined ? { customerTin } : {}),
         },
         include: { items: true, cashier: { select: { name: true, email: true } }, branch: { select: { name: true, code: true } }, receipts: { select: { receiptNo: true } } },
       });

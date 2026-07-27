@@ -39,6 +39,8 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
   const [splitAmounts, setSplitAmounts] = React.useState<Record<string, string>>({});
   const [notes, setNotes] = React.useState('');
   const [customerName, setCustomerName] = React.useState(customer?.name || '');
+  const [customerPin, setCustomerPin] = React.useState(customer?.pin || '');
+  const [customerTin, setCustomerTin] = React.useState(customer?.tin || '');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -99,6 +101,8 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
     setSplitAmounts({});
     setNotes('');
     setCustomerName('');
+    setCustomerPin('');
+    setCustomerTin('');
   };
 
   const handleSubmit = () => {
@@ -132,6 +136,9 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
       })),
       customerId: customer?.id,
       customerName: customerName || customer?.name || null,
+      customerPhone: customer?.phone || null,
+      customerPin: customerPin || customer?.pin || null,
+      customerTin: customerTin || customer?.tin || null,
       paymentMethod: method,
       amountPaid: method === 'CASH' ? cashNum : total,
       changeAmount: change,
@@ -195,6 +202,26 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
                 placeholder="Walk-in Customer"
                 className="h-10"
               />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium mb-1 block">Customer PIN</label>
+                <Input
+                  value={customerPin}
+                  onChange={(e) => setCustomerPin(e.target.value)}
+                  placeholder="Enter PIN"
+                  className="h-10"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Customer TIN</label>
+                <Input
+                  value={customerTin}
+                  onChange={(e) => setCustomerTin(e.target.value)}
+                  placeholder="Enter TIN"
+                  className="h-10"
+                />
+              </div>
             </div>
             {!isOnline && (
               <div className="text-sm text-warning">
@@ -325,7 +352,7 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
             />
           </div>
 
-          <div className="flex gap-2 pt-2">
+          <div className="flex gap-2 pt-2 sticky bottom-0 bg-background pb-2">
             <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1 h-12">
               Cancel (ESC)
             </Button>
@@ -333,6 +360,7 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
               onClick={handleSubmit}
               disabled={checkoutMutation.isPending}
               className="flex-1 h-12 gap-2"
+              style={{ touchAction: 'manipulation' }}
             >
               <Printer className="h-4 w-4" />
               {checkoutMutation.isPending ? 'Processing...' : 'Complete Sale'}

@@ -111,17 +111,19 @@ model Session {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  role          UserRole  @default(CASHIER)
-  branchId      String?
-  isActive      Boolean  @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+   id            String    @id @default(cuid())
+   name          String?
+   email         String    @unique
+   emailVerified DateTime?
+   image         String?
+   password      String?
+   role          UserRole  @default(CASHIER)
+   branchId      String?
+   pin           String?
+   tin           String?
+   isActive      Boolean  @default(true)
+   createdAt     DateTime @default(now())
+   updatedAt     DateTime @updatedAt
 
   branch      Branch?        @relation(fields: [branchId], references: [id])
   accounts    Account[]
@@ -164,22 +166,23 @@ model Branch {
 }
 
 model BranchSetting {
-  id             String   @id @default(cuid())
-  branchId       String   @unique
-  receiptPrefix  String   @default("RCP")
-  receiptNextNum Int      @default(1)
-  receiptTemplate String  @default("existing")
-  currency       String   @default("KES")
-  currencySymbol String   @default("KSh")
-  footerText     String?
-  shopName       String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+   id             String   @id @default(cuid())
+   branchId       String   @unique
+   receiptPrefix  String   @default("RCP")
+   receiptNextNum Int      @default(1)
+   receiptTemplate String  @default("existing")
+   currency       String   @default("KES")
+   currencySymbol String   @default("KSh")
+   footerText     String?
+   shopName       String?
+   kraPin         String?
+   createdAt      DateTime @default(now())
+   updatedAt      DateTime @updatedAt
 
-  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+   branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
 
-  @@map("branch_settings")
-}
+   @@map("branch_settings")
+ }
 
 model Category {
   id          String   @id @default(cuid())
@@ -283,31 +286,33 @@ model StockTransfer {
 }
 
 model Sale {
-  id              String        @id @default(cuid())
-  branchId        String
-  cashierId       String
-  customerId      String?
-  customerName    String?
-  customerPhone   String?
-  subtotal        Decimal       @db.Decimal(10, 2)
-  discountAmount  Decimal       @default(0) @db.Decimal(10, 2)
-  totalAmount     Decimal       @db.Decimal(10, 2)
-  paymentMethod   PaymentMethod
-  paymentStatus   PaymentStatus @default(PENDING)
-  amountPaid      Decimal       @default(0) @db.Decimal(10, 2)
-  changeAmount    Decimal       @default(0) @db.Decimal(10, 2)
-  notes           String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+   id              String        @id @default(cuid())
+   branchId        String
+   cashierId       String
+   customerId      String?
+   customerName    String?
+   customerPhone   String?
+   customerPin     String?
+   customerTin     String?
+   subtotal        Decimal       @db.Decimal(10, 2)
+   discountAmount  Decimal       @default(0) @db.Decimal(10, 2)
+   totalAmount     Decimal       @db.Decimal(10, 2)
+   paymentMethod   PaymentMethod
+   paymentStatus   PaymentStatus @default(PENDING)
+   amountPaid      Decimal       @default(0) @db.Decimal(10, 2)
+   changeAmount    Decimal       @default(0) @db.Decimal(10, 2)
+   notes           String?
+   createdAt       DateTime      @default(now())
+   updatedAt       DateTime      @updatedAt
 
-  branch    Branch      @relation(fields: [branchId], references: [id])
-  cashier   User        @relation(fields: [cashierId], references: [id])
-  items     SaleItem[]
-  payments  Payment[]
-  receipts  Receipt[]
+   branch    Branch      @relation(fields: [branchId], references: [id])
+   cashier   User        @relation(fields: [cashierId], references: [id])
+   items     SaleItem[]
+   payments  Payment[]
+   receipts  Receipt[]
 
-  @@map("sales")
-}
+   @@map("sales")
+ }
 
 model SaleItem {
   id         String  @id @default(cuid())

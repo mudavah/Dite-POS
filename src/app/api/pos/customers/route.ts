@@ -22,7 +22,7 @@ export async function GET(request: Request) {
 
   const users = await prisma.user.findMany({
     where,
-    select: { id: true, name: true, email: true },
+    select: { id: true, name: true, email: true, pin: true, tin: true },
     take: 20,
     orderBy: { name: 'asc' },
   });

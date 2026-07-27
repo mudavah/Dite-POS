@@ -8,7 +8,7 @@ export async function createSale(
   data: SaleInput & { branchId: string; cashierId: string },
   explicitId?: string
 ) {
-  const { branchId, cashierId, items, customerId, customerName, customerPhone, paymentMethod, amountPaid, changeAmount, notes } = data;
+  const { branchId, cashierId, items, customerId, customerName, customerPhone, customerPin, customerTin, paymentMethod, amountPaid, changeAmount, notes } = data;
 
   const subtotal = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
   const discountAmount = items.reduce((sum, item) => sum + (item.discount || 0), 0);
@@ -24,6 +24,8 @@ export async function createSale(
         customerId,
         customerName: sanitizeText(customerName),
         customerPhone: sanitizeText(customerPhone),
+        customerPin: sanitizeText(customerPin),
+        customerTin: sanitizeText(customerTin),
         subtotal,
         discountAmount,
         totalAmount,
