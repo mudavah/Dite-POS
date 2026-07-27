@@ -57,7 +57,10 @@ export default function BranchesPage() {
   const queryClient = useQueryClient();
   const [showAddModal, setShowAddModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
   const [form, setForm] = useState({ name: '', code: '', address: '', phone: '', email: '', isActive: true });
+  const [editForm, setEditForm] = useState({ name: '', code: '', address: '', phone: '', email: '', kraPin: '', isActive: true });
   const [transferForm, setTransferForm] = useState({ fromBranchId: '', toBranchId: '', productId: '', quantity: '', notes: '' });
 
   const { data: branches, isLoading } = useQuery({ queryKey: ['branches'], queryFn: fetchBranches });
@@ -69,6 +72,46 @@ export default function BranchesPage() {
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     createMutation.mutate({ ...form, isActive: true });
+  };
+
+  const handleEdit = async (branch: Branch) => {
+    try {
+      const res = await fetch(`/api/branches/${branch.id}`);
+      if (!res.ok) throw new Error('Failed to fetch branch');
+      const fullBranch = await res.json();
+      setEditingBranch(fullBranch);
+      setEditForm({
+        name: fullBranch.name,
+        code: fullBranch.code,
+        address: fullBranch.address || '',
+        phone: fullBranch.phone || '',
+        email: fullBranch.email || '',
+        kraPin: fullBranch.settings?.kraPin || '',
+        isActive: fullBranch.isActive,
+      });
+      setShowEditModal(true);
+    } catch {
+      // handle error
+    }
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBranch) return;
+    try {
+      const res = await fetch(`/api/branches/${editingBranch.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm),
+      });
+      if (!res.ok) throw new Error('Failed to update branch');
+      queryClient.invalidateQueries({ queryKey: ['branches'] });
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      setShowEditModal(false);
+      setEditingBranch(null);
+    } catch {
+      // handle error
+    }
   };
 
   const handleTransfer = (e: React.FormEvent) => {
@@ -129,6 +172,13 @@ export default function BranchesPage() {
                   <Button
                     variant="ghost"
                     size="icon"
+                    onClick={() => handleEdit(branch)}
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={() => deleteMutation.mutate(branch.id)}
                   >
                     <Trash2 className="h-4 w-4 text-destructive" />
@@ -179,6 +229,57 @@ export default function BranchesPage() {
                   </Button>
                   <Button type="submit" disabled={createMutation.isPending}>
                     {createMutation.isPending ? 'Creating...' : 'Create Branch'}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {showEditModal && editingBranch && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md mx-4">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Edit Branch</CardTitle>
+                <Button variant="ghost" size="icon" onClick={() => { setShowEditModal(false); setEditingBranch(null); }}>
+                  <MoreVertical className="h-4 w-4 rotate-90" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleUpdate} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Name</label>
+                  <Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} required />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Code</label>
+                  <Input value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} required />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Branch PIN (KRA PIN)</label>
+                  <Input value={editForm.kraPin} onChange={(e) => setEditForm({ ...editForm, kraPin: e.target.value })} placeholder="e.g. P051234567X" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Address</label>
+                  <Input value={editForm.address} onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Phone</label>
+                  <Input value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Email</label>
+                  <Input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="outline" onClick={() => { setShowEditModal(false); setEditingBranch(null); }}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={createMutation.isPending || deleteMutation.isPending}>
+                    {createMutation.isPending || deleteMutation.isPending ? 'Saving...' : 'Save Changes'}
                   </Button>
                 </div>
               </form>

@@ -219,45 +219,55 @@ export function PosTerminal({ user }: PosTerminalProps) {
         />
       </div>
 
-      <CheckoutModal
-        open={checkoutOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            closeCheckoutFlow(true);
-          }
-        }}
-        items={cart}
-        customer={selectedCustomer}
-        branchId={user.branchId || ''}
-        cashierId={user.id}
-        onComplete={handleCheckoutComplete}
-      />
-
-      <HeldSalesModal
-        open={showHeldSales}
-        onOpenChange={setShowHeldSales}
-        onRecall={handleRecallSale}
-      />
-
-      <CashierSummaryModal
-        open={showCashierSummary}
-        onOpenChange={setShowCashierSummary}
-        userId={user.id}
-      />
-
-      <PendingSalesModal
-        open={showPendingSales}
-        onOpenChange={setShowPendingSales}
-        onComplete={handleCheckoutComplete}
-      />
-
-      {lastSale && (
-        <ReceiptPreviewModal
-          saleId={lastSale.id}
-          receiptNo={lastSale.receiptNo}
-          onClose={() => setLastSale(null)}
+      <div className="hidden md:block">
+        <CheckoutModal
+          open={checkoutOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              closeCheckoutFlow(true);
+            }
+          }}
+          items={cart}
+          customer={selectedCustomer}
+          branchId={user.branchId || ''}
+          cashierId={user.id}
+          onComplete={handleCheckoutComplete}
         />
-      )}
+      </div>
+
+      <div className="hidden md:block">
+        <HeldSalesModal
+          open={showHeldSales}
+          onOpenChange={setShowHeldSales}
+          onRecall={handleRecallSale}
+        />
+      </div>
+
+      <div className="hidden md:block">
+        <CashierSummaryModal
+          open={showCashierSummary}
+          onOpenChange={setShowCashierSummary}
+          userId={user.id}
+        />
+      </div>
+
+      <div className="hidden md:block">
+        <PendingSalesModal
+          open={showPendingSales}
+          onOpenChange={setShowPendingSales}
+          onComplete={handleCheckoutComplete}
+        />
+      </div>
+
+      <div className="hidden md:block">
+        {lastSale && (
+          <ReceiptPreviewModal
+            saleId={lastSale.id}
+            receiptNo={lastSale.receiptNo}
+            onClose={() => setLastSale(null)}
+          />
+        )}
+      </div>
 
       <MobileCartSheet user={user} onCheckoutComplete={handleCheckoutComplete} />
     </div>

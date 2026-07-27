@@ -42,8 +42,10 @@ export function ReceiptTemplateExisting({ data, paperSize = '80mm' }: ReceiptTem
         <div style={rowStyle} className="text-xs"><span>Sale No:</span><span>{data.saleId}</span></div>
         <div style={rowStyle} className="text-xs"><span>Date:</span><span>{formatDate(data.date)}</span></div>
         <div style={rowStyle} className="text-xs"><span>Cashier:</span><span>{data.cashierName}</span></div>
-        <div style={rowStyle} className="text-xs"><span>Customer:</span><span>{displayCustomer}</span></div>
-        {data.paymentReference && <div style={rowStyle} className="text-xs"><span>Reference:</span><span>{data.paymentReference}</span></div>}
+         <div style={rowStyle} className="text-xs"><span>Customer:</span><span>{displayCustomer}</span></div>
+         {data.customerPin && <div style={rowStyle} className="text-xs"><span>Customer PIN:</span><span>{data.customerPin}</span></div>}
+         {data.customerTin && <div style={rowStyle} className="text-xs"><span>Customer TIN:</span><span>{data.customerTin}</span></div>}
+         {data.paymentReference && <div style={rowStyle} className="text-xs"><span>Reference:</span><span>{data.paymentReference}</span></div>}
         {data.syncStatus && (
           <div style={rowStyle} className="text-xs">
             <span>Status:</span>

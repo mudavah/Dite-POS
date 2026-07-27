@@ -123,7 +123,7 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint, def
       cashierName: data.cashierName,
       customerName: data.customerName,
       customerPin: editableFields.customerPin || data.customerPin || '',
-      customerTin: editableFields.customerTin || '',
+      customerTin: editableFields.customerTin || data.customerTin || '',
       country: 'Kenya',
       items: data.items.map((i) => ({
         qty: i.quantity,
@@ -218,6 +218,8 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint, def
     <div class="flex justify-between text-sm"><span class="text-slate-500">Date & Time</span><span class="font-medium">${escapeHtmlAttr(formatDate(receiptData.date))}</span></div>
     <div class="flex justify-between text-sm"><span class="text-slate-500">Cashier</span><span class="font-medium">${escapeHtmlAttr(receiptData.cashierName)}</span></div>
     <div class="flex justify-between text-sm"><span class="text-slate-500">Customer</span><span class="font-medium">${escapeHtmlAttr(displayCustomer)}</span></div>
+    ${escapeHtmlAttr(receiptData.customerPin || '') ? `<div class="flex justify-between text-sm"><span class="text-slate-500">Customer PIN</span><span class="font-medium">${escapeHtmlAttr(receiptData.customerPin || '')}</span></div>` : ''}
+    ${escapeHtmlAttr(receiptData.customerTin || '') ? `<div class="flex justify-between text-sm"><span class="text-slate-500">Customer TIN</span><span class="font-medium">${escapeHtmlAttr(receiptData.customerTin || '')}</span></div>` : ''}
     ${escapeHtmlAttr(receiptData.paymentReference || '') ? `<div class="flex justify-between text-sm"><span class="text-slate-500">Reference</span><span class="font-medium">${escapeHtmlAttr(receiptData.paymentReference || '')}</span></div>` : ''}
     ${receiptData.syncStatus ? `<div class="flex justify-between text-sm"><span class="text-slate-500">Status</span><span class="font-medium ${receiptData.syncStatus === 'PENDING_SYNC' ? 'text-amber-600' : 'text-emerald-600'}">${escapeHtmlAttr(receiptData.syncStatus === 'PENDING_SYNC' ? 'Pending Synchronization' : 'Synced')}</span></div>` : ''}
     ${receiptData.isOffline ? `<div class="flex justify-between text-sm"><span class="text-slate-500">Mode</span><span class="font-medium text-amber-600">Offline</span></div>` : ''}

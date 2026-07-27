@@ -94,7 +94,9 @@ export function ReceiptTemplateFiscal({ data, paperSize = '80mm' }: ReceiptTempl
       </div>
 
       <div style={centerStyle} className="border-t border-dashed border-slate-400 pt-2 mt-2 text-xs">
-        <QRCodeSVG value={`${data.shopName || 'Dite POS'}|${data.receiptNo}|${data.saleId}`} size={80} level="M" />
+        <div className="inline-flex items-center justify-center p-1 bg-white">
+          <QRCodeSVG value={`${data.shopName || 'Dite POS'}|${data.receiptNo}|${data.saleId}`} size={80} level="M" />
+        </div>
       </div>
 
       <div className="border-t border-dashed border-slate-400 pt-2 mt-2 text-xs space-y-0.5">

@@ -169,7 +169,7 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-full max-w-lg sm:max-w-2xl max-h-[90vh] overflow-y-auto mx-4 self-start sm:self-center">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5 text-success" />
@@ -352,7 +352,7 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
             />
           </div>
 
-          <div className="flex gap-2 pt-2 sticky bottom-0 bg-background pb-2">
+          <div className="flex flex-col-reverse sm:flex-row gap-2 pt-2 sticky bottom-0 bg-background pb-2">
             <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1 h-12">
               Cancel (ESC)
             </Button>

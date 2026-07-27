@@ -76,7 +76,7 @@ export const usePosStore = create<PosState>((set, get) => ({
 
   openCheckoutFlow: () => {
     set({ cartSheetOpen: false });
-    setTimeout(() => set({ checkoutOpen: true }), 300);
+    setTimeout(() => set({ checkoutOpen: true }), 400);
   },
 
   closeCheckoutFlow: (reopenCart = true) => {
