@@ -48,6 +48,12 @@ interface DashboardData {
   monthSales: number;
   revenue: number;
   profit: number;
+  todayPurchases: number;
+  monthPurchases: number;
+  totalPurchases: number;
+  totalPurchaseValue: number;
+  recentPurchases: Array<{ id: string; purchaseNumber: string; supplier: string; date: string; grandTotal: number; status: string; items: number }>;
+  topPurchasedProducts: Array<Record<string, unknown>>;
   recentSales: RecentSale[];
   topProducts: Array<Record<string, unknown>>;
   lowStock: LowStockItem[];
@@ -60,12 +66,15 @@ async function fetchDashboard(): Promise<DashboardData> {
   return res.json();
 }
 
-const statCards: Array<{ title: string; key: 'todaySales' | 'weekSales' | 'monthSales' | 'revenue' | 'profit'; icon: React.ElementType; color: string }> = [
+const statCards: Array<{ title: string; key: keyof DashboardData; icon: React.ElementType; color: string }> = [
   { title: 'Today&apos;s Sales', key: 'todaySales', icon: DollarSign, color: 'text-blue-400' },
   { title: 'Weekly Sales', key: 'weekSales', icon: TrendingUp, color: 'text-green-400' },
   { title: 'Monthly Sales', key: 'monthSales', icon: ShoppingCart, color: 'text-purple-400' },
   { title: 'Revenue', key: 'revenue', icon: DollarSign, color: 'text-emerald-400' },
   { title: 'Profit', key: 'profit', icon: TrendingUp, color: 'text-amber-400' },
+  { title: "Today's Purchases", key: 'todayPurchases', icon: ShoppingCart, color: 'text-orange-400' },
+  { title: 'Monthly Purchases', key: 'monthPurchases', icon: TrendingUp, color: 'text-red-400' },
+  { title: 'Purchase Value', key: 'totalPurchaseValue', icon: DollarSign, color: 'text-teal-400' },
 ];
 
 export default function DashboardPage() {
@@ -86,8 +95,8 @@ export default function DashboardPage() {
               <card.icon className={`h-4 w-4 ${card.color}`} />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
-                {isLoading ? '...' : formatCurrency((data as DashboardData | undefined)?.[card.key] || 0)}
+<div className="text-2xl font-bold">
+                {isLoading ? '...' : formatCurrency(Number((data as DashboardData | undefined)?.[card.key]) || 0)}
               </div>
             </CardContent>
           </Card>

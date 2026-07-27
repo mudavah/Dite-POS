@@ -31,12 +31,15 @@ function useSidebar() {
 }
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['ADMIN'] },
-  { href: '/pos', label: 'POS', icon: ShoppingCart, roles: ['ADMIN', 'CASHIER'] },
-  { href: '/pending-sales', label: 'Pending Sales', icon: Clock, roles: ['ADMIN', 'CASHIER'] },
-  { href: '/products', label: 'Products', icon: Package, roles: ['ADMIN'] },
-  { href: '/inventory', label: 'Inventory', icon: Warehouse, roles: ['ADMIN', 'CASHIER'] },
-  { href: '/reports', label: 'Reports', icon: BarChart3, roles: ['ADMIN'] },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'MANAGER'] },
+  { href: '/pos', label: 'POS', icon: ShoppingCart, roles: ['ADMIN', 'MANAGER', 'CASHIER'] },
+  { href: '/pending-sales', label: 'Pending Sales', icon: Clock, roles: ['ADMIN', 'MANAGER', 'CASHIER'] },
+  { href: '/products', label: 'Products', icon: Package, roles: ['ADMIN', 'MANAGER'] },
+  { href: '/inventory', label: 'Inventory', icon: Warehouse, roles: ['ADMIN', 'MANAGER', 'CASHIER'] },
+  { href: '/purchases', label: 'Purchases', icon: ShoppingCart, roles: ['ADMIN', 'MANAGER'] },
+  { href: '/suppliers', label: 'Suppliers', icon: Users, roles: ['ADMIN', 'MANAGER'] },
+  { href: '/stock-movements', label: 'Stock Movements', icon: BarChart3, roles: ['ADMIN', 'MANAGER'] },
+  { href: '/reports', label: 'Reports', icon: BarChart3, roles: ['ADMIN', 'MANAGER'] },
   { href: '/branches', label: 'Branches', icon: Store, roles: ['ADMIN'] },
   { href: '/users', label: 'Users', icon: Users, roles: ['ADMIN'] },
   { href: '/settings', label: 'Settings', icon: Settings, roles: ['ADMIN'] },

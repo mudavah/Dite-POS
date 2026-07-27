@@ -62,7 +62,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const session = await auth();
-  if (!session?.user || session.user.role !== 'ADMIN') {
+  if (!session?.user || !['ADMIN', 'MANAGER'].includes(session.user.role)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -77,6 +77,9 @@ export async function POST(request: Request) {
     name: sanitizeText(validated.data.name)!,
     description: sanitizeText(validated.data.description),
     barcode: sanitizeText(validated.data.barcode),
+    brand: sanitizeText(validated.data.brand),
+    unit: validated.data.unit,
+    reorderLevel: validated.data.reorderLevel,
   };
 
   const product = await prisma.product.create({

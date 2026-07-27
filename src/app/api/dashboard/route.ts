@@ -25,6 +25,11 @@ export async function GET() {
     topProducts,
     lowStock,
     branchPerformance,
+    todayPurchases,
+    monthPurchases,
+    totalPurchases,
+    recentPurchases,
+    topPurchasedProducts,
   ] = await Promise.all([
     prisma.sale.aggregate({
       where: { ...branchFilter, createdAt: { gte: today }, paymentStatus: 'COMPLETED' },
@@ -68,6 +73,36 @@ export async function GET() {
         },
       },
     }),
+    prisma.purchase.aggregate({
+      where: { ...branchFilter, createdAt: { gte: today } },
+      _sum: { grandTotal: true },
+      _count: true,
+    }),
+    prisma.purchase.aggregate({
+      where: { ...branchFilter, createdAt: { gte: monthStart } },
+      _sum: { grandTotal: true },
+      _count: true,
+    }),
+    prisma.purchase.aggregate({
+      where: branchFilter,
+      _sum: { grandTotal: true },
+      _count: true,
+    }),
+    prisma.purchase.findMany({
+      where: { ...branchFilter, createdAt: { gte: new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000) } },
+      take: 5,
+      orderBy: { createdAt: 'desc' },
+      include: { supplier: { select: { name: true } }, items: true },
+    }),
+    prisma.purchaseItem.groupBy({
+      by: ['productId'],
+      where: {
+        purchase: { ...branchFilter, createdAt: { gte: monthStart } },
+      },
+      _sum: { quantity: true, lineTotal: true },
+      orderBy: { _sum: { lineTotal: 'desc' } },
+      take: 5,
+    }),
   ]);
 
   const topProductsWithDetails = await Promise.all(
@@ -101,13 +136,30 @@ export async function GET() {
     };
   });
 
-  return NextResponse.json({
+return NextResponse.json({
     todaySales: todaySales._sum?.totalAmount?.toNumber() || 0,
     weekSales: weekSales._sum?.totalAmount?.toNumber() || 0,
     monthSales: monthSales._sum?.totalAmount?.toNumber() || 0,
     revenue,
     profit,
-    recentSales: recentSales.map((sale) => ({
+    todayPurchases: todayPurchases._count || 0,
+    monthPurchases: monthPurchases._count || 0,
+    totalPurchases: totalPurchases._count || 0,
+    totalPurchaseValue: totalPurchases._sum?.grandTotal?.toNumber() || 0,
+    recentPurchases: recentPurchases.map((p: any) => ({
+      id: p.id,
+      purchaseNumber: p.purchaseNumber,
+      supplier: p.supplier?.name || '-',
+      date: p.purchaseDate.toISOString(),
+      grandTotal: p.grandTotal.toNumber(),
+      status: p.status,
+      items: p.items?.length || 0,
+    })),
+    topPurchasedProducts: (topPurchasedProducts || []).map((item: any) => {
+      const product = topProductsWithDetails.find((p: any) => p.productId === item.productId);
+      return { ...item, product };
+    }),
+    recentSales: recentSales.map((sale: any) => ({
       ...sale,
       cashier: sale.cashier ? { name: sale.cashier.name, email: sale.cashier.email } : null,
       totalAmount: sale.totalAmount.toNumber(),

@@ -29,7 +29,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await auth();
-  if (!session?.user || session.user.role !== 'ADMIN') {
+  if (!session?.user || !['ADMIN', 'MANAGER'].includes(session.user.role)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -41,7 +41,12 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
   const product = await prisma.product.update({
     where: { id },
-    data: validated.data,
+    data: {
+      ...validated.data,
+      brand: validated.data.brand,
+      unit: validated.data.unit,
+      reorderLevel: validated.data.reorderLevel,
+    },
   });
 
   return NextResponse.json({

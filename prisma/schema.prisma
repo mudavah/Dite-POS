@@ -8,6 +8,7 @@ datasource db {
 
 enum UserRole {
   ADMIN
+  MANAGER
   CASHIER
 }
 
@@ -17,6 +18,7 @@ enum PaymentMethod {
   BANK_TRANSFER
   MOBILE_MONEY
   SPLIT
+  CREDIT
 }
 
 enum PaymentStatus {
@@ -24,6 +26,7 @@ enum PaymentStatus {
   COMPLETED
   FAILED
   REFUNDED
+  PARTIAL
 }
 
 enum StockMovementType {
@@ -33,6 +36,8 @@ enum StockMovementType {
   TRANSFER_OUT
   ADJUSTMENT
   RETURN
+  DAMAGE
+  OPENING_STOCK
 }
 
 enum ReceiptStatus {
@@ -53,6 +58,26 @@ enum TransferStatus {
   PENDING
   COMPLETED
   CANCELLED
+}
+
+enum SupplierStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum PurchaseStatus {
+  DRAFT
+  ORDERED
+  RECEIVED
+  PARTIALLY_RECEIVED
+  CANCELLED
+}
+
+enum ImportStatus {
+  PENDING
+  IMPORTING
+  COMPLETED
+  FAILED
 }
 
 model Account {
@@ -104,6 +129,9 @@ model User {
   sales       Sale[]
   heldSales   HeldSale[]
   auditLogs   AuditLog[]
+  purchases   Purchase[]
+  stockMovements StockMovement[]
+  inventoryTransactions InventoryTransaction[]
 
   @@map("users")
 }
@@ -128,6 +156,8 @@ model Branch {
   settings       BranchSetting?
   printerConfigs PrinterConfig[]
   etrsConfigs    EtrsConfig?
+  purchases      Purchase[]
+  transactions   InventoryTransaction[]
 
   @@map("branches")
 }
@@ -178,12 +208,18 @@ model Product {
   isActive     Boolean  @default(true)
   isArchived   Boolean  @default(false)
   lowStockThreshold Int @default(10)
+  brand        String?
+  unit         String   @default("pcs")
+  reorderLevel Int      @default(10)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   category    Category?       @relation(fields: [categoryId], references: [id])
   inventories Inventory[]
   saleItems   SaleItem[]
+  purchaseItems PurchaseItem[]
+  images      ProductImage[]
+  transactions InventoryTransaction[]
 
   @@map("products")
 }
@@ -200,6 +236,7 @@ model Inventory {
   branch   Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
   product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   movements StockMovement[]
+  transactions InventoryTransaction[]
 
   @@unique([branchId, productId])
   @@map("inventories")
@@ -211,11 +248,13 @@ model StockMovement {
   type       StockMovementType
   quantity   Int
   reference  String?
+  referenceNumber String?
   notes      String?
   createdAt  DateTime          @default(now())
   createdById String
 
   inventory Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  user      User?     @relation(fields: [createdById], references: [id])
 
   @@map("stock_movements")
 }
@@ -404,6 +443,148 @@ model AuditLog {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("audit_logs")
+}
+
+model Supplier {
+  id          String      @id @default(cuid())
+  name        String
+  companyName String?
+  contactPerson String?
+  phone       String?
+  email       String?
+  address     String?
+  city        String?
+  country     String?
+  kraPin      String?
+  notes       String?
+  status      SupplierStatus @default(ACTIVE)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  purchases  Purchase[]
+
+  @@map("suppliers")
+  @@index([name])
+  @@index([status])
+  @@index([email])
+}
+
+model Purchase {
+  id              String        @id @default(cuid())
+  purchaseNumber  String        @unique
+  supplierId      String
+  branchId        String
+  userId          String
+  purchaseDate    DateTime      @default(now())
+  invoiceNumber   String?
+  deliveryNote    String?
+  paymentMethod   PaymentMethod
+  status          PurchaseStatus  @default(DRAFT)
+  notes           String?
+  subtotal        Decimal       @db.Decimal(10, 2)
+  discountAmount  Decimal       @default(0) @db.Decimal(10, 2)
+  taxAmount       Decimal       @default(0) @db.Decimal(10, 2)
+  grandTotal      Decimal       @db.Decimal(10, 2)
+  amountPaid      Decimal       @default(0) @db.Decimal(10, 2)
+  outstandingBalance Decimal    @default(0) @db.Decimal(10, 2)
+  receivedAt      DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  supplier   Supplier   @relation(fields: [supplierId], references: [id])
+  branch     Branch     @relation(fields: [branchId], references: [id])
+  user       User       @relation(fields: [userId], references: [id])
+  items      PurchaseItem[]
+  attachments PurchaseAttachment[]
+
+  @@map("purchases")
+  @@index([supplierId])
+  @@index([branchId])
+  @@index([status])
+  @@index([purchaseDate])
+  @@index([purchaseNumber])
+  @@index([invoiceNumber])
+}
+
+model PurchaseItem {
+  id          String  @id @default(cuid())
+  purchaseId  String
+  productId   String?
+  productName String
+  sku         String?
+  barcode     String?
+  quantity    Int
+  buyingPrice Decimal @db.Decimal(10, 2)
+  sellingPrice Decimal @db.Decimal(10, 2)
+  discount    Decimal @default(0) @db.Decimal(10, 2)
+  tax         Decimal @default(0) @db.Decimal(10, 2)
+  lineTotal   Decimal @db.Decimal(10, 2)
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  purchase  Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  product   Product? @relation(fields: [productId], references: [id])
+
+  @@map("purchase_items")
+  @@index([purchaseId])
+  @@index([productId])
+}
+
+model PurchaseAttachment {
+  id        String   @id @default(cuid())
+  purchaseId String
+  fileName  String
+  filePath  String
+  fileSize  Int
+  mimeType  String?
+  uploadedBy String
+  createdAt DateTime @default(now())
+
+  purchase Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+
+  @@map("purchase_attachments")
+  @@index([purchaseId])
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  url       String
+  altText   String?
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_images")
+  @@index([productId])
+}
+
+model InventoryTransaction {
+  id          String   @id @default(cuid())
+  inventoryId String
+  productId   String
+  branchId    String
+  type        StockMovementType
+  quantity    Int
+  previousStock Int
+  newStock    Int
+  referenceNumber String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  createdById String
+
+  inventory Inventory @relation(fields: [inventoryId], references: [id])
+  product   Product   @relation(fields: [productId], references: [id])
+  branch    Branch    @relation(fields: [branchId], references: [id])
+  user      User?     @relation(fields: [createdById], references: [id])
+
+  @@map("inventory_transactions")
+  @@index([inventoryId])
+  @@index([productId])
+  @@index([branchId])
+  @@index([createdAt])
+  @@index([referenceNumber])
 }
 
 model SyncQueue {

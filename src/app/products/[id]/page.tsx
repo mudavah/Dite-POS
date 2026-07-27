@@ -57,6 +57,9 @@ const emptyForm = {
   costPrice: '',
   categoryId: '',
   lowStockThreshold: '10',
+  reorderLevel: '10',
+  brand: '',
+  unit: 'pcs',
   isActive: true,
   image: '',
 };
@@ -87,6 +90,9 @@ export default function ProductEditPage() {
         costPrice: product.costPrice?.toString() || '',
         categoryId: product.categoryId || '',
         lowStockThreshold: product.lowStockThreshold?.toString() || '10',
+        reorderLevel: product.reorderLevel?.toString() || '10',
+        brand: product.brand || '',
+        unit: product.unit || 'pcs',
         isActive: product.isActive ?? true,
         image: product.image || '',
       };
@@ -132,6 +138,9 @@ export default function ProductEditPage() {
       price: parseFloat(form.price),
       costPrice: form.costPrice ? parseFloat(form.costPrice) : null,
       lowStockThreshold: parseInt(form.lowStockThreshold),
+      reorderLevel: parseInt(form.reorderLevel),
+      brand: form.brand || null,
+      unit: form.unit || 'pcs',
     });
   };
 
@@ -213,9 +222,23 @@ export default function ProductEditPage() {
                 </select>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Low Stock Threshold</label>
-                <Input type="number" value={form.lowStockThreshold} onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })} />
+                <label className="text-sm font-medium">Brand</label>
+                <Input value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} />
               </div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Unit</label>
+                <Input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Reorder Level</label>
+                <Input type="number" value={form.reorderLevel} onChange={(e) => setForm({ ...form, reorderLevel: e.target.value })} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Low Stock Threshold</label>
+              <Input type="number" value={form.lowStockThreshold} onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })} />
             </div>
             <div className="flex items-center gap-2">
               <input

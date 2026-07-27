@@ -11,6 +11,7 @@ import {
   History,
   DollarSign,
   X,
+  ShoppingCart,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 
@@ -74,9 +75,17 @@ export default function InventoryPage() {
           <p className="text-muted-foreground">Manage stock across branches</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => (window.location.href = '/purchases/new')}>
+            <ShoppingCart className="h-4 w-4 mr-2" />
+            New Purchase
+          </Button>
           <Button variant="outline" onClick={() => setShowHistory(true)}>
             <History className="h-4 w-4 mr-2" />
             Stock History
+          </Button>
+          <Button variant="outline" onClick={() => (window.location.href = '/stock-movements')}>
+            <TrendingUp className="h-4 w-4 mr-2" />
+            Movements
           </Button>
         </div>
       </div>
