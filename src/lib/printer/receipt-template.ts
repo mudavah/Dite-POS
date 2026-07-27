@@ -140,22 +140,26 @@ function generateTextTemplate(data: ReceiptData, paperSize: PaperSize): string {
   lines.push(sep);
 
   for (const item of data.items) {
-    lines.push(`Item: ${item.productName}`);
+    const name = item.productName.length > width - 10 ? item.productName.slice(0, width - 13) + '...' : item.productName;
+    lines.push(`Item: ${name}`);
     if (item.sku) lines.push(`SKU: ${item.sku}`);
-    lines.push(`  ${item.quantity} x ${formatCurrency(item.unitPrice, data.currency, data.currencySymbol)}    ${formatCurrency(item.total, data.currency, data.currencySymbol)}`);
+    const qtyPrice = `${item.quantity} x ${formatCurrency(item.unitPrice, data.currency, data.currencySymbol)}`;
+    lines.push(`  ${qtyPrice}${' '.repeat(Math.max(0, width - 12 - qtyPrice.length - formatCurrency(item.total, data.currency, data.currencySymbol).length))}${formatCurrency(item.total, data.currency, data.currencySymbol)}`);
   }
 
   lines.push(sep);
-  lines.push(`Subtotal:`.padEnd(width - 10) + formatCurrency(vat.vatExclusive, data.currency, data.currencySymbol).padStart(10));
-  lines.push(`VAT (16%):`.padEnd(width - 10) + formatCurrency(vat.vatAmount, data.currency, data.currencySymbol).padStart(10));
+  lines.push(`Subtotal:`.padEnd(width - 12) + formatCurrency(vat.vatExclusive, data.currency, data.currencySymbol).padStart(12));
+  lines.push(`VAT (16%):`.padEnd(width - 12) + formatCurrency(vat.vatAmount, data.currency, data.currencySymbol).padStart(12));
   if ((data.discountAmount || 0) > 0) {
-    lines.push(`Discount:`.padEnd(width - 10) + formatCurrency(data.discountAmount || 0, data.currency, data.currencySymbol).padStart(10));
+    lines.push(`Discount:`.padEnd(width - 12) + formatCurrency(data.discountAmount || 0, data.currency, data.currencySymbol).padStart(12));
   }
-  lines.push(`TOTAL:`.padEnd(width - 10) + formatCurrency(data.total || 0, data.currency, data.currencySymbol).padStart(10));
+  lines.push(`TOTAL:`.padEnd(width - 12) + formatCurrency(data.total || 0, data.currency, data.currencySymbol).padStart(12));
   lines.push(sep);
   lines.push(`Payment: ${data.paymentMethod || 'CASH'}`);
   lines.push(`Paid: ${data.currencySymbol || 'KSh'} ${formatCurrency(data.amountPaid || 0, data.currency, data.currencySymbol)}`);
-  lines.push(`Change: ${data.currencySymbol || 'KSh'} ${formatCurrency(data.changeAmount || 0, data.currency, data.currencySymbol)}`);
+  if ((data.changeAmount || 0) > 0) {
+    lines.push(`Change: ${data.currencySymbol || 'KSh'} ${formatCurrency(data.changeAmount || 0, data.currency, data.currencySymbol)}`);
+  }
   lines.push(sep);
   if (data.qrData) {
     lines.push(center('[QR CODE]', width));
@@ -313,12 +317,17 @@ function generateFiscalTextTemplate(data: FiscalReceiptData, paperSize: PaperSiz
   lines.push(`Customer TIN: ${data.customerTin}`);
   lines.push(`Country: ${data.country}`);
   lines.push(sep);
-  lines.push(center('QTY  DESCRIPTION  VAT  PRICE  AMOUNT', width));
+  lines.push(center('QTY   DESCRIPTION        VAT    PRICE       AMOUNT', width));
   lines.push(sep);
 
   for (const item of data.items) {
-    const desc = item.description.length > 30 ? item.description.slice(0, 30) + '..' : item.description;
-    lines.push(`${String(item.qty).padStart(4)}  ${desc.padEnd(20)}  ${item.vatCode.padEnd(4)}  ${formatCurrency(item.unitPrice, data.currency, data.currencySymbol).padStart(8)}  ${formatCurrency(item.lineTotal, data.currency, data.currencySymbol).padStart(8)}`);
+    const desc = item.description.length > width - 26 ? item.description.slice(0, width - 29) + '...' : item.description;
+    const qtyStr = String(item.qty).padStart(4);
+    const descStr = desc.padEnd(width - 26);
+    const vatStr = item.vatCode.padEnd(4);
+    const priceStr = formatCurrency(item.unitPrice, data.currency, data.currencySymbol).padStart(12);
+    const totalStr = formatCurrency(item.lineTotal, data.currency, data.currencySymbol).padStart(12);
+    lines.push(`${qtyStr}  ${descStr}  ${vatStr}  ${priceStr}  ${totalStr}`);
   }
 
   lines.push(sep);
@@ -327,8 +336,10 @@ function generateFiscalTextTemplate(data: FiscalReceiptData, paperSize: PaperSiz
   lines.push(`CASH`.padEnd(width - 12) + formatCurrency(data.cashReceived, data.currency, data.currencySymbol).padStart(12));
   lines.push(`CHANGE`.padEnd(width - 12) + formatCurrency(data.changeAmount, data.currency, data.currencySymbol).padStart(12));
   lines.push(sep);
-  lines.push(`VAT CODE  RATE  TAXABLE AMOUNT  VAT AMOUNT`);
-  lines.push(`A         16%   ${formatCurrency(data.subtotal, data.currency, data.currencySymbol).padStart(12)}  ${formatCurrency(data.totalAmount - data.subtotal, data.currency, data.currencySymbol).padStart(8)}`);
+  lines.push(`VAT CODE  RATE   TAXABLE AMOUNT     VAT AMOUNT`);
+  const taxableStr = formatCurrency(data.subtotal, data.currency, data.currencySymbol).padStart(14);
+  const vatAmtStr = formatCurrency(data.totalAmount - data.subtotal, data.currency, data.currencySymbol).padStart(12);
+  lines.push(`A         16%    ${taxableStr}  ${vatAmtStr}`);
   lines.push(sep);
   lines.push(center('[QR CODE]', width));
   lines.push(sep);

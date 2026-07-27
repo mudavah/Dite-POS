@@ -63,31 +63,32 @@ class ReceiptService {
 
   async printReceipt(
     sale: PrintReceiptInput,
-    template: ReceiptTemplate = 'existing'
+    template: ReceiptTemplate = 'existing',
+    config?: PrinterConfig
   ): Promise<PrintResultMessage> {
     try {
-      const config = this.getPrinterConfig();
-      if (!config) {
+      const printerConfig = config ?? this.getPrinterConfig();
+      if (!printerConfig) {
         return { success: false, message: 'No printer configured', error: 'No printer configuration found' };
       }
 
-      printer.setConfig(config);
+      printer.setConfig(printerConfig);
 
       switch (template) {
         case 'existing': {
           const receiptData = this.mapToExistingReceipt(sale);
-          const escposData = buildEscpos(receiptData, config.paperSize || '80mm');
+          const escposData = buildEscpos(receiptData, printerConfig.paperSize || '80mm');
           const result = await printer.print(escposData, { retries: 2 });
-          if (result.success && config.cutter) {
+          if (result.success && printerConfig.cutter) {
             await printer.cut({ retries: 1 });
           }
           return result;
         }
         case 'fiscal': {
           const fiscalData = this.mapToFiscalReceipt(sale);
-          const escposData = buildFiscalEscpos(fiscalData, config.paperSize || '80mm');
+          const escposData = buildFiscalEscpos(fiscalData, printerConfig.paperSize || '80mm');
           const result = await printer.print(escposData, { retries: 2 });
-          if (result.success && config.cutter) {
+          if (result.success && printerConfig.cutter) {
             await printer.cut({ retries: 1 });
           }
           return result;
@@ -102,7 +103,7 @@ class ReceiptService {
           if (!fiscalResult.success) {
             return fiscalResult;
           }
-          if (config.cutter) {
+          if (printerConfig.cutter) {
             await printer.cut({ retries: 1 });
           }
           return { success: true, message: 'Both receipts printed successfully' };

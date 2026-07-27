@@ -14,6 +14,12 @@ import { ReceiptPreviewModal } from '@/components/pos/receipt-preview-modal';
 import { receiptService, type PrintReceiptInput } from '@/lib/printer/receipt-service';
 import type { ReceiptTemplate } from '@/lib/printer/receipt-template';
 
+async function fetchPrinterConfigs() {
+  const res = await fetch('/api/printer-configs');
+  if (!res.ok) throw new Error('Failed to fetch printer configs');
+  return res.json();
+}
+
 async function fetchReceipt(saleId: string) {
   const res = await fetch(`/api/pos/sales/${saleId}`);
   if (!res.ok) throw new Error('Failed to fetch receipt');
@@ -39,6 +45,11 @@ function ReceiptActionsInner() {
     retry: 1,
     staleTime: 60_000,
     refetchOnMount: true,
+  });
+
+  const { data: printerConfigs = [] } = useQuery({
+    queryKey: ['printer-configs'],
+    queryFn: fetchPrinterConfigs,
   });
 
   const [offlineSale, setOfflineSale] = React.useState<ReceiptData | null>(null);
@@ -163,6 +174,14 @@ function ReceiptActionsInner() {
 
   const handlePrintThermal = async (size: '58mm' | '80mm') => {
     if (!receiptData) return;
+    const config = printerConfigs[0];
+    if (!config) {
+      toast({ title: 'No printer configured. Please configure a printer in Settings.', variant: 'destructive' });
+      return;
+    }
+
+    const printConfig = { ...config, paperSize: size };
+
     try {
       const saleData: PrintReceiptInput = {
         saleId: receiptData.saleId,
@@ -197,7 +216,7 @@ function ReceiptActionsInner() {
         currency: receiptData.currency || 'KES',
         currencySymbol: receiptData.currencySymbol || 'KSh',
       };
-      const result = await receiptService.printReceipt(saleData, printTemplate);
+      const result = await receiptService.printReceipt(saleData, printTemplate, printConfig);
       if (result.success) {
         toast({ title: 'Receipt sent to printer' });
       } else {
@@ -212,6 +231,7 @@ function ReceiptActionsInner() {
     if (!receiptData) return;
     try {
       const { jsPDF } = await import('jspdf');
+      const isFiscal = printTemplate === 'fiscal';
       const doc = new jsPDF({ unit: 'mm', format: [80, 200] });
       const pageWidth = doc.internal.pageSize.getWidth();
       const margin = 6;
@@ -231,87 +251,164 @@ function ReceiptActionsInner() {
         y += 4.5;
       };
 
-      doc.setFont('helvetica', 'bold');
-      centerText(receiptData.shopName || 'Dite POS', 12);
-      doc.setFont('helvetica', 'normal');
-      if (receiptData.branchName) centerText(receiptData.branchName, 9);
-      if (receiptData.branchAddress) centerText(receiptData.branchAddress, 8);
-      if (receiptData.branchPhone) centerText(receiptData.branchPhone, 8);
-      if (receiptData.branchEmail) centerText(receiptData.branchEmail, 8);
-      if (receiptData.branchWebsite) centerText(receiptData.branchWebsite, 8);
-      if (receiptData.kraPin) centerText(`KRA PIN: ${receiptData.kraPin}`, 8);
-
-      y += 2;
-      doc.setDrawColor(150);
-      doc.setLineWidth(0.2);
-      doc.line(margin, y, pageWidth - margin, y);
-      y += 4;
-
-      centerText('RECEIPT', 10);
-      rightText('Receipt No', receiptData.receiptNo);
-      rightText('Sale No', receiptData.saleId);
-      rightText('Date', formatDate(receiptData.date));
-      rightText('Cashier', receiptData.cashierName);
-      rightText('Customer', receiptData.customerName || 'Walk-in Customer');
-      if (receiptData.paymentReference) rightText('Reference', receiptData.paymentReference);
-      if (receiptData.syncStatus) rightText('Status', receiptData.syncStatus === 'PENDING_SYNC' ? 'Pending Synchronization' : 'Synced');
-      if (receiptData.isOffline) rightText('Mode', 'Offline');
-
-      y += 2;
-      doc.line(margin, y, pageWidth - margin, y);
-      y += 4;
-
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Item', margin, y);
-      doc.text('Qty', pageWidth - margin, y);
-      y += 3;
-      doc.line(margin, y, pageWidth - margin, y);
-      y += 4;
-
-      doc.setFont('helvetica', 'normal');
-      receiptData.items.forEach((item) => {
-        const name = item.productName.length > 28 ? item.productName.slice(0, 28) + '...' : item.productName;
+      if (isFiscal) {
         doc.setFont('helvetica', 'bold');
-        doc.text(name, margin, y);
+        centerText(receiptData.shopName || 'Dite POS', 12);
         doc.setFont('helvetica', 'normal');
-        doc.text(`${item.quantity} x ${formatCurrency(item.unitPrice, receiptData.currency, receiptData.currencySymbol)}`, pageWidth - doc.getTextWidth(`${item.quantity} x ${formatCurrency(item.unitPrice, receiptData.currency, receiptData.currencySymbol)}`), y);
+        if (receiptData.kraPin) centerText(receiptData.kraPin, 9);
+        if (receiptData.branchAddress) centerText(receiptData.branchAddress, 8);
+        if (receiptData.branchPhone) centerText(receiptData.branchPhone, 8);
+        if (receiptData.branchWebsite) centerText(receiptData.branchWebsite, 8);
+
+        y += 2;
+        doc.setDrawColor(150);
+        doc.setLineWidth(0.2);
+        doc.line(margin, y, pageWidth - margin, y);
         y += 4;
-        doc.text(`Total: ${formatCurrency(item.total, receiptData.currency, receiptData.currencySymbol)}`, margin + 2, y);
-        y += 5;
-      });
 
-      y += 2;
-      doc.line(margin, y, pageWidth - margin, y);
-      y += 4;
+        centerText('FISCAL RECEIPT', 10);
+        rightText('Receipt No', receiptData.receiptNo);
+        rightText('Date', formatDate(receiptData.date));
+        rightText('Time', new Date(receiptData.date).toLocaleTimeString('en-KE'));
+        rightText('Customer', receiptData.customerName || 'Walk-in Customer');
+        if (receiptData.customerPin) rightText('Customer PIN', receiptData.customerPin);
+        if (receiptData.customerTin) rightText('Customer TIN', receiptData.customerTin);
+        rightText('Country', 'Kenya');
 
-      const vat = calculateVatBreakdown(receiptData.total);
-      doc.setFont('helvetica', 'normal');
-      rightText('Subtotal (VAT Exclusive)', formatCurrency(vat.vatExclusive, receiptData.currency, receiptData.currencySymbol));
-      rightText('VAT (16%)', formatCurrency(vat.vatAmount, receiptData.currency, receiptData.currencySymbol));
-      if (receiptData.discountAmount > 0) rightText('Discount', `-${formatCurrency(receiptData.discountAmount, receiptData.currency, receiptData.currencySymbol)}`);
-      doc.setFont('helvetica', 'bold');
-      rightText('Grand Total', formatCurrency(receiptData.total, receiptData.currency, receiptData.currencySymbol));
+        y += 2;
+        doc.line(margin, y, pageWidth - margin, y);
+        y += 4;
 
-      y += 2;
-      doc.line(margin, y, pageWidth - margin, y);
-      y += 4;
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Qty', margin, y);
+        doc.text('Description', margin + 12, y);
+        doc.text('VAT', margin + 58, y);
+        doc.text('Price', margin + 68, y);
+        doc.text('Amount', pageWidth - margin, y);
+        y += 3;
+        doc.line(margin, y, pageWidth - margin, y);
+        y += 4;
 
-      doc.setFont('helvetica', 'normal');
-      rightText('Payment', receiptData.paymentMethod);
-      rightText('Paid', formatCurrency(receiptData.amountPaid, receiptData.currency, receiptData.currencySymbol));
-      if (receiptData.changeAmount > 0) rightText('Change', formatCurrency(receiptData.changeAmount, receiptData.currency, receiptData.currencySymbol));
+        receiptData.items.forEach((item) => {
+          const desc = item.productName.length > 18 ? item.productName.slice(0, 18) + '...' : item.productName;
+          doc.setFont('helvetica', 'normal');
+          doc.text(String(item.quantity), margin, y);
+          doc.text(desc, margin + 12, y);
+          doc.text('A', margin + 58, y);
+          doc.text(formatCurrency(item.unitPrice, receiptData.currency, receiptData.currencySymbol), margin + 68, y);
+          doc.text(formatCurrency(item.total, receiptData.currency, receiptData.currencySymbol), pageWidth - margin, y);
+          y += 4;
+        });
 
-      y += 4;
-      centerText('Thank you for shopping with us.', 8);
-      centerText('Please come again.', 8);
-      if (receiptData.footerText) centerText(receiptData.footerText, 8);
-      if (receiptData.branchWebsite && !receiptData.footerText) centerText(receiptData.branchWebsite, 8);
+        y += 2;
+        doc.line(margin, y, pageWidth - margin, y);
+        y += 4;
 
-      y += 3;
-      centerText('All prices are VAT Inclusive.', 7);
+        const vat = calculateVatBreakdown(receiptData.total);
+        doc.setFont('helvetica', 'normal');
+        rightText('SUBTOTAL', formatCurrency(receiptData.subtotal, receiptData.currency, receiptData.currencySymbol));
+        rightText('TOTAL AMOUNT', formatCurrency(receiptData.total, receiptData.currency, receiptData.currencySymbol));
+        rightText('CASH', formatCurrency(receiptData.amountPaid, receiptData.currency, receiptData.currencySymbol));
+        if (receiptData.changeAmount > 0) rightText('CHANGE', formatCurrency(receiptData.changeAmount, receiptData.currency, receiptData.currencySymbol));
 
-      doc.save(`Receipt-${receiptData.receiptNo}.pdf`);
+        y += 2;
+        doc.line(margin, y, pageWidth - margin, y);
+        y += 4;
+
+        doc.setFont('helvetica', 'normal');
+        rightText('VAT CODE', 'A');
+        rightText('RATE', '16%');
+        rightText('TAXABLE AMOUNT', formatCurrency(vat.vatExclusive, receiptData.currency, receiptData.currencySymbol));
+        rightText('VAT AMOUNT', formatCurrency(vat.vatAmount, receiptData.currency, receiptData.currencySymbol));
+
+        y += 4;
+        centerText('Thank you for your visit.', 8);
+
+        doc.save(`Receipt-${receiptData.receiptNo}-fiscal.pdf`);
+      } else {
+        doc.setFont('helvetica', 'bold');
+        centerText(receiptData.shopName || 'Dite POS', 12);
+        doc.setFont('helvetica', 'normal');
+        if (receiptData.branchName) centerText(receiptData.branchName, 9);
+        if (receiptData.branchAddress) centerText(receiptData.branchAddress, 8);
+        if (receiptData.branchPhone) centerText(receiptData.branchPhone, 8);
+        if (receiptData.branchEmail) centerText(receiptData.branchEmail, 8);
+        if (receiptData.branchWebsite) centerText(receiptData.branchWebsite, 8);
+        if (receiptData.kraPin) centerText(`KRA PIN: ${receiptData.kraPin}`, 8);
+
+        y += 2;
+        doc.setDrawColor(150);
+        doc.setLineWidth(0.2);
+        doc.line(margin, y, pageWidth - margin, y);
+        y += 4;
+
+        centerText('RECEIPT', 10);
+        rightText('Receipt No', receiptData.receiptNo);
+        rightText('Sale No', receiptData.saleId);
+        rightText('Date', formatDate(receiptData.date));
+        rightText('Cashier', receiptData.cashierName);
+        rightText('Customer', receiptData.customerName || 'Walk-in Customer');
+        if (receiptData.paymentReference) rightText('Reference', receiptData.paymentReference);
+        if (receiptData.syncStatus) rightText('Status', receiptData.syncStatus === 'PENDING_SYNC' ? 'Pending Synchronization' : 'Synced');
+        if (receiptData.isOffline) rightText('Mode', 'Offline');
+
+        y += 2;
+        doc.line(margin, y, pageWidth - margin, y);
+        y += 4;
+
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Item', margin, y);
+        doc.text('Qty', pageWidth - margin, y);
+        y += 3;
+        doc.line(margin, y, pageWidth - margin, y);
+        y += 4;
+
+        doc.setFont('helvetica', 'normal');
+        receiptData.items.forEach((item) => {
+          const name = item.productName.length > 28 ? item.productName.slice(0, 28) + '...' : item.productName;
+          doc.setFont('helvetica', 'bold');
+          doc.text(name, margin, y);
+          doc.setFont('helvetica', 'normal');
+          doc.text(`${item.quantity} x ${formatCurrency(item.unitPrice, receiptData.currency, receiptData.currencySymbol)}`, pageWidth - doc.getTextWidth(`${item.quantity} x ${formatCurrency(item.unitPrice, receiptData.currency, receiptData.currencySymbol)}`), y);
+          y += 4;
+          doc.text(`Total: ${formatCurrency(item.total, receiptData.currency, receiptData.currencySymbol)}`, margin + 2, y);
+          y += 5;
+        });
+
+        y += 2;
+        doc.line(margin, y, pageWidth - margin, y);
+        y += 4;
+
+        const vat = calculateVatBreakdown(receiptData.total);
+        doc.setFont('helvetica', 'normal');
+        rightText('Subtotal (VAT Exclusive)', formatCurrency(vat.vatExclusive, receiptData.currency, receiptData.currencySymbol));
+        rightText('VAT (16%)', formatCurrency(vat.vatAmount, receiptData.currency, receiptData.currencySymbol));
+        if (receiptData.discountAmount > 0) rightText('Discount', `-${formatCurrency(receiptData.discountAmount, receiptData.currency, receiptData.currencySymbol)}`);
+        doc.setFont('helvetica', 'bold');
+        rightText('Grand Total', formatCurrency(receiptData.total, receiptData.currency, receiptData.currencySymbol));
+
+        y += 2;
+        doc.line(margin, y, pageWidth - margin, y);
+        y += 4;
+
+        doc.setFont('helvetica', 'normal');
+        rightText('Payment', receiptData.paymentMethod);
+        rightText('Paid', formatCurrency(receiptData.amountPaid, receiptData.currency, receiptData.currencySymbol));
+        if (receiptData.changeAmount > 0) rightText('Change', formatCurrency(receiptData.changeAmount, receiptData.currency, receiptData.currencySymbol));
+
+        y += 4;
+        centerText('Thank you for shopping with us.', 8);
+        centerText('Please come again.', 8);
+        if (receiptData.footerText) centerText(receiptData.footerText, 8);
+        if (receiptData.branchWebsite && !receiptData.footerText) centerText(receiptData.branchWebsite, 8);
+
+        y += 3;
+        centerText('All prices are VAT Inclusive.', 7);
+
+        doc.save(`Receipt-${receiptData.receiptNo}.pdf`);
+      }
       toast({ title: 'PDF downloaded' });
     } catch {
       toast({ title: 'Failed to generate PDF', variant: 'destructive' });
@@ -321,12 +418,42 @@ function ReceiptActionsInner() {
   const handleShare = async () => {
     if (!receiptData) return;
     const vat = calculateVatBreakdown(receiptData.total);
-    const fullReceiptText = [
+    const isFiscal = printTemplate === 'fiscal';
+    const fullReceiptText = isFiscal ? [
+      `${receiptData.shopName || 'Dite POS'}`,
+      receiptData.kraPin || '',
+      receiptData.branchAddress || '',
+      `P.O. Box ${receiptData.branchPhone || ''}`,
+      '',
+      'FISCAL RECEIPT',
+      '',
+      `Receipt No: ${receiptData.receiptNo}`,
+      `Date: ${formatDate(receiptData.date)}`,
+      `Time: ${new Date(receiptData.date).toLocaleTimeString('en-KE')}`,
+      `Customer: ${receiptData.customerName || 'Walk-in Customer'}`,
+      `Customer PIN: ${receiptData.customerPin || ''}`,
+      `Customer TIN: `,
+      `Country: Kenya`,
+      '',
+      'QTY  DESCRIPTION        VAT    PRICE       AMOUNT',
+      ...receiptData.items.map(i => `${i.quantity}  ${i.productName}  A  ${formatCurrency(i.unitPrice, receiptData.currency, receiptData.currencySymbol)}  ${formatCurrency(i.total, receiptData.currency, receiptData.currencySymbol)}`),
+      '',
+      `SUBTOTAL: ${formatCurrency(receiptData.subtotal, receiptData.currency, receiptData.currencySymbol)}`,
+      `TOTAL AMOUNT: ${formatCurrency(receiptData.total, receiptData.currency, receiptData.currencySymbol)}`,
+      `CASH: ${formatCurrency(receiptData.amountPaid, receiptData.currency, receiptData.currencySymbol)}`,
+      `CHANGE: ${formatCurrency(receiptData.changeAmount, receiptData.currency, receiptData.currencySymbol)}`,
+      '',
+      'VAT CODE  RATE   TAXABLE AMOUNT     VAT AMOUNT',
+      `A         16%    ${formatCurrency(vat.vatExclusive, receiptData.currency, receiptData.currencySymbol)}  ${formatCurrency(vat.vatAmount, receiptData.currency, receiptData.currencySymbol)}`,
+      '',
+      'Thank you for your visit.',
+    ].filter(Boolean).join('\n') : [
       `${receiptData.shopName || 'Dite POS'}`,
       receiptData.branchName,
       receiptData.branchAddress,
       receiptData.branchPhone,
       receiptData.branchEmail,
+      receiptData.branchWebsite,
       receiptData.kraPin ? `KRA PIN: ${receiptData.kraPin}` : '',
       ``,
       `Receipt: ${receiptData.receiptNo}`,

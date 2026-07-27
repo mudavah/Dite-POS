@@ -6,8 +6,9 @@ import { Printer, Share2, Image as ImageIcon, FileText } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { formatCurrency, formatDate, calculateVatBreakdown } from '@/lib/utils';
-import { type ReceiptData, type ReceiptTemplate } from '@/lib/printer/receipt-template';
-import { Receipt, type ReceiptItem } from '@/components/pos/receipt';
+import { type ReceiptData, type ReceiptItem, type ReceiptTemplate, type FiscalReceiptData } from '@/lib/printer/receipt-template';
+import { ReceiptTemplateExisting } from '@/components/receipts/receipt-template-existing';
+import { ReceiptTemplateFiscal } from '@/components/receipts/receipt-template-fiscal';
 import { receiptService } from '@/lib/printer/receipt-service';
 
 interface ReceiptPreviewModalProps {
@@ -92,7 +93,7 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint, def
     }
 
     const saleData = buildSaleData(receiptData);
-    const result = await receiptService.printReceipt(saleData, template);
+    const result = await receiptService.printReceipt(saleData, template, config);
 
     if (result.success) {
       alert('Receipt sent to printer');
@@ -501,30 +502,75 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint, def
             <p className="text-sm">Loading receipt...</p>
           </div>
         ) : receiptData ? (
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <label htmlFor="template-select" className="text-sm font-medium">Receipt Template:</label>
-              <select
-                id="template-select"
-                value={template}
-                onChange={(e) => setTemplate(e.target.value as ReceiptTemplate)}
-                className="h-8 rounded border border-input bg-background px-2 text-sm"
-              >
-                <option value="existing">Existing Receipt</option>
-                <option value="fiscal">Fiscal Receipt</option>
-                <option value="both">Both Receipts</option>
-              </select>
-            </div>
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <label htmlFor="template-select" className="text-sm font-medium">Receipt Template:</label>
+                <select
+                  id="template-select"
+                  value={template}
+                  onChange={(e) => setTemplate(e.target.value as ReceiptTemplate)}
+                  className="h-8 rounded border border-input bg-background px-2 text-sm"
+                >
+                  <option value="existing">Existing Receipt</option>
+                  <option value="fiscal">Fiscal Receipt</option>
+                  <option value="both">Both Receipts</option>
+                </select>
+              </div>
 
-            <div className="flex justify-center">
-              <Receipt data={receiptData} format="full" />
-            </div>
+              <div className="flex flex-col gap-6">
+                {(template === 'existing' || template === 'both') && receiptData && (
+                  <div className="flex justify-center">
+                    <ReceiptTemplateExisting data={receiptData} paperSize="80mm" />
+                  </div>
+                )}
+                {(template === 'fiscal' || template === 'both') && receiptData && (() => {
+                  const fiscalData: FiscalReceiptData = {
+                    shopName: receiptData.shopName || 'Dite POS',
+                    companyPin: receiptData.kraPin || '',
+                    companyAddress: receiptData.branchAddress || '',
+                    companyPoBox: '',
+                    companyPhone: receiptData.branchPhone || '',
+                    receiptNo: receiptData.receiptNo,
+                    saleId: receiptData.saleId,
+                    date: new Date(receiptData.date).toLocaleDateString('en-KE'),
+                    time: new Date(receiptData.date).toLocaleTimeString('en-KE'),
+                    customerName: receiptData.customerName || 'Walk-in Customer',
+                    customerPin: receiptData.customerPin || '',
+                    customerTin: '',
+                    country: 'Kenya',
+                    items: receiptData.items.map((i) => ({
+                      qty: i.quantity,
+                      description: i.productName,
+                      vatCode: 'A',
+                      unitPrice: i.unitPrice,
+                      discount: i.discount || 0,
+                      lineTotal: i.total,
+                    })),
+                    subtotal: receiptData.subtotal,
+                    totalAmount: receiptData.total,
+                    cashReceived: receiptData.amountPaid,
+                    changeAmount: receiptData.changeAmount,
+                    cashierName: receiptData.cashierName,
+                    controlUnitSerial: '',
+                    controlUnitInvoice: '',
+                    attendedBy: receiptData.cashierName,
+                    currency: receiptData.currency || 'KES',
+                    currencySymbol: receiptData.currencySymbol || 'KSh',
+                    qrData: receiptData.qrData,
+                  };
+                  return (
+                    <div className="flex justify-center">
+                      <ReceiptTemplateFiscal data={fiscalData} paperSize="80mm" />
+                    </div>
+                  );
+                })()}
+              </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={handlePrint} className="flex-1 gap-2">
-                <Printer className="h-4 w-4" />
-                Print
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" onClick={handlePrint} className="flex-1 gap-2">
+                  <Printer className="h-4 w-4" />
+                  Print
+                </Button>
               <Button variant="outline" onClick={() => handleDownloadPDF()} className="flex-1 gap-2">
                 <FileText className="h-4 w-4" />
                 PDF

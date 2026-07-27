@@ -28,6 +28,7 @@ export interface ReceiptData {
   customerPhone?: string;
   customerEmail?: string;
   customerPin?: string;
+  customerTin?: string;
   saleNotes?: string;
   items: ReceiptItem[];
   subtotal: number;

@@ -240,7 +240,7 @@ export default function SettingsPage() {
               <label htmlFor="receipt-template" className="text-sm font-medium">Default Receipt Template</label>
               <select
                 id="receipt-template"
-                value={settings?.receiptTemplate || 'existing'}
+                 value={settings?.[0]?.receiptTemplate || 'existing'}
                 onChange={(e) => {
                   const updated = { ...settings[0], receiptTemplate: e.target.value };
                   shopMutation.mutate(updated);
