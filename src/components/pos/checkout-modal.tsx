@@ -38,10 +38,11 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
   const [transferRef, setTransferRef] = React.useState('');
   const [mobileRef, setMobileRef] = React.useState('');
   const [splitAmounts, setSplitAmounts] = React.useState<Record<string, string>>({});
-  const [notes, setNotes] = React.useState('');
-  const [customerName, setCustomerName] = React.useState(customer?.name || '');
-  const [customerPin, setCustomerPin] = React.useState(customer?.pin || '');
-  const [customerTin, setCustomerTin] = React.useState(customer?.tin || '');
+   const [notes, setNotes] = React.useState('');
+   const [customerName, setCustomerName] = React.useState(customer?.name || '');
+   const [customerPin, setCustomerPin] = React.useState(customer?.pin || '');
+   const [customerTin, setCustomerTin] = React.useState(customer?.tin || '');
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -113,6 +114,7 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
       resetForm();
     },
     onError: (err: unknown) => {
+      setIsSubmitting(false);
       let description = 'An unexpected error occurred';
       if (isCheckoutError(err)) {
         switch (err.code) {
@@ -126,7 +128,8 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
             description = `Stock issue: ${err.message}`;
             break;
           case 'CHECKOUT_DUPLICATE_SALE':
-            description = `Duplicate sale detected: ${err.details?.receiptNo}. This sale may have already been processed.`;
+          case 'CHECKOUT_DUPLICATE':
+            description = `Duplicate sale detected${err.details?.receiptNo ? ': ' + err.details.receiptNo : ''}. This sale may have already been processed.`;
             break;
           case 'CHECKOUT_SYNC_FAILED':
             description = err.details?.retryable
@@ -147,6 +150,7 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
   });
 
   const resetForm = () => {
+    setIsSubmitting(false);
     setMethod('CASH');
     setCashReceived('');
     setCardRef('');
@@ -160,6 +164,9 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
   };
 
   const handleSubmit = () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+
     if (method === 'CASH' && cashNum < total) {
       toast({ title: 'Insufficient cash', description: `Need ${formatCurrency(total - cashNum)} more`, variant: 'destructive' });
       return;
@@ -412,12 +419,12 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={checkoutMutation.isPending}
+              disabled={checkoutMutation.isPending || isSubmitting}
               className="flex-1 h-12 gap-2"
               style={{ touchAction: 'manipulation' }}
             >
               <Printer className="h-4 w-4" />
-              {checkoutMutation.isPending ? 'Processing...' : 'Complete Sale'}
+              {checkoutMutation.isPending || isSubmitting ? 'Processing...' : 'Complete Sale'}
             </Button>
           </div>
         </div>

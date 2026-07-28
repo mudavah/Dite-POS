@@ -319,10 +319,6 @@ export function MobileCartSheet({ user, onCheckoutComplete }: MobileCartSheetPro
           setLastSale({ id: saleId, receiptNo });
           onCheckoutComplete(saleId, receiptNo);
           closeCheckoutFlow(false);
-          if (isOnline) {
-            const totalAmount = subtotalVal - totalDiscountVal;
-            router.push(`/checkout/complete?saleId=${saleId}&receiptNo=${encodeURIComponent(receiptNo || '')}&total=${totalAmount}`);
-          }
         }}
       />
 

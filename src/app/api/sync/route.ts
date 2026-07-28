@@ -70,8 +70,6 @@ export async function POST(request: NextRequest) {
       const discountAmount = items.reduce((sum: number, item: { discount?: number }) => sum + (item.discount || 0), 0);
       const totalAmount = subtotal - discountAmount;
 
-      const saleId = crypto.randomUUID();
-
       try {
         const { sale, receiptNo } = await createSale(
           {
@@ -98,17 +96,17 @@ export async function POST(request: NextRequest) {
             branchId,
             cashierId,
           },
-          saleId
+          item.entityId
         );
 
         const duration = Date.now() - startTime;
         logger.info('sync: sale synced', { requestId, saleId: sale.id, receiptNo, durationMs: duration });
 
         return NextResponse.json({ success: true, saleId: sale.id, receiptNo });
-      } catch (saleError) {
-        if (saleError instanceof CheckoutError) {
-          logger.error('sync: checkout business error', saleError, { requestId, code: saleError.code, saleId });
-          return NextResponse.json(
+        } catch (saleError) {
+          if (saleError instanceof CheckoutError) {
+            logger.error('sync: checkout business error', saleError, { requestId, code: saleError.code, saleId: item.entityId });
+            return NextResponse.json(
             { error: saleError.message, code: saleError.code, details: saleError.details },
             { status: saleError.statusCode }
           );

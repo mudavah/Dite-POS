@@ -65,16 +65,27 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const duration = Date.now() - startTime;
+    const requestIdForLog = requestId;
 
     if (error instanceof CheckoutError) {
-      logger.error('checkout: business error', error, { requestId, code: error.code, statusCode: error.statusCode, durationMs: duration });
+      if (error.code === 'CHECKOUT_DUPLICATE') {
+        logger.error('checkout: duplicate detected', error, {
+          requestId: requestIdForLog,
+          code: error.code,
+          field: error.details?.field,
+          durationMs: duration,
+          stack: error.stack,
+        });
+      } else {
+        logger.error('checkout: business error', error, { requestId: requestIdForLog, code: error.code, statusCode: error.statusCode, durationMs: duration });
+      }
       return NextResponse.json(
         { error: error.message, code: error.code, details: error.details },
         { status: error.statusCode }
       );
     }
 
-    logger.error('checkout: unexpected error', error, { requestId, durationMs: duration });
+    logger.error('checkout: unexpected error', error, { requestId: requestIdForLog, durationMs: duration, stack: error instanceof Error ? error.stack : undefined });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Checkout failed', code: 'CHECKOUT_UNKNOWN' },
       { status: 500 }

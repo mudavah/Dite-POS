@@ -145,7 +145,7 @@ export async function createSale(
     if (prismaError?.code === 'P2002') {
       const field = prismaError.meta?.target;
       logger.error('createSale: unique constraint violation', error, { field, durationMs: duration });
-      throw new CheckoutError('CHECKOUT_DUPLICATE', `Duplicate entry for field: ${field}`, 409, { field });
+      throw new CheckoutError('CHECKOUT_DUPLICATE', `Duplicate entry for field: ${field}. This sale may have already been processed.`, 409, { field });
     }
 
     if (prismaError?.code === 'P2003') {

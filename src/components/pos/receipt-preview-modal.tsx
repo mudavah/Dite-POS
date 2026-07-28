@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Printer, Share2, Image as ImageIcon, FileText } from 'lucide-react';
-import { Button, Input } from '@/components/ui';
+import { Button } from '@/components/ui';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { formatCurrency, formatDate, calculateVatBreakdown } from '@/lib/utils';
 import { type ReceiptData, type ReceiptItem, type ReceiptTemplate, type FiscalReceiptData } from '@/lib/printer/receipt-template';
@@ -21,10 +21,6 @@ interface ReceiptPreviewModalProps {
 
 export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint, defaultTemplate = 'existing' }: ReceiptPreviewModalProps) {
   const [template, setTemplate] = React.useState<ReceiptTemplate>(defaultTemplate);
-  const [editableFields, setEditableFields] = React.useState({
-    customerPin: '',
-    customerTin: '',
-  });
   const { data, isLoading } = useQuery({
     queryKey: ['sale', saleId],
     queryFn: async () => {
@@ -86,13 +82,11 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint, def
     };
     return {
       ...(base as ReceiptData),
-      customerPin: editableFields.customerPin || base.customerPin,
-      customerTin: editableFields.customerTin || base.customerTin,
       kraPin: base.kraPin,
       branchAddress: base.branchAddress,
       branchPhone: base.branchPhone,
     };
-  }, [data, receiptNo, editableFields]);
+  }, [data, receiptNo]);
 
   const handlePrint = async () => {
     if (!receiptData) return;
@@ -122,8 +116,8 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint, def
       time: new Date().toLocaleTimeString('en-KE'),
       cashierName: data.cashierName,
       customerName: data.customerName,
-      customerPin: editableFields.customerPin || data.customerPin || '',
-      customerTin: editableFields.customerTin || data.customerTin || '',
+      customerPin: data.customerPin || '',
+      customerTin: data.customerTin || '',
       country: 'Kenya',
       items: data.items.map((i) => ({
         qty: i.quantity,
@@ -515,20 +509,6 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint, def
           </div>
         ) : receiptData ? (
             <div className="space-y-4">
-              <div className="rounded-lg border border-border bg-card p-4 space-y-3">
-                <p className="text-sm font-medium">Receipt Details</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium">Customer PIN</label>
-                    <Input value={editableFields.customerPin} onChange={(e) => setEditableFields((f) => ({ ...f, customerPin: e.target.value }))} placeholder="Enter customer PIN" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium">Customer TIN</label>
-                    <Input value={editableFields.customerTin} onChange={(e) => setEditableFields((f) => ({ ...f, customerTin: e.target.value }))} placeholder="Enter customer TIN" />
-                  </div>
-                </div>
-              </div>
-
               <div className="flex items-center gap-2">
                 <label htmlFor="template-select" className="text-sm font-medium">Receipt Template:</label>
                 <select
@@ -561,8 +541,8 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint, def
                      date: new Date(receiptData.date).toLocaleDateString('en-KE'),
                      time: new Date(receiptData.date).toLocaleTimeString('en-KE'),
                      customerName: receiptData.customerName || 'Walk-in Customer',
-                     customerPin: editableFields.customerPin || receiptData.customerPin || '',
-                     customerTin: editableFields.customerTin || '',
+                     customerPin: receiptData.customerPin || '',
+                     customerTin: '',
                      country: 'Kenya',
                      items: receiptData.items.map((i) => ({
                        qty: i.quantity,
