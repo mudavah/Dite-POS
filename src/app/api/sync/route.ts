@@ -61,8 +61,22 @@ export async function POST(request: NextRequest) {
       });
 
       if (existingSale) {
-        logger.info('sync: duplicate sale detected', { requestId, saleId: item.entityId });
+        logger.info('sync: duplicate sale detected (already synced)', { requestId, saleId: item.entityId });
         return NextResponse.json({ success: true, message: 'Sale already synced', saleId: existingSale.id, receiptNo: (existingSale as { receiptNo?: string }).receiptNo });
+      }
+
+      const idempotencyKey = salePayload.idempotencyKey || item.entityId;
+
+      const existingIdempotency = await prisma.sale.findUnique({
+        where: { idempotencyKey },
+      });
+
+      if (existingIdempotency) {
+        logger.info('sync: idempotency hit - sale already exists', { requestId, idempotencyKey, existingSaleId: existingIdempotency.id });
+        const existingReceipt = await prisma.receipt.findUnique({
+          where: { saleId: existingIdempotency.id },
+        });
+        return NextResponse.json({ success: true, message: 'Sale already synced (idempotency)', saleId: existingIdempotency.id, receiptNo: existingReceipt?.receiptNo });
       }
 
       const items = salePayload.items || [];
@@ -95,18 +109,19 @@ export async function POST(request: NextRequest) {
             totalAmount,
             branchId,
             cashierId,
+            idempotencyKey,
           },
           item.entityId
         );
 
         const duration = Date.now() - startTime;
-        logger.info('sync: sale synced', { requestId, saleId: sale.id, receiptNo, durationMs: duration });
+        logger.info('sync: sale synced', { requestId, saleId: sale.id, receiptNo, idempotencyKey, durationMs: duration });
 
         return NextResponse.json({ success: true, saleId: sale.id, receiptNo });
-        } catch (saleError) {
-          if (saleError instanceof CheckoutError) {
-            logger.error('sync: checkout business error', saleError, { requestId, code: saleError.code, saleId: item.entityId });
-            return NextResponse.json(
+      } catch (saleError) {
+        if (saleError instanceof CheckoutError) {
+          logger.error('sync: checkout business error', saleError, { requestId, code: saleError.code, saleId: item.entityId, idempotencyKey });
+          return NextResponse.json(
             { error: saleError.message, code: saleError.code, details: saleError.details },
             { status: saleError.statusCode }
           );

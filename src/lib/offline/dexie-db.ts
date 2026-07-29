@@ -40,6 +40,7 @@ export interface OfflineSale {
   id: string;
   entityType: string;
   entityId: string;
+  idempotencyKey: string;
   action: string;
   payload: string;
   status: string;

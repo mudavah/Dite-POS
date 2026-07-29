@@ -36,6 +36,7 @@ describe('syncEngine', () => {
       const id = await syncEngine.queueMutation({
         entityType: 'sale',
         entityId: 'sale-1',
+        idempotencyKey: crypto.randomUUID(),
         action: 'CREATE',
         payload: JSON.stringify({ test: true }),
         status: 'PENDING',

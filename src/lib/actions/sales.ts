@@ -11,7 +11,7 @@ export async function createSale(
   explicitId?: string
 ) {
   const startTime = Date.now();
-  const { branchId, cashierId, items, customerId, customerName, customerPhone, customerPin, customerTin, paymentMethod, amountPaid, changeAmount, notes } = data;
+  const { branchId, cashierId, items, customerId, customerName, customerPhone, customerPin, customerTin, paymentMethod, amountPaid, changeAmount, notes, idempotencyKey } = data;
 
   const subtotal = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
   const discountAmount = items.reduce((sum, item) => sum + (item.discount || 0), 0);
@@ -50,6 +50,7 @@ export async function createSale(
             changeAmount: finalChangeAmount,
             paymentStatus: 'COMPLETED',
             notes: sanitizeText(notes),
+            idempotencyKey,
             items: {
               create: items.map((item) => ({
                 productId: item.productId,

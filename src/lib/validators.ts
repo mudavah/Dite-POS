@@ -67,6 +67,7 @@ export const userSchema = z.object({
 });
 
 export const saleSchema = z.object({
+  idempotencyKey: z.string().uuid().optional(),
   items: z.array(z.object({
     productId: z.string(),
     productName: z.string().optional().nullable(),

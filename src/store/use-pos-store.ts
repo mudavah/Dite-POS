@@ -194,6 +194,7 @@ export const usePosStore = create<PosState>((set, get) => ({
         id: saleId,
         entityType: 'sale',
         entityId: saleId,
+        idempotencyKey: crypto.randomUUID(),
         action: 'CREATE',
         payload: JSON.stringify(payload),
         status: 'PENDING',

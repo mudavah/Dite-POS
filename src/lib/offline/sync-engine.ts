@@ -47,7 +47,7 @@ export const syncEngine = {
         continue;
       }
 
-      item.status = 'SYNCING';
+      item.status = 'PROCESSING';
       item.updatedAt = new Date().toISOString();
       await db.salesQueue.put(item);
       this.notifyListeners();
