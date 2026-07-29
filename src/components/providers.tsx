@@ -11,9 +11,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 60 * 1000,
+            staleTime: 5 * 60 * 1000,
+            gcTime: 30 * 60 * 1000,
             refetchOnWindowFocus: false,
-            retry: 1,
+            refetchOnReconnect: true,
+            retry: (failureCount, error) => {
+              if ((error as { code?: string })?.code === 'CHECKOUT_UNAUTHORIZED') return false;
+              return failureCount < 3;
+            },
+            networkMode: 'offlineFirst',
           },
         },
       })

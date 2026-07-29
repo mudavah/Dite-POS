@@ -1,7 +1,21 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { z } from 'zod';
 import type { PaymentMethod } from '@prisma/client';
+
+interface UpdatedSaleWithRelations {
+  items: Array<{ productId: string; productName: string; sku?: string | null; quantity: number; unitPrice: unknown; discount: unknown; total: unknown; notes?: string | null }>;
+  receipts: Array<{ receiptNo: string }>;
+}
+
+const pendingSaleUpdateSchema = z.object({
+  paymentMethod: z.enum(['CASH', 'CARD', 'BANK_TRANSFER', 'MOBILE_MONEY', 'SPLIT', 'CREDIT']).optional(),
+  amountPaid: z.coerce.number().nonnegative().optional(),
+  changeAmount: z.coerce.number().nonnegative().optional(),
+  customerPin: z.string().optional().nullable(),
+  customerTin: z.string().optional().nullable(),
+});
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -10,15 +24,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const bodyText = await request.text();
-  const body = JSON.parse(bodyText) as {
-    paymentMethod?: string;
-    amountPaid?: number;
-    changeAmount?: number;
-    customerPin?: string;
-    customerTin?: string;
-  };
-  const { paymentMethod, amountPaid, changeAmount, customerPin, customerTin } = body;
+  const body = await request.json();
+  const validated = pendingSaleUpdateSchema.safeParse(body);
+  if (!validated.success) {
+    return NextResponse.json({ error: validated.error.flatten() }, { status: 400 });
+  }
+
+  const { paymentMethod, amountPaid, changeAmount, customerPin, customerTin } = validated.data;
 
   const sale = await prisma.sale.findUnique({
     where: { id },
@@ -33,6 +45,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Sale is already completed' }, { status: 400 });
   }
 
+  const validMethods: PaymentMethod[] = ['CASH', 'CARD', 'BANK_TRANSFER', 'MOBILE_MONEY', 'SPLIT', 'CREDIT'];
+  const resolvedPaymentMethod: PaymentMethod = paymentMethod && validMethods.includes(paymentMethod as PaymentMethod)
+    ? (paymentMethod as PaymentMethod)
+    : sale.paymentMethod;
+
   const totalAmount = sale.items.reduce((sum, item) => sum + item.total.toNumber(), 0) - sale.discountAmount.toNumber();
   const cashierId = session.user.id;
 
@@ -42,7 +59,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         where: { id },
         data: {
           paymentStatus: 'COMPLETED',
-          paymentMethod: ((paymentMethod || sale.paymentMethod) as PaymentMethod),
+          paymentMethod: resolvedPaymentMethod,
           amountPaid: amountPaid ?? sale.amountPaid,
           changeAmount: changeAmount ?? sale.changeAmount,
           totalAmount,
@@ -52,7 +69,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         include: { items: true, cashier: { select: { name: true, email: true } }, branch: { select: { name: true, code: true } }, receipts: { select: { receiptNo: true } } },
       });
 
-      const updatedItems = (updated as unknown as { items: Array<{ productId: string; productName: string; sku?: string; quantity: number; unitPrice: number; discount: number; total: number; notes?: string }> }).items;
+      const updatedItems = (updated as UpdatedSaleWithRelations).items;
       for (const item of updatedItems) {
         const inventory = await tx.inventory.findFirst({
           where: { branchId: sale.branchId, productId: item.productId },
@@ -104,7 +121,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     return NextResponse.json({
       id: updatedSale.id,
-      receiptNo: (updatedSale as unknown as { receipts: Array<{ receiptId: string; receiptNo: string }> }).receipts?.[0]?.receiptNo,
+      receiptNo: (updatedSale as UpdatedSaleWithRelations).receipts?.[0]?.receiptNo,
       totalAmount: updatedSale.totalAmount.toNumber(),
     });
   } catch (error) {

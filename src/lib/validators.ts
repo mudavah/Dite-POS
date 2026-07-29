@@ -78,7 +78,7 @@ export const saleSchema = z.object({
     total: z.coerce.number().nonnegative().optional(),
     notes: z.string().optional().nullable(),
   })).min(1, 'At least one item is required'),
-  paymentMethod: z.enum(['CASH', 'CARD', 'BANK_TRANSFER', 'MOBILE_MONEY', 'SPLIT']),
+  paymentMethod: z.enum(['CASH', 'CARD', 'BANK_TRANSFER', 'MOBILE_MONEY', 'SPLIT', 'CREDIT']),
   amountPaid: z.coerce.number().nonnegative(),
   customerId: z.string().optional().nullable(),
   customerName: z.string().optional().nullable(),

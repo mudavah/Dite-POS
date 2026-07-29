@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { syncEngine } from './sync-engine';
 
 vi.mock('./dexie-db', () => {
+  const mockAdd = vi.fn().mockResolvedValue('queue-id');
   const mockPut = vi.fn();
   const mockGet = vi.fn();
   const mockToArray = vi.fn();
@@ -14,6 +15,7 @@ vi.mock('./dexie-db', () => {
   return {
     db: {
       salesQueue: {
+        add: mockAdd,
         put: mockPut,
         get: mockGet,
         toArray: mockToArray,

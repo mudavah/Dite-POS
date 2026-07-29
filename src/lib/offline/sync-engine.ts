@@ -21,9 +21,11 @@ export const syncEngine = {
     return getBackoffDelayImpl(retries);
   },
   async queueMutation(item: Omit<OfflineSale, 'id' | 'createdAt' | 'updatedAt' | 'retries'>): Promise<string> {
+    const idempotencyKey = crypto.randomUUID();
     const queueItem: OfflineSale = {
       ...item,
       id: crypto.randomUUID(),
+      idempotencyKey,
       retries: 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -87,6 +89,7 @@ export const syncEngine = {
           item.updatedAt = new Date().toISOString();
           await db.salesQueue.put(item);
           logger.warn('sync: conflict detected', { saleId: item.entityId, idempotencyKey: item.idempotencyKey });
+          continue;
         } else if (response.status === 429 || response.status >= 500) {
           throw new Error(`Sync failed with status ${response.status}, retrying`);
         } else {

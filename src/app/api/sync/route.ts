@@ -4,6 +4,15 @@ import { prisma } from '@/lib/prisma';
 import { createSale } from '@/lib/actions/sales';
 import { logger } from '@/lib/logger';
 import { CheckoutError } from '@/lib/checkout-errors';
+import { z } from 'zod';
+
+const syncItemSchema = z.object({
+  entityType: z.string().optional(),
+  entityId: z.string().uuid().optional(),
+  action: z.string().optional(),
+  payload: z.any().optional(),
+  status: z.string().optional(),
+});
 
 export const dynamic = 'force-dynamic';
 
@@ -33,16 +42,42 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const item = body as {
-      entityType?: string;
-      entityId?: string;
-      action?: string;
-      payload?: string;
-      status?: string;
-    };
+    const syncValidated = syncItemSchema.safeParse(body);
+    if (!syncValidated.success) {
+      return NextResponse.json({ error: syncValidated.error.flatten(), code: 'CHECKOUT_VALIDATION_ERROR' }, { status: 400 });
+    }
+
+    const item = syncValidated.data;
 
     if (item.entityType === 'sale' && item.payload) {
-      const salePayload = JSON.parse(item.payload);
+      const salePayload = z.object({
+        idempotencyKey: z.string().uuid().optional(),
+        items: z.array(z.object({
+          productId: z.string(),
+          productName: z.string().optional().nullable(),
+          sku: z.string().optional().nullable(),
+          quantity: z.coerce.number().int().positive(),
+          unitPrice: z.coerce.number().positive(),
+          discount: z.coerce.number().nonnegative().default(0),
+          notes: z.string().optional().nullable(),
+        })).min(1),
+        paymentMethod: z.enum(['CASH', 'CARD', 'BANK_TRANSFER', 'MOBILE_MONEY', 'SPLIT', 'CREDIT']),
+        amountPaid: z.coerce.number().nonnegative(),
+        changeAmount: z.coerce.number().nonnegative().optional(),
+        customerId: z.string().optional().nullable(),
+        customerName: z.string().optional().nullable(),
+        customerPhone: z.string().optional().nullable(),
+        notes: z.string().optional().nullable(),
+        subtotal: z.coerce.number().nonnegative().optional(),
+        discountAmount: z.coerce.number().nonnegative().optional(),
+        totalAmount: z.coerce.number().nonnegative().optional(),
+      }).safeParse(item.payload);
+
+      if (!salePayload.success) {
+        return NextResponse.json({ error: salePayload.error.flatten(), code: 'CHECKOUT_VALIDATION_ERROR' }, { status: 400 });
+      }
+
+      const salePayloadData = salePayload.data;
       const branchId = session.user.branchId as string;
       const cashierId = session.user.id;
 
@@ -56,30 +91,30 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid sale reference', code: 'CHECKOUT_VALIDATION_ERROR' }, { status: 400 });
       }
 
-const existingSale = await prisma.sale.findUnique({
-         where: { id: item.entityId },
-       });
+      const existingSale = await prisma.sale.findUnique({
+        where: { id: item.entityId! },
+      });
 
-       if (existingSale) {
-         logger.info('sync: duplicate sale detected (already synced by entityId)', { requestId, saleId: item.entityId, reason: 'A sale with the same entityId already exists in the database. This prevents re-uploading an already-synced offline sale.' });
-         return NextResponse.json({ success: true, message: 'Sale already synced', saleId: existingSale.id, receiptNo: (existingSale as { receiptNo?: string }).receiptNo, duplicateReason: 'Already synced by entityId' });
-       }
+      if (existingSale) {
+        logger.info('sync: duplicate sale detected (already synced by entityId)', { requestId, saleId: item.entityId, reason: 'A sale with the same entityId already exists in the database. This prevents re-uploading an already-synced offline sale.' });
+        return NextResponse.json({ success: true, message: 'Sale already synced', saleId: existingSale.id, receiptNo: (existingSale as { receiptNo?: string }).receiptNo, duplicateReason: 'Already synced by entityId' });
+      }
 
-       const idempotencyKey = salePayload.idempotencyKey || item.entityId;
+      const idempotencyKey = salePayloadData.idempotencyKey || item.entityId!;
 
-       const existingIdempotency = await prisma.sale.findUnique({
-         where: { idempotencyKey },
-       });
+      const existingIdempotency = await prisma.sale.findUnique({
+        where: { idempotencyKey },
+      });
 
-       if (existingIdempotency) {
-         logger.info('sync: idempotency hit - sale already exists', { requestId, idempotencyKey, existingSaleId: existingIdempotency.id, reason: 'The sale payload contains an idempotencyKey that matches an existing sale. Returning the original sale data without creating a duplicate.' });
-         const existingReceipt = await prisma.receipt.findUnique({
-           where: { saleId: existingIdempotency.id },
-         });
-         return NextResponse.json({ success: true, message: 'Sale already synced (idempotency)', saleId: existingIdempotency.id, receiptNo: existingReceipt?.receiptNo, duplicateReason: 'Idempotency key match' });
-       }
+      if (existingIdempotency) {
+        logger.info('sync: idempotency hit - sale already exists', { requestId, idempotencyKey, existingSaleId: existingIdempotency.id, reason: 'The sale payload contains an idempotencyKey that matches an existing sale. Returning the original sale data without creating a duplicate.' });
+        const existingReceipt = await prisma.receipt.findUnique({
+          where: { saleId: existingIdempotency.id },
+        });
+        return NextResponse.json({ success: true, message: 'Sale already synced (idempotency)', saleId: existingIdempotency.id, receiptNo: existingReceipt?.receiptNo, duplicateReason: 'Idempotency key match' });
+      }
 
-      const items = salePayload.items || [];
+      const items = salePayloadData.items || [];
       const subtotal = items.reduce((sum: number, item: { unitPrice: number; quantity: number; discount?: number }) => sum + item.unitPrice * item.quantity, 0);
       const discountAmount = items.reduce((sum: number, item: { discount?: number }) => sum + (item.discount || 0), 0);
       const totalAmount = subtotal - discountAmount;
@@ -87,23 +122,23 @@ const existingSale = await prisma.sale.findUnique({
       try {
         const { sale, receiptNo } = await createSale(
           {
-            items: items.map((item: { productId: string; productName: string; sku?: string; quantity: number; unitPrice: number; discount?: number; notes?: string }) => ({
+            items: items.map((item: { productId: string; productName?: string | null; sku?: string | null; quantity: number; unitPrice: number; discount?: number; notes?: string | null }) => ({
               productId: item.productId,
-              productName: item.productName,
-              sku: item.sku,
+              productName: item.productName || '',
+              sku: item.sku || undefined,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
               discount: item.discount || 0,
               total: (item.unitPrice * item.quantity) - (item.discount || 0),
-              notes: item.notes,
+              notes: item.notes || undefined,
             })),
-            paymentMethod: salePayload.paymentMethod,
-            amountPaid: salePayload.amountPaid,
-            changeAmount: salePayload.changeAmount || 0,
-            customerId: salePayload.customerId,
-            customerName: salePayload.customerName,
-            customerPhone: salePayload.customerPhone,
-            notes: salePayload.notes,
+            paymentMethod: salePayloadData.paymentMethod,
+            amountPaid: salePayloadData.amountPaid,
+            changeAmount: salePayloadData.changeAmount || 0,
+            customerId: salePayloadData.customerId,
+            customerName: salePayloadData.customerName,
+            customerPhone: salePayloadData.customerPhone,
+            notes: salePayloadData.notes,
             subtotal,
             discountAmount,
             totalAmount,

@@ -120,9 +120,15 @@ export async function createPurchase(data: unknown) {
   const purchaseNumber = `PUR-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
   const purchase = await prisma.$transaction(async (tx) => {
-    const purchaseData: any = {
+    const branchId = session.user.branchId;
+    if (!branchId) {
+      throw new Error('User is not assigned to a branch');
+    }
+
+    const purchaseData = {
       purchaseNumber,
       userId: session.user.id,
+      branchId,
       supplierId: validated.data.supplierId,
       purchaseDate: validated.data.purchaseDate ? new Date(validated.data.purchaseDate) : undefined,
       invoiceNumber: validated.data.invoiceNumber || undefined,
@@ -206,7 +212,7 @@ export async function receivePurchase(purchaseId: string) {
         status: 'RECEIVED',
         receivedAt: new Date(),
         outstandingBalance: {
-          decrement: (purchase.amountPaid as any) || 0,
+          decrement: purchase.amountPaid.toNumber ? purchase.amountPaid.toNumber() : Number(purchase.amountPaid),
         },
       },
     });

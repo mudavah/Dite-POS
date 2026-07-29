@@ -40,7 +40,7 @@ export async function POST(
         status: 'RECEIVED',
         receivedAt: new Date(),
         outstandingBalance: {
-          decrement: (purchase.amountPaid as any) || 0,
+          decrement: purchase.amountPaid.toNumber ? purchase.amountPaid.toNumber() : Number(purchase.amountPaid),
         },
       },
     });

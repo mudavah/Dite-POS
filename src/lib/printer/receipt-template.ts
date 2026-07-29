@@ -1,17 +1,11 @@
 import type { PaperSize } from './thermal-printer';
 import { formatCurrency, calculateVatBreakdown } from '@/lib/utils';
+import type { ReceiptDataBase } from './shared-receipt-types';
+
+export type { ReceiptItem } from './shared-receipt-types';
 
 export type TemplateFormat = 'html' | 'text' | 'escpos';
 export type ReceiptTemplate = 'existing' | 'fiscal' | 'both';
-
-export interface ReceiptItem {
-  productName: string;
-  sku?: string;
-  quantity: number;
-  unitPrice: number;
-  discount: number;
-  total: number;
-}
 
 export interface FiscalReceiptItem {
   qty: number;
@@ -22,38 +16,10 @@ export interface FiscalReceiptItem {
   lineTotal: number;
 }
 
-export interface ReceiptData {
-  shopName: string;
-  branchName?: string;
-  branchAddress?: string;
-  branchPhone?: string;
-  branchEmail?: string;
-  branchWebsite?: string;
-  kraPin?: string;
-  receiptNo: string;
-  saleId: string;
-  date: string;
-  cashierName: string;
-  customerName?: string;
-  customerPhone?: string;
-  customerEmail?: string;
-  customerPin?: string;
-  customerTin?: string;
-  paymentMethod: string;
-  paymentReference?: string;
-  items: ReceiptItem[];
-  subtotal: number;
-  discountAmount: number;
-  total: number;
-  amountPaid: number;
-  changeAmount: number;
+export interface ReceiptData extends ReceiptDataBase {
   currency: string;
   currencySymbol: string;
-  footerText?: string;
   receiptPrefix?: string;
-  syncStatus?: 'PENDING_SYNC' | 'SYNCED';
-  isOffline?: boolean;
-  saleNotes?: string;
 }
 
 export interface FiscalReceiptData {

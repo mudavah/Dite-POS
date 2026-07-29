@@ -44,9 +44,9 @@ export async function GET(
     amountPaid: purchase.amountPaid.toNumber(),
     outstandingBalance: purchase.outstandingBalance.toNumber(),
     purchaseNumber: purchase.purchaseNumber,
-    invoiceNumber: (purchase.invoiceNumber as any) ?? undefined,
-    deliveryNote: (purchase.deliveryNote as any) ?? undefined,
-    notes: (purchase.notes as any) ?? undefined,
+    invoiceNumber: purchase.invoiceNumber ?? undefined,
+    deliveryNote: purchase.deliveryNote ?? undefined,
+    notes: purchase.notes ?? undefined,
     referenceNumber: purchase.purchaseNumber,
   });
 }
