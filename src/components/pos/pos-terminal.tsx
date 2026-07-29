@@ -16,6 +16,7 @@ import { ReceiptPreviewModal } from '@/components/pos/receipt-preview-modal';
 import { useToast } from '@/components/ui/toast';
 import { useCartPersistence } from '@/lib/offline/cart-persistence';
 import { usePosStore, subtotal, totalDiscount, type CartItem } from '@/store/use-pos-store';
+import { logger } from '@/lib/logger';
 
 interface PosTerminalProps {
   user: {
@@ -132,8 +133,14 @@ export function PosTerminal({ user }: PosTerminalProps) {
 
   const handleCheckoutComplete = (saleId: string, receiptNo?: string) => {
     setLastSale({ id: saleId, receiptNo });
-    clearCart();
     setSyncStatus('idle');
+
+    logger.info('checkout: handleCheckoutComplete', {
+      saleId,
+      receiptNo,
+      isOnline,
+      totalAmount: subtotalVal - totalDiscountVal,
+    });
 
     if (isOnline) {
       const totalAmount = subtotalVal - totalDiscountVal;

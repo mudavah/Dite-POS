@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Printer, CheckCircle2, CreditCard, Banknote, Building2, Smartphone, Split } from 'lucide-react';
+import { Printer, CheckCircle2, CreditCard, Banknote, Building2, Smartphone, Split, Loader2 } from 'lucide-react';
 import { Button, Input } from '@/components/ui';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/toast';
@@ -33,22 +33,25 @@ const paymentIcons: Record<PaymentMethod, React.ReactNode> = {
 
 export function CheckoutModal({ open, onOpenChange, items, customer, branchId, cashierId, onComplete }: CheckoutModalProps) {
   const isOnline = usePosStore((s) => s.isOnline);
+  const setCheckoutLocked = usePosStore((s) => s.setCheckoutLocked);
   const [method, setMethod] = React.useState<PaymentMethod>('CASH');
   const [cashReceived, setCashReceived] = React.useState('');
   const [cardRef, setCardRef] = React.useState('');
   const [transferRef, setTransferRef] = React.useState('');
   const [mobileRef, setMobileRef] = React.useState('');
   const [splitAmounts, setSplitAmounts] = React.useState<Record<string, string>>({});
-   const [notes, setNotes] = React.useState('');
-   const [customerName, setCustomerName] = React.useState(customer?.name || '');
-   const [customerPin, setCustomerPin] = React.useState(customer?.pin || '');
-   const [customerTin, setCustomerTin] = React.useState(customer?.tin || '');
+  const [notes, setNotes] = React.useState('');
+  const [customerName, setCustomerName] = React.useState(customer?.name || '');
+  const [customerPin, setCustomerPin] = React.useState(customer?.pin || '');
+  const [customerTin, setCustomerTin] = React.useState(customer?.tin || '');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-   const idempotencyKeyRef = React.useRef<string>(crypto.randomUUID());
-   const checkoutStartTimeRef = React.useRef<number>(0);
-   const hasSubmittedRef = React.useRef(false);
+  const idempotencyKeyRef = React.useRef<string>(crypto.randomUUID());
+  const checkoutStartTimeRef = React.useRef<number>(0);
+  const checkoutFinishTimeRef = React.useRef<number>(0);
+  const hasSubmittedRef = React.useRef(false);
+  const [checkoutLocked, setLocalCheckoutLocked] = React.useState(false);
 
   const subtotal = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
   const totalDiscount = items.reduce((sum, item) => sum + item.discount, 0);
@@ -57,39 +60,59 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
   const cashNum = parseFloat(cashReceived) || 0;
   const change = method === 'CASH' ? Math.max(0, cashNum - total) : 0;
 
-   const resetForm = () => {
-     setMethod('CASH');
-     setCashReceived('');
-     setCardRef('');
-     setTransferRef('');
-     setMobileRef('');
-     setSplitAmounts({});
-     setNotes('');
-     setCustomerName('');
-     setCustomerPin('');
-     setCustomerTin('');
-     checkoutStartTimeRef.current = 0;
-     hasSubmittedRef.current = false;
-   };
+  const resetForm = () => {
+    setMethod('CASH');
+    setCashReceived('');
+    setCardRef('');
+    setTransferRef('');
+    setMobileRef('');
+    setSplitAmounts({});
+    setNotes('');
+    setCustomerName('');
+    setCustomerPin('');
+    setCustomerTin('');
+    checkoutStartTimeRef.current = 0;
+    checkoutFinishTimeRef.current = 0;
+    hasSubmittedRef.current = false;
+    setLocalCheckoutLocked(false);
+    setCheckoutLocked(false);
+  };
+
+  const enterProcessingState = () => {
+    checkoutStartTimeRef.current = Date.now();
+    checkoutFinishTimeRef.current = 0;
+    hasSubmittedRef.current = true;
+    setLocalCheckoutLocked(true);
+    setCheckoutLocked(true);
+  };
+
+  const exitProcessingState = () => {
+    checkoutFinishTimeRef.current = Date.now();
+    setLocalCheckoutLocked(false);
+    setCheckoutLocked(false);
+  };
 
   const checkoutMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) => {
       const idempotencyKey = idempotencyKeyRef.current;
-      // eslint-disable-next-line react-hooks/purity
-      checkoutStartTimeRef.current = Date.now();
+      enterProcessingState();
 
-      logger.info('checkout: mutation start', {
+      logger.info('checkout: start', {
         idempotencyKey,
         cashierId,
         branchId,
+        itemCount: items.length,
+        totalAmount: total,
         paymentMethod: payload.paymentMethod,
-        totalAmount: payload.totalAmount,
-        itemCount: (payload.items as Array<Record<string, unknown>>)?.length,
       });
 
       if (!isOnline) {
-        const result = await usePosStore.getState().completeOfflineSale(payload, branchId, cashierId);
-        if (!result) throw new CheckoutSyncError('Failed to save offline sale', false);
+        const fullPayload = { ...payload, idempotencyKey };
+        const result = await usePosStore.getState().completeOfflineSale(fullPayload, branchId, cashierId);
+        if (!result) {
+          exitProcessingState();
+          throw new CheckoutSyncError('Failed to save offline sale', false);
+        }
         return { queued: true, ...result };
       }
 
@@ -109,12 +132,23 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
           const message = err.message || `Checkout failed with status ${res.status}`;
+          logger.error('checkout: server error', { idempotencyKey, requestId: (err as Record<string, unknown>)?.code || 'unknown', status: res.status, message });
           if (res.status === 401) throw new CheckoutAuthError(message);
-          if (res.status === 409) throw new CheckoutDuplicateError(err.saleId || '', err.receiptNo || '');
+          if (res.status === 409) {
+            const errData = await res.json().catch(() => ({}));
+            throw new CheckoutDuplicateError(errData.saleId || '', errData.receiptNo || '');
+          }
           if (res.status === 504) throw new CheckoutTimeoutError(timeoutMs);
           throw new CheckoutError('CHECKOUT_FAILED', message, res.status);
         }
-        return res.json();
+
+        const data = await res.json();
+        logger.info('checkout: server response', {
+          idempotencyKey,
+          response: data,
+          status: res.status,
+        });
+        return data;
       } catch (err: unknown) {
         clearTimeout(timeoutId);
         if (err instanceof CheckoutTimeoutError) throw err;
@@ -129,20 +163,26 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
       }
     },
     onSuccess: (data) => {
-      // eslint-disable-next-line react-hooks/purity
-      const duration = Date.now() - checkoutStartTimeRef.current;
+      checkoutFinishTimeRef.current = Date.now();
+      const duration = checkoutFinishTimeRef.current - checkoutStartTimeRef.current;
+
       logger.info('checkout: mutation success', {
         idempotencyKey: idempotencyKeyRef.current,
         saleId: data.id || data.saleId,
-        receiptNo: data.receiptNo || data.receiptNo,
+        receiptNo: data.receiptNo || data.id,
         durationMs: duration,
         queued: data.queued,
+        duplicate: data.duplicate || false,
+        fullResponse: data,
       });
 
       queryClient.invalidateQueries({ queryKey: ['pos-products'] });
       queryClient.invalidateQueries({ queryKey: ['pos-held-sales'] });
 
+      exitProcessingState();
+
       if (data.queued) {
+        usePosStore.getState().clearCart();
         toast({ title: 'Sale completed offline', description: `Receipt: ${data.receiptNo} (Pending Sync)` });
         onComplete(data.saleId, data.receiptNo);
         onOpenChange(false);
@@ -151,6 +191,12 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
       }
 
       if (data.duplicate) {
+        logger.info('checkout: idempotency duplicate returned by server', {
+          idempotencyKey: idempotencyKeyRef.current,
+          saleId: data.id,
+          receiptNo: data.receiptNo,
+        });
+        usePosStore.getState().clearCart();
         toast({ title: 'Sale already processed', description: `Receipt: ${data.receiptNo || data.id}. No duplicate created.` });
         onComplete(data.id, data.receiptNo);
         onOpenChange(false);
@@ -158,20 +204,28 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
         return;
       }
 
+      usePosStore.getState().clearCart();
       toast({ title: 'Sale completed', description: `Receipt: ${data.receiptNo || data.id}` });
       onComplete(data.id, data.receiptNo);
       onOpenChange(false);
       resetForm();
     },
     onError: (err: unknown) => {
-      // eslint-disable-next-line react-hooks/purity
-      const duration = Date.now() - checkoutStartTimeRef.current;
+      checkoutFinishTimeRef.current = Date.now();
+      const duration = checkoutFinishTimeRef.current - checkoutStartTimeRef.current;
+
       logger.error('checkout: mutation error', err, {
         idempotencyKey: idempotencyKeyRef.current,
         durationMs: duration,
+        checkoutStartTime: checkoutStartTimeRef.current,
+        checkoutFinishTime: checkoutFinishTimeRef.current,
       });
 
+      exitProcessingState();
+      hasSubmittedRef.current = false;
+
       let description = 'An unexpected error occurred';
+      let duplicateReason = '';
       if (isCheckoutError(err)) {
         switch (err.code) {
           case 'CHECKOUT_TIMEOUT':
@@ -183,13 +237,20 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
           case 'CHECKOUT_INSUFFICIENT_STOCK':
             description = `Stock issue: ${err.message}`;
             break;
-           case 'CHECKOUT_DUPLICATE_SALE':
-           case 'CHECKOUT_DUPLICATE':
-             description = `Duplicate sale detected${err.details?.receiptNo ? ': ' + err.details.receiptNo : ''}. This sale may have already been processed.`;
-             if (err.details?.saleId) {
-               onComplete(err.details.saleId as string, err.details.receiptNo as string | undefined);
-             }
-             break;
+          case 'CHECKOUT_DUPLICATE_SALE':
+            duplicateReason = 'Idempotency key matched an existing sale on the server (CHECKOUT_DUPLICATE_SALE)';
+            description = `Duplicate sale detected${err.details?.receiptNo ? ': ' + err.details.receiptNo : ''}. This sale may have already been processed.`;
+            if (err.details?.saleId) {
+              onComplete(err.details.saleId as string, err.details.receiptNo as string | undefined);
+            }
+            break;
+          case 'CHECKOUT_DUPLICATE':
+            duplicateReason = 'Unique constraint violation on idempotency key or sale ID (CHECKOUT_DUPLICATE)';
+            description = `Duplicate sale detected${err.details?.receiptNo ? ': ' + err.details.receiptNo : ''}. This sale may have already been processed.`;
+            if (err.details?.saleId) {
+              onComplete(err.details.saleId as string, err.details.receiptNo as string | undefined);
+            }
+            break;
           case 'CHECKOUT_SYNC_FAILED':
             description = err.details?.retryable
               ? 'Network error. Sale saved offline and will sync when connection is restored.'
@@ -198,51 +259,78 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
           case 'CHECKOUT_BRANCH_NOT_FOUND':
             description = 'Branch configuration error. Please contact your administrator.';
             break;
+          case 'CHECKOUT_DATABASE':
+            description = `Database error: ${err.message}. Please try again or contact support.`;
+            break;
           default:
             description = err.message;
         }
       } else if (err instanceof Error) {
         description = err.message;
       }
+
+      if (duplicateReason) {
+        logger.warn('checkout: duplicate detected during error handling', {
+          idempotencyKey: idempotencyKeyRef.current,
+          reason: duplicateReason,
+          checkoutDurationMs: duration,
+        });
+      }
+
       toast({ title: 'Checkout failed', description, variant: 'destructive' });
     },
   });
 
-   const handleSubmit = () => {
-      if (checkoutMutation.isPending || hasSubmittedRef.current) {
-        logger.warn('checkout: duplicate click blocked', { idempotencyKey: idempotencyKeyRef.current });
-        return;
-      }
+  const isProcessing = checkoutMutation.isPending;
+  const isLocked = isProcessing || checkoutLocked;
 
-       // eslint-disable-next-line react-hooks/purity
-       checkoutStartTimeRef.current = Date.now();
-      hasSubmittedRef.current = true;
+  const handleSubmit = () => {
+    if (isLocked || hasSubmittedRef.current) {
+      logger.warn('checkout: duplicate click blocked', {
+        idempotencyKey: idempotencyKeyRef.current,
+        isProcessing,
+        checkoutLocked,
+        hasSubmitted: hasSubmittedRef.current,
+      });
+      return;
+    }
 
-      logger.info('checkout: start', {
-       idempotencyKey: idempotencyKeyRef.current,
-       cashierId,
-       branchId,
-       itemCount: items.length,
-     });
+    checkoutStartTimeRef.current = Date.now();
+    checkoutFinishTimeRef.current = 0;
+    hasSubmittedRef.current = true;
+
+    logger.info('checkout: start', {
+      idempotencyKey: idempotencyKeyRef.current,
+      cashierId,
+      branchId,
+      itemCount: items.length,
+      totalAmount: total,
+      paymentMethod: method,
+    });
 
     if (method === 'CASH' && cashNum < total) {
       toast({ title: 'Insufficient cash', description: `Need ${formatCurrency(total - cashNum)} more`, variant: 'destructive' });
+      hasSubmittedRef.current = false;
       return;
     }
     if (method === 'CARD' && !cardRef.trim()) {
       toast({ title: 'Card reference required', description: 'Enter card transaction reference', variant: 'destructive' });
+      hasSubmittedRef.current = false;
       return;
     }
     if (method === 'BANK_TRANSFER' && !transferRef.trim()) {
       toast({ title: 'Transfer reference required', description: 'Enter bank transfer reference', variant: 'destructive' });
+      hasSubmittedRef.current = false;
       return;
     }
     if (method === 'MOBILE_MONEY' && !mobileRef.trim()) {
       toast({ title: 'Mobile money reference required', description: 'Enter mobile money reference', variant: 'destructive' });
+      hasSubmittedRef.current = false;
       return;
     }
 
     const payload: Record<string, unknown> = {
+      idempotencyKey: idempotencyKeyRef.current,
       items: items.map((i) => ({
         productId: i.productId,
         productName: i.name,
@@ -273,6 +361,7 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
       const totalSplit = cashSplit + cardSplit;
       if (Math.abs(totalSplit - total) > 0.01) {
         toast({ title: 'Split amounts must equal total', description: `Total: ${formatCurrency(total)}`, variant: 'destructive' });
+        hasSubmittedRef.current = false;
         return;
       }
       payload.splitPayments = [
@@ -286,17 +375,21 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
 
   if (!open) return null;
 
-  const isProcessing = checkoutMutation.isPending;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-full max-w-lg sm:max-w-2xl max-h-[90vh] overflow-y-auto mx-4 self-start sm:self-center">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <CheckCircle2 className="h-5 w-5 text-success" />
+            {isProcessing ? (
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            ) : (
+              <CheckCircle2 className="h-5 w-5 text-success" />
+            )}
             {isOnline ? 'Checkout' : 'Checkout (Offline)'}
           </DialogTitle>
-          <DialogDescription>Complete payment for {items.length} item(s)</DialogDescription>
+          <DialogDescription>
+            {isProcessing ? 'Processing sale...' : `Complete payment for ${items.length} item(s)`}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -322,6 +415,7 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
                 onChange={(e) => setCustomerName(e.target.value)}
                 placeholder="Walk-in Customer"
                 className="h-10"
+                disabled={isLocked}
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -332,6 +426,7 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
                   onChange={(e) => setCustomerPin(e.target.value)}
                   placeholder="Enter PIN"
                   className="h-10"
+                  disabled={isLocked}
                 />
               </div>
               <div>
@@ -341,6 +436,7 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
                   onChange={(e) => setCustomerTin(e.target.value)}
                   placeholder="Enter TIN"
                   className="h-10"
+                  disabled={isLocked}
                 />
               </div>
             </div>
@@ -349,19 +445,28 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
                 You are offline. Sale will be saved locally and synced when connection is restored.
               </div>
             )}
+            {isProcessing && (
+              <div className="flex items-center gap-2 text-sm text-primary">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Processing sale...</span>
+              </div>
+            )}
           </div>
 
           <div>
             <label className="text-sm font-medium mb-2 block">Payment Method</label>
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-              {(['CASH', 'CARD', 'BANK_TRANSFER', 'MOBILE_MONEY', 'SPLIT'] as PaymentMethod[]).map((m) => (
+              {((['CASH', 'CARD', 'BANK_TRANSFER', 'MOBILE_MONEY', 'SPLIT'] as PaymentMethod[])).map((m) => (
                 <button
                   key={m}
-                  onClick={() => setMethod(m)}
+                  onClick={() => { if (!isLocked) setMethod(m); }}
+                  disabled={isLocked}
                   className={`flex flex-col items-center gap-1 rounded-lg border p-3 text-sm transition-all ${
-                    method === m
+                    method === m && !isLocked
                       ? 'border-primary bg-primary/10 ring-2 ring-primary/20'
-                      : 'border-border hover:border-muted-foreground'
+                      : isLocked
+                        ? 'opacity-50 cursor-not-allowed border-border'
+                        : 'border-border hover:border-muted-foreground'
                   }`}
                 >
                   {paymentIcons[m]}
@@ -383,6 +488,7 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
                   placeholder="0.00"
                   className="h-12 text-lg"
                   autoFocus
+                  disabled={isLocked}
                 />
               </div>
               {cashNum > 0 && (
@@ -402,6 +508,7 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
                 onChange={(e) => setCardRef(e.target.value)}
                 placeholder="e.g. POS-123456"
                 className="h-11"
+                disabled={isLocked}
               />
             </div>
           )}
@@ -414,6 +521,7 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
                 onChange={(e) => setTransferRef(e.target.value)}
                 placeholder="e.g. TXN-789012"
                 className="h-11"
+                disabled={isLocked}
               />
             </div>
           )}
@@ -426,6 +534,7 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
                 onChange={(e) => setMobileRef(e.target.value)}
                 placeholder="e.g. MM-345678"
                 className="h-11"
+                disabled={isLocked}
               />
             </div>
           )}
@@ -442,6 +551,7 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
                     onChange={(e) => setSplitAmounts((s) => ({ ...s, cash: e.target.value }))}
                     placeholder="0.00"
                     className="h-11"
+                    disabled={isLocked}
                   />
                 </div>
                 <div>
@@ -453,6 +563,7 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
                     onChange={(e) => setSplitAmounts((s) => ({ ...s, card: e.target.value }))}
                     placeholder="0.00"
                     className="h-11"
+                    disabled={isLocked}
                   />
                 </div>
               </div>
@@ -470,21 +581,31 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Any additional notes..."
               className="h-11"
+              disabled={isLocked}
             />
           </div>
 
           <div className="flex flex-col-reverse sm:flex-row gap-2 pt-2 sticky bottom-0 bg-background pb-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1 h-12" disabled={isProcessing}>
+            <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1 h-12" disabled={isLocked}>
               Cancel (ESC)
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={isProcessing}
+              disabled={isLocked}
               className="flex-1 h-12 gap-2"
               style={{ touchAction: 'manipulation' }}
             >
-              <Printer className="h-4 w-4" />
-              {isProcessing ? 'Processing...' : 'Complete Sale'}
+              {isProcessing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <Printer className="h-4 w-4" />
+                  Complete Sale
+                </>
+              )}
             </Button>
           </div>
         </div>

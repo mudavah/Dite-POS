@@ -56,28 +56,28 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid sale reference', code: 'CHECKOUT_VALIDATION_ERROR' }, { status: 400 });
       }
 
-      const existingSale = await prisma.sale.findUnique({
-        where: { id: item.entityId },
-      });
+const existingSale = await prisma.sale.findUnique({
+         where: { id: item.entityId },
+       });
 
-      if (existingSale) {
-        logger.info('sync: duplicate sale detected (already synced)', { requestId, saleId: item.entityId });
-        return NextResponse.json({ success: true, message: 'Sale already synced', saleId: existingSale.id, receiptNo: (existingSale as { receiptNo?: string }).receiptNo });
-      }
+       if (existingSale) {
+         logger.info('sync: duplicate sale detected (already synced by entityId)', { requestId, saleId: item.entityId, reason: 'A sale with the same entityId already exists in the database. This prevents re-uploading an already-synced offline sale.' });
+         return NextResponse.json({ success: true, message: 'Sale already synced', saleId: existingSale.id, receiptNo: (existingSale as { receiptNo?: string }).receiptNo, duplicateReason: 'Already synced by entityId' });
+       }
 
-      const idempotencyKey = salePayload.idempotencyKey || item.entityId;
+       const idempotencyKey = salePayload.idempotencyKey || item.entityId;
 
-      const existingIdempotency = await prisma.sale.findUnique({
-        where: { idempotencyKey },
-      });
+       const existingIdempotency = await prisma.sale.findUnique({
+         where: { idempotencyKey },
+       });
 
-      if (existingIdempotency) {
-        logger.info('sync: idempotency hit - sale already exists', { requestId, idempotencyKey, existingSaleId: existingIdempotency.id });
-        const existingReceipt = await prisma.receipt.findUnique({
-          where: { saleId: existingIdempotency.id },
-        });
-        return NextResponse.json({ success: true, message: 'Sale already synced (idempotency)', saleId: existingIdempotency.id, receiptNo: existingReceipt?.receiptNo });
-      }
+       if (existingIdempotency) {
+         logger.info('sync: idempotency hit - sale already exists', { requestId, idempotencyKey, existingSaleId: existingIdempotency.id, reason: 'The sale payload contains an idempotencyKey that matches an existing sale. Returning the original sale data without creating a duplicate.' });
+         const existingReceipt = await prisma.receipt.findUnique({
+           where: { saleId: existingIdempotency.id },
+         });
+         return NextResponse.json({ success: true, message: 'Sale already synced (idempotency)', saleId: existingIdempotency.id, receiptNo: existingReceipt?.receiptNo, duplicateReason: 'Idempotency key match' });
+       }
 
       const items = salePayload.items || [];
       const subtotal = items.reduce((sum: number, item: { unitPrice: number; quantity: number; discount?: number }) => sum + item.unitPrice * item.quantity, 0);

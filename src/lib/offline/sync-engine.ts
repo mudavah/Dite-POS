@@ -28,7 +28,7 @@ export const syncEngine = {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    await db.salesQueue.put(queueItem);
+    await db.salesQueue.add(queueItem);
     this.notifyListeners();
     return queueItem.id;
   },
@@ -47,10 +47,12 @@ export const syncEngine = {
         continue;
       }
 
-      item.status = 'PROCESSING';
-      item.updatedAt = new Date().toISOString();
-      await db.salesQueue.put(item);
-      this.notifyListeners();
+      if (item.status === 'PENDING' || item.status === 'FAILED') {
+        item.status = 'PROCESSING';
+        item.updatedAt = new Date().toISOString();
+        await db.salesQueue.put(item);
+        this.notifyListeners();
+      }
 
       const delay = item.retries > 0 ? getBackoffDelay(item.retries) : 0;
       if (delay > 0) {
@@ -68,7 +70,7 @@ export const syncEngine = {
           item.status = 'SYNCED';
           item.updatedAt = new Date().toISOString();
           await db.salesQueue.put(item);
-          logger.info('sync: item synced', { saleId: item.entityId });
+          logger.info('sync: item synced', { saleId: item.entityId, idempotencyKey: item.idempotencyKey });
 
           const result = await response.json().catch(() => ({}));
           if (result.saleId) {
@@ -84,7 +86,7 @@ export const syncEngine = {
           item.status = 'CONFLICT';
           item.updatedAt = new Date().toISOString();
           await db.salesQueue.put(item);
-          logger.warn('sync: conflict detected', { saleId: item.entityId });
+          logger.warn('sync: conflict detected', { saleId: item.entityId, idempotencyKey: item.idempotencyKey });
         } else if (response.status === 429 || response.status >= 500) {
           throw new Error(`Sync failed with status ${response.status}, retrying`);
         } else {

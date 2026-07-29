@@ -13,6 +13,10 @@ export async function createSale(
   const startTime = Date.now();
   const { branchId, cashierId, items, customerId, customerName, customerPhone, customerPin, customerTin, paymentMethod, amountPaid, changeAmount, notes, idempotencyKey } = data;
 
+  if (!items || items.length === 0) {
+    throw new CheckoutError('CHECKOUT_VALIDATION_ERROR', 'Sale must contain at least one item', 400);
+  }
+
   const subtotal = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
   const discountAmount = items.reduce((sum, item) => sum + (item.discount || 0), 0);
   const totalAmount = subtotal - discountAmount;
@@ -27,6 +31,7 @@ export async function createSale(
     totalAmount,
     paymentMethod,
     explicitId,
+    idempotencyKey,
   });
 
   try {
@@ -145,8 +150,20 @@ export async function createSale(
     const prismaError = error as { code?: string; meta?: { target?: string }; message?: string } | undefined;
     if (prismaError?.code === 'P2002') {
       const field = prismaError.meta?.target;
-      logger.error('createSale: unique constraint violation', error, { field, durationMs: duration });
-      throw new CheckoutError('CHECKOUT_DUPLICATE', `Duplicate entry for field: ${field}. This sale may have already been processed.`, 409, { field });
+      logger.error('createSale: unique constraint violation', error, { field, durationMs: duration, idempotencyKey });
+      let duplicateSaleId: string | undefined;
+      let duplicateReceiptNo: string | undefined;
+      if (idempotencyKey) {
+        const existingSale = await prisma.sale.findUnique({
+          where: { idempotencyKey },
+          include: { receipts: true },
+        });
+        if (existingSale) {
+          duplicateSaleId = existingSale.id;
+          duplicateReceiptNo = existingSale.receipts[0]?.receiptNo;
+        }
+      }
+      throw new CheckoutError('CHECKOUT_DUPLICATE', `Duplicate entry for field: ${field}. This sale may have already been processed.`, 409, { field, saleId: duplicateSaleId, receiptNo: duplicateReceiptNo });
     }
 
     if (prismaError?.code === 'P2003') {
@@ -170,11 +187,11 @@ export async function createSale(
     }
 
     if (prismaError?.code && prismaError.code.startsWith('P')) {
-      logger.error('createSale: prisma error', error, { code: prismaError.code, message: prismaError.message, durationMs: duration });
-      throw new CheckoutError('CHECKOUT_DATABASE', `Database error: ${prismaError.message || prismaError.code}`, 500, { prismaCode: prismaError.code });
+      logger.error('createSale: prisma error', error, { code: prismaError.code, message: prismaError.message, durationMs: duration, branchId, cashierId, itemCount: items.length, errorType: error instanceof Error ? error.constructor.name : typeof error });
+      throw new CheckoutError('CHECKOUT_DATABASE', `Database error: ${prismaError.message || prismaError.code}`, 500, { prismaCode: prismaError.code, field: prismaError.meta?.target as string | undefined });
     }
 
-    logger.error('createSale: unexpected error', error, { durationMs: duration, branchId, cashierId, itemCount: items.length, errorType: error instanceof Error ? error.constructor.name : typeof error });
+    logger.error('createSale: unexpected error', error, { durationMs: duration, branchId, cashierId, itemCount: items.length, errorType: error instanceof Error ? error.constructor.name : typeof error, errorMessage: error instanceof Error ? error.message : String(error) });
     throw new CheckoutError('CHECKOUT_UNKNOWN', error instanceof Error ? error.message : 'Unknown error', 500);
   }
 }

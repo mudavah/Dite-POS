@@ -67,6 +67,7 @@ export async function POST(request: Request) {
         idempotencyKey,
         existingSaleId: existingSale.id,
         existingReceiptNo: existingReceipt?.receiptNo,
+        reason: 'Server-side idempotency key matched an existing sale. Returning the original sale data without creating a duplicate.',
       });
 
       return NextResponse.json({
@@ -75,6 +76,7 @@ export async function POST(request: Request) {
         totalAmount: existingSale.totalAmount.toNumber(),
         changeAmount: existingSale.changeAmount.toNumber(),
         duplicate: true,
+        duplicateReason: 'Idempotency key match',
       });
     }
 
@@ -105,12 +107,15 @@ export async function POST(request: Request) {
 
     if (error instanceof CheckoutError) {
       if (error.code === 'CHECKOUT_DUPLICATE' || error.code === 'CHECKOUT_DUPLICATE_SALE') {
-        logger.error('checkout: duplicate detected', error, {
+        logger.error('checkout: duplicate detected - idempotency key already exists', error, {
           requestId,
           idempotencyKey,
           code: error.code,
           field: error.details?.field,
           durationMs: duration,
+          reason: error.code === 'CHECKOUT_DUPLICATE'
+            ? 'Prisma P2002 unique constraint violation on idempotencyKey. The sale was already created in a concurrent or retried request.'
+            : 'Server-side idempotency check detected an existing sale. The sale was already created and returned on a previous request.',
           stack: error.stack,
         });
       } else {

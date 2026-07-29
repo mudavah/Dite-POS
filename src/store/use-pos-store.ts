@@ -32,11 +32,13 @@ interface PosState {
   syncStatus: 'idle' | 'syncing' | 'error' | 'conflict' | 'complete';
   cartSheetOpen: boolean;
   checkoutOpen: boolean;
+  checkoutLocked: boolean;
 
   openCheckoutFlow: () => void;
   closeCheckoutFlow: (reopenCart?: boolean) => void;
   setCartSheetOpen: (open: boolean) => void;
   setCheckoutOpen: (open: boolean) => void;
+  setCheckoutLocked: (locked: boolean) => void;
   addToCart: (product: { id: string; name: string; sku?: string; price: number }) => void;
   updateQuantity: (id: string, delta: number) => void;
   updateQuantityDirect: (id: string, quantity: number) => void;
@@ -73,6 +75,7 @@ export const usePosStore = create<PosState>((set, get) => ({
   syncStatus: 'idle',
   cartSheetOpen: false,
   checkoutOpen: false,
+  checkoutLocked: false,
 
   openCheckoutFlow: () => {
     set({ cartSheetOpen: false });
@@ -80,13 +83,15 @@ export const usePosStore = create<PosState>((set, get) => ({
   },
 
   closeCheckoutFlow: (reopenCart = true) => {
-    set({ checkoutOpen: false });
+    set({ checkoutOpen: false, checkoutLocked: false });
     setTimeout(() => {
       if (reopenCart && get().cart.length > 0) {
         set({ cartSheetOpen: true });
       }
     }, 100);
   },
+
+  setCheckoutLocked: (checkoutLocked) => set({ checkoutLocked }),
 
   setCartSheetOpen: (cartSheetOpen) => set({ cartSheetOpen }),
   setCheckoutOpen: (checkoutOpen) => set({ checkoutOpen }),
