@@ -39,7 +39,6 @@ export async function createSale(
       async (tx) => {
         const sale = await tx.sale.create({
           data: {
-            id: explicitId,
             branchId,
             cashierId,
             customerId,
@@ -69,7 +68,6 @@ export async function createSale(
               })),
             },
           },
-          include: { items: true },
         });
 
         for (const item of items) {
@@ -154,13 +152,17 @@ export async function createSale(
       let duplicateSaleId: string | undefined;
       let duplicateReceiptNo: string | undefined;
       if (idempotencyKey) {
-        const existingSale = await prisma.sale.findUnique({
-          where: { idempotencyKey },
-          include: { receipts: true },
-        });
-        if (existingSale) {
-          duplicateSaleId = existingSale.id;
-          duplicateReceiptNo = existingSale.receipts[0]?.receiptNo;
+        try {
+          const existingSale = await prisma.sale.findFirst({
+            where: { idempotencyKey },
+            include: { receipts: true },
+          });
+          if (existingSale) {
+            duplicateSaleId = existingSale.id;
+            duplicateReceiptNo = existingSale.receipts[0]?.receiptNo;
+          }
+        } catch (lookupError) {
+          logger.error('createSale: duplicate lookup failed', lookupError, { idempotencyKey, durationMs: duration });
         }
       }
       throw new CheckoutError('CHECKOUT_DUPLICATE', `Duplicate entry for field: ${field}. This sale may have already been processed.`, 409, { field, saleId: duplicateSaleId, receiptNo: duplicateReceiptNo });

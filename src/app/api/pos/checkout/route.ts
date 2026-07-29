@@ -55,7 +55,7 @@ export async function POST(request: Request) {
   });
 
   try {
-    const existingSale = await prisma.sale.findUnique({
+    const existingSale = await prisma.sale.findFirst({
       where: { idempotencyKey },
       include: { items: true, receipts: true },
     });
@@ -124,6 +124,22 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: error.message, code: error.code, details: error.details },
         { status: error.statusCode }
+      );
+    }
+
+    const prismaError = error as { code?: string; message?: string; meta?: { target?: string } } | undefined;
+    if (prismaError?.code && prismaError.code.startsWith('P')) {
+      logger.error('checkout: prisma error', error, { requestId, idempotencyKey, code: prismaError.code, message: prismaError.message, durationMs: duration, stack: error instanceof Error ? error.stack : undefined });
+      let statusCode = 500;
+      let errorCode = 'CHECKOUT_DATABASE';
+      if (prismaError.code === 'P2002') { statusCode = 409; errorCode = 'CHECKOUT_DUPLICATE'; }
+      if (prismaError.code === 'P2003') { statusCode = 400; errorCode = 'CHECKOUT_FOREIGN_KEY'; }
+      if (prismaError.code === 'P2025') { statusCode = 404; errorCode = 'CHECKOUT_NOT_FOUND'; }
+      if (prismaError.code === 'P2024') { statusCode = 504; errorCode = 'CHECKOUT_TIMEOUT'; }
+      if (prismaError.code === 'P2034') { statusCode = 409; errorCode = 'CHECKOUT_DEADLOCK'; }
+      return NextResponse.json(
+        { error: prismaError.message || prismaError.code, code: errorCode, details: { prismaCode: prismaError.code, field: prismaError.meta?.target } },
+        { status: statusCode }
       );
     }
 
