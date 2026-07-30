@@ -179,7 +179,7 @@ export async function createSale(
       throw error;
     }
 
-    const prismaError = error as { code?: string; meta?: { target?: string }; message?: string } | undefined;
+    const prismaError = error as { code?: string; meta?: { target?: string; cause?: { message?: string } }; message?: string } | undefined;
     if (prismaError?.code === 'P2002') {
       const field = prismaError.meta?.target;
       logger.error('createSale: unique constraint violation', error, { field, durationMs: duration, idempotencyKey });
@@ -205,6 +205,12 @@ export async function createSale(
     if (prismaError?.code === 'P2003') {
       logger.error('createSale: foreign key violation', error, { durationMs: duration });
       throw new CheckoutError('CHECKOUT_FOREIGN_KEY', 'A referenced record was not found', 400);
+    }
+
+    if (prismaError?.code === 'P2022') {
+      const missingColumn = prismaError.meta?.target;
+      logger.error('createSale: missing database column', error, { missingColumn, durationMs: duration, branchId, cashierId, itemCount: items.length });
+      throw new CheckoutError('CHECKOUT_DATABASE', `Database column '${missingColumn}' is missing. Please contact support to sync the database schema.`, 500, { prismaCode: 'P2022', field: missingColumn });
     }
 
     if (prismaError?.code === 'P2024') {

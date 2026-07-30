@@ -5,6 +5,7 @@ import { saleSchema } from '@/lib/validators';
 import { logger } from '@/lib/logger';
 import { CheckoutError } from '@/lib/checkout-errors';
 import { prisma } from '@/lib/prisma';
+import { validateCheckoutDatabaseSchema } from '@/lib/db-validation';
 
 function generateRequestId(): string {
   return `req_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -53,6 +54,20 @@ export async function POST(request: Request) {
   if (!branchId) {
     logger.warn('checkout: no branch assigned', { requestId, userId: session.user.id });
     return NextResponse.json({ error: 'User is not assigned to a branch', code: 'CHECKOUT_BRANCH_NOT_FOUND' }, { status: 400 });
+  }
+
+  const schemaValidation = await validateCheckoutDatabaseSchema();
+  if (!schemaValidation.valid) {
+    const missingColumns = schemaValidation.missingColumns.map(c => `${c.table}.${c.column}`).join(', ');
+    logger.error('checkout: database schema validation failed', new Error('Schema mismatch'), {
+      requestId,
+      missingColumns,
+    });
+    return NextResponse.json({
+      error: `Database schema is out of sync. Missing columns: ${missingColumns}. Please contact support.`,
+      code: 'CHECKOUT_DATABASE',
+      details: { missingColumns: schemaValidation.missingColumns },
+    }, { status: 500 });
   }
 
   const idempotencyKey = validated.data.idempotencyKey || crypto.randomUUID();
@@ -140,20 +155,41 @@ export async function POST(request: Request) {
       );
     }
 
-    const prismaError = error as { code?: string; message?: string; meta?: { target?: string } } | undefined;
+    const prismaError = error as { code?: string; message?: string; meta?: { target?: string; cause?: { message?: string } } } | undefined;
     if (prismaError?.code && prismaError.code.startsWith('P')) {
       const mapped = PRISMA_ERROR_MAP[prismaError.code];
-      logger.error('checkout: prisma error', error, { requestId, idempotencyKey, code: prismaError.code, message: prismaError.message, durationMs: duration, stack: error instanceof Error ? error.stack : undefined });
+      
+      let detailedMessage = mapped?.userMessage || prismaError.message || prismaError.code;
+      const details: Record<string, unknown> = { prismaCode: prismaError.code, field: prismaError.meta?.target };
+
+      if (prismaError.code === 'P2022' && prismaError.meta?.target) {
+        detailedMessage = `Database column '${prismaError.meta.target}' is missing. Please contact support to sync the database schema.`;
+        details.table = prismaError.meta.target;
+      }
+
+      if (prismaError.meta?.cause?.message) {
+        details.cause = prismaError.meta.cause.message;
+      }
+
+      logger.error('checkout: prisma error', error, {
+        requestId,
+        idempotencyKey,
+        code: prismaError.code,
+        message: prismaError.message,
+        details,
+        durationMs: duration,
+        stack: error instanceof Error ? error.stack : undefined,
+      });
 
       if (mapped) {
         return NextResponse.json(
-          { error: mapped.userMessage, code: mapped.errorCode, details: { prismaCode: prismaError.code, field: prismaError.meta?.target } },
+          { error: detailedMessage, code: mapped.errorCode, details },
           { status: mapped.statusCode }
         );
       }
 
       return NextResponse.json(
-        { error: prismaError.message || prismaError.code, code: 'CHECKOUT_DATABASE', details: { prismaCode: prismaError.code, field: prismaError.meta?.target } },
+        { error: detailedMessage, code: 'CHECKOUT_DATABASE', details },
         { status: 500 }
       );
     }
