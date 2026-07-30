@@ -37,6 +37,30 @@ export async function createSale(
   try {
     const result = await prisma.$transaction(
       async (tx) => {
+        for (const item of items) {
+          const product = await tx.product.findUnique({
+            where: { id: item.productId },
+          });
+          if (!product) {
+            throw new CheckoutError('CHECKOUT_PRODUCT_NOT_FOUND', `Product not found: ${item.productId}`, 404, { productId: item.productId });
+          }
+        }
+
+        for (const item of items) {
+          const inventory = await tx.inventory.findFirst({
+            where: { branchId, productId: item.productId },
+          });
+
+          if (inventory && inventory.quantity < item.quantity) {
+            throw new CheckoutStockError(
+              item.productName || item.sku || '',
+              item.productId,
+              inventory.quantity,
+              item.quantity
+            );
+          }
+        }
+
         const sale = await tx.sale.create({
           data: {
             branchId,
@@ -70,6 +94,16 @@ export async function createSale(
           },
         });
 
+        await tx.payment.create({
+          data: {
+            saleId: sale.id,
+            method: paymentMethod,
+            amount: totalAmount,
+            status: 'COMPLETED',
+            reference: '',
+          },
+        });
+
         for (const item of items) {
           const inventory = await tx.inventory.findFirst({
             where: { branchId, productId: item.productId },
@@ -83,7 +117,7 @@ export async function createSale(
 
             if (updated.count === 0) {
               throw new CheckoutStockError(
-                item.productName || item.sku || 'Unknown product',
+                item.productName || item.sku || '',
                 item.productId,
                 inventory.quantity,
                 item.quantity
@@ -196,4 +230,9 @@ export async function createSale(
     logger.error('createSale: unexpected error', error, { durationMs: duration, branchId, cashierId, itemCount: items.length, errorType: error instanceof Error ? error.constructor.name : typeof error, errorMessage: error instanceof Error ? error.message : String(error) });
     throw new CheckoutError('CHECKOUT_UNKNOWN', error instanceof Error ? error.message : 'Unknown error', 500);
   }
+}
+
+async function productNameById(tx: Parameters<typeof prisma.$transaction>[0] extends (tx: infer T) => unknown ? T : never, productId: string, inventory: { quantity: number }): Promise<string> {
+  const product = await tx.product.findUnique({ where: { id: productId }, select: { name: true } });
+  return product?.name || 'Unknown product';
 }

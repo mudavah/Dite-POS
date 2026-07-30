@@ -64,6 +64,17 @@ export class CheckoutSyncError extends CheckoutError {
   }
 }
 
+export class CheckoutProductNotFoundError extends CheckoutError {
+  constructor(productName: string, productId: string) {
+    super(
+      'CHECKOUT_PRODUCT_NOT_FOUND',
+      `Product not found: ${productName} (${productId})`,
+      404,
+      { productName, productId }
+    );
+  }
+}
+
 export function isCheckoutError(error: unknown): error is CheckoutError {
   return error instanceof CheckoutError;
 }

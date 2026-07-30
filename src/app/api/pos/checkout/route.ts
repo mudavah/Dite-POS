@@ -10,6 +10,19 @@ function generateRequestId(): string {
   return `req_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+const PRISMA_ERROR_MAP: Record<string, { statusCode: number; errorCode: string; userMessage: string }> = {
+  P2002: { statusCode: 409, errorCode: 'CHECKOUT_DUPLICATE', userMessage: 'A duplicate entry was found. This sale may have already been processed.' },
+  P2003: { statusCode: 400, errorCode: 'CHECKOUT_FOREIGN_KEY', userMessage: 'A referenced record was not found. Please check your data and try again.' },
+  P2014: { statusCode: 400, errorCode: 'CHECKOUT_FOREIGN_KEY', userMessage: 'A required relation was not connected. Please check your input data.' },
+  P2015: { statusCode: 404, errorCode: 'CHECKOUT_NOT_FOUND', userMessage: 'A record needed for this operation was not found.' },
+  P2021: { statusCode: 500, errorCode: 'CHECKOUT_DATABASE', userMessage: 'A database table is missing or not migrated. Please contact support.' },
+  P2022: { statusCode: 500, errorCode: 'CHECKOUT_DATABASE', userMessage: 'A database column is missing or not migrated. Please contact support.' },
+  P2023: { statusCode: 500, errorCode: 'CHECKOUT_DATABASE', userMessage: 'An invalid database state was encountered. Please contact support.' },
+  P2024: { statusCode: 504, errorCode: 'CHECKOUT_TIMEOUT', userMessage: 'The database operation timed out. Please try again.' },
+  P2025: { statusCode: 404, errorCode: 'CHECKOUT_NOT_FOUND', userMessage: 'A record needed for this operation was not found.' },
+  P2034: { statusCode: 409, errorCode: 'CHECKOUT_DEADLOCK', userMessage: 'A transaction conflict occurred. Please try again.' },
+};
+
 export async function POST(request: Request) {
   const requestId = generateRequestId();
   const startTime = Date.now();
@@ -129,17 +142,19 @@ export async function POST(request: Request) {
 
     const prismaError = error as { code?: string; message?: string; meta?: { target?: string } } | undefined;
     if (prismaError?.code && prismaError.code.startsWith('P')) {
+      const mapped = PRISMA_ERROR_MAP[prismaError.code];
       logger.error('checkout: prisma error', error, { requestId, idempotencyKey, code: prismaError.code, message: prismaError.message, durationMs: duration, stack: error instanceof Error ? error.stack : undefined });
-      let statusCode = 500;
-      let errorCode = 'CHECKOUT_DATABASE';
-      if (prismaError.code === 'P2002') { statusCode = 409; errorCode = 'CHECKOUT_DUPLICATE'; }
-      if (prismaError.code === 'P2003') { statusCode = 400; errorCode = 'CHECKOUT_FOREIGN_KEY'; }
-      if (prismaError.code === 'P2025') { statusCode = 404; errorCode = 'CHECKOUT_NOT_FOUND'; }
-      if (prismaError.code === 'P2024') { statusCode = 504; errorCode = 'CHECKOUT_TIMEOUT'; }
-      if (prismaError.code === 'P2034') { statusCode = 409; errorCode = 'CHECKOUT_DEADLOCK'; }
+
+      if (mapped) {
+        return NextResponse.json(
+          { error: mapped.userMessage, code: mapped.errorCode, details: { prismaCode: prismaError.code, field: prismaError.meta?.target } },
+          { status: mapped.statusCode }
+        );
+      }
+
       return NextResponse.json(
-        { error: prismaError.message || prismaError.code, code: errorCode, details: { prismaCode: prismaError.code, field: prismaError.meta?.target } },
-        { status: statusCode }
+        { error: prismaError.message || prismaError.code, code: 'CHECKOUT_DATABASE', details: { prismaCode: prismaError.code, field: prismaError.meta?.target } },
+        { status: 500 }
       );
     }
 

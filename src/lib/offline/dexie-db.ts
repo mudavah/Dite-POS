@@ -68,6 +68,7 @@ export interface OfflineReceipt {
   saleId: string;
   receiptNo: string;
   branchId: string;
+  cashierId: string;
   status: string;
   printedAt?: string;
   createdAt: string;

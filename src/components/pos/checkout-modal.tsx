@@ -130,16 +130,20 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
         clearTimeout(timeoutId);
 
         if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          const message = err.message || `Checkout failed with status ${res.status}`;
-          logger.error('checkout: server error', { idempotencyKey, requestId: (err as Record<string, unknown>)?.code || 'unknown', status: res.status, message });
+          const errBody = await res.json().catch(() => ({}));
+          const message = errBody.error || errBody.message || `Checkout failed with status ${res.status}`;
+          const errorCode = errBody.code || 'CHECKOUT_UNKNOWN';
+          const details = errBody.details;
+          logger.error('checkout: server error', { idempotencyKey, requestId: errorCode, status: res.status, message, details });
           if (res.status === 401) throw new CheckoutAuthError(message);
           if (res.status === 409) {
-            const errData = await res.json().catch(() => ({}));
-            throw new CheckoutDuplicateError(errData.saleId || '', errData.receiptNo || '');
+            throw new CheckoutDuplicateError(errBody.saleId || '', errBody.receiptNo || '');
           }
           if (res.status === 504) throw new CheckoutTimeoutError(timeoutMs);
-          throw new CheckoutError('CHECKOUT_FAILED', message, res.status);
+          if (res.status === 404) throw new CheckoutError('CHECKOUT_NOT_FOUND', message, 404, details);
+          if (res.status === 400) throw new CheckoutError(errorCode, message, 400, details);
+          if (res.status >= 500) throw new CheckoutError(errorCode, message, 500, details);
+          throw new CheckoutError(errorCode, message, res.status, details);
         }
 
         const data = await res.json();
@@ -237,6 +241,9 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
           case 'CHECKOUT_INSUFFICIENT_STOCK':
             description = `Stock issue: ${err.message}`;
             break;
+          case 'CHECKOUT_PRODUCT_NOT_FOUND':
+            description = `Product not found: ${err.details?.productName || err.details?.productId || 'Unknown product'}. Check that the product exists.`;
+            break;
           case 'CHECKOUT_DUPLICATE_SALE':
             duplicateReason = 'Idempotency key matched an existing sale on the server (CHECKOUT_DUPLICATE_SALE)';
             description = `Duplicate sale detected${err.details?.receiptNo ? ': ' + err.details.receiptNo : ''}. This sale may have already been processed.`;
@@ -257,10 +264,22 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
               : 'Failed to save offline sale. Please try again.';
             break;
           case 'CHECKOUT_BRANCH_NOT_FOUND':
-            description = 'Branch configuration error. Please contact your administrator.';
+            description = 'Branch settings not found. Please contact your administrator.';
             break;
           case 'CHECKOUT_DATABASE':
             description = `Database error: ${err.message}. Please try again or contact support.`;
+            break;
+          case 'CHECKOUT_FOREIGN_KEY':
+            description = 'A referenced record was not found. Please check the product and try again.';
+            break;
+          case 'CHECKOUT_NOT_FOUND':
+            description = err.message;
+            break;
+          case 'CHECKOUT_DEADLOCK':
+            description = 'A transaction conflict occurred. Please try again.';
+            break;
+          case 'CHECKOUT_UNKNOWN':
+            description = err.message || 'An unknown error occurred. Please try again.';
             break;
           default:
             description = err.message;

@@ -189,35 +189,28 @@ export const usePosStore = create<PosState>((set, get) => ({
     }
   },
 
-  completeOfflineSale: async (payload, branchId) => {
+  completeOfflineSale: async (payload, branchId, cashierId) => {
     const saleId = crypto.randomUUID();
     const now = new Date().toISOString();
     const receiptNo = `OFF-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(Date.now() % 100000).padStart(5, '0')}`;
 
     try {
+      const items = (payload.items as Array<Record<string, unknown>>) || [];
+      const offlineIdempotencyKey = crypto.randomUUID();
+
       await db.salesQueue.add({
         id: saleId,
         entityType: 'sale',
         entityId: saleId,
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: offlineIdempotencyKey,
         action: 'CREATE',
-        payload: JSON.stringify(payload),
+        payload: JSON.stringify({ ...payload, idempotencyKey: offlineIdempotencyKey, cashierId, branchId }),
         status: 'PENDING',
         retries: 0,
         createdAt: now,
         updatedAt: now,
       });
 
-      await db.receipts.add({
-        id: crypto.randomUUID(),
-        saleId,
-        receiptNo,
-        branchId,
-        status: 'PENDING_SYNC',
-        createdAt: now,
-      });
-
-      const items = (payload.items as Array<Record<string, unknown>>) || [];
       for (const item of items) {
         await db.saleItems.add({
           id: crypto.randomUUID(),
@@ -232,6 +225,16 @@ export const usePosStore = create<PosState>((set, get) => ({
           notes: item.notes as string | undefined,
         });
       }
+
+      await db.receipts.add({
+        id: crypto.randomUUID(),
+        saleId,
+        receiptNo,
+        branchId,
+        cashierId,
+        status: 'PENDING_SYNC',
+        createdAt: now,
+      });
 
       return { saleId, receiptNo };
     } catch {
