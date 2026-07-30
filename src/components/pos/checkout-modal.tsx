@@ -53,6 +53,12 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
   const hasSubmittedRef = React.useRef(false);
   const [checkoutLocked, setLocalCheckoutLocked] = React.useState(false);
 
+  React.useEffect(() => {
+    if (open) {
+      idempotencyKeyRef.current = crypto.randomUUID();
+    }
+  }, [open]);
+
   const subtotal = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
   const totalDiscount = items.reduce((sum, item) => sum + item.discount, 0);
   const total = subtotal - totalDiscount;
@@ -314,8 +320,6 @@ export function CheckoutModal({ open, onOpenChange, items, customer, branchId, c
       return;
     }
 
-    checkoutStartTimeRef.current = Date.now();
-    checkoutFinishTimeRef.current = 0;
     hasSubmittedRef.current = true;
 
     logger.info('checkout: start', {

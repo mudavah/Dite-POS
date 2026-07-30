@@ -84,7 +84,7 @@ export async function POST(request: Request) {
 
   try {
     const existingSale = await prisma.sale.findFirst({
-      where: { idempotencyKey },
+      where: { idempotencyKey, paymentStatus: 'COMPLETED' },
       include: { items: true, receipts: true },
     });
 
@@ -95,7 +95,10 @@ export async function POST(request: Request) {
         idempotencyKey,
         existingSaleId: existingSale.id,
         existingReceiptNo: existingReceipt?.receiptNo,
-        reason: 'Server-side idempotency key matched an existing sale. Returning the original sale data without creating a duplicate.',
+        existingPaymentStatus: existingSale.paymentStatus,
+        existingTotalAmount: existingSale.totalAmount.toNumber(),
+        existingCreatedAt: existingSale.createdAt.toISOString(),
+        reason: 'Server-side idempotency key matched an existing completed sale. Returning the original sale data without creating a duplicate.',
       });
 
       return NextResponse.json({

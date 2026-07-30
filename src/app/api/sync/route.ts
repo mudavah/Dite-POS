@@ -102,12 +102,12 @@ export async function POST(request: NextRequest) {
 
       const idempotencyKey = salePayloadData.idempotencyKey || item.entityId!;
 
-      const existingIdempotency = await prisma.sale.findUnique({
-        where: { idempotencyKey },
+      const existingIdempotency = await prisma.sale.findFirst({
+        where: { idempotencyKey, paymentStatus: 'COMPLETED' },
       });
 
       if (existingIdempotency) {
-        logger.info('sync: idempotency hit - sale already exists', { requestId, idempotencyKey, existingSaleId: existingIdempotency.id, reason: 'The sale payload contains an idempotencyKey that matches an existing sale. Returning the original sale data without creating a duplicate.' });
+        logger.info('sync: idempotency hit - sale already exists', { requestId, idempotencyKey, existingSaleId: existingIdempotency.id, existingPaymentStatus: existingIdempotency.paymentStatus, reason: 'The sale payload contains an idempotencyKey that matches an existing completed sale. Returning the original sale data without creating a duplicate.' });
         const existingReceipt = await prisma.receipt.findUnique({
           where: { saleId: existingIdempotency.id },
         });
