@@ -3,6 +3,8 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { productSchema } from '@/lib/validators';
 import { auditLog } from '@/lib/actions/audit';
+
+import { toNumeric } from '@/lib/numeric';
 import { revalidatePath } from 'next/cache';
 import type { Prisma } from '@prisma/client';
 
@@ -24,10 +26,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   return NextResponse.json({
     ...product,
-    price: product.price.toNumber(),
-    costPrice: product.costPrice?.toNumber() || null,
-    taxRate: product.taxRate.toNumber(),
-    discount: product.discount.toNumber(),
+    price: toNumeric(product.price),
+    costPrice: toNumeric(product.costPrice) || null,
+    taxRate: toNumeric(product.taxRate),
+    discount: toNumeric(product.discount),
     totalStock: product.inventories?.reduce((sum, inv) => sum + inv.quantity, 0) || 0,
   });
 }
@@ -82,10 +84,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
   return NextResponse.json({
     ...product,
-    price: product.price.toNumber(),
-    costPrice: product.costPrice?.toNumber() || null,
-    taxRate: product.taxRate.toNumber(),
-    discount: product.discount.toNumber(),
+    price: toNumeric(product.price),
+    costPrice: toNumeric(product.costPrice) || null,
+    taxRate: toNumeric(product.taxRate),
+    discount: toNumeric(product.discount),
   });
 }
 

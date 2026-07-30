@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { supplierSchema } from '@/lib/validators';
 import { auditLog } from '@/lib/actions/audit';
 
+
+import { toNumeric } from '@/lib/numeric';
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -43,8 +45,8 @@ export async function GET(
 
   return NextResponse.json({
     ...supplier,
-    totalPurchases: totalPurchases._sum.grandTotal?.toNumber() || 0,
-    totalOutstandingBalance: totalPurchases._sum.outstandingBalance?.toNumber() || 0,
+    totalPurchases: toNumeric(totalPurchases._sum.grandTotal) || 0,
+    totalOutstandingBalance: toNumeric(totalPurchases._sum.outstandingBalance) || 0,
   });
 }
 

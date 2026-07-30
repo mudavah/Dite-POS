@@ -8,6 +8,8 @@ import { auditLog } from '@/lib/actions/audit';
 import { StockMovementType } from '@prisma/client';
 import { sanitizeText } from '@/lib/utils';
 
+
+import { toNumeric } from '@/lib/numeric';
 async function requireAuth() {
   const session = await auth();
   if (!session?.user) {
@@ -212,7 +214,7 @@ export async function receivePurchase(purchaseId: string) {
         status: 'RECEIVED',
         receivedAt: new Date(),
         outstandingBalance: {
-          decrement: purchase.amountPaid.toNumber ? purchase.amountPaid.toNumber() : Number(purchase.amountPaid),
+          decrement: toNumeric(purchase.amountPaid),
         },
       },
     });
@@ -375,11 +377,11 @@ export async function getPurchases(params?: Record<string, string>) {
 
   return purchases.map((p) => ({
     ...p,
-    subtotal: p.subtotal.toNumber(),
-    discountAmount: p.discountAmount.toNumber(),
-    taxAmount: p.taxAmount.toNumber(),
-    grandTotal: p.grandTotal.toNumber(),
-    amountPaid: p.amountPaid.toNumber(),
-    outstandingBalance: p.outstandingBalance.toNumber(),
+    subtotal: toNumeric(p.subtotal),
+    discountAmount: toNumeric(p.discountAmount),
+    taxAmount: toNumeric(p.taxAmount),
+    grandTotal: toNumeric(p.grandTotal),
+    amountPaid: toNumeric(p.amountPaid),
+    outstandingBalance: toNumeric(p.outstandingBalance),
   }));
 }

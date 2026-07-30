@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
+
+import { toNumeric } from '@/lib/numeric';
 export async function GET(request: Request) {
   const session = await auth();
   if (!session?.user) {
@@ -53,11 +55,11 @@ export async function GET(request: Request) {
   ]);
 
   return NextResponse.json({
-    products: products.map((p) => ({ ...p, price: p.price.toNumber(), type: 'product' })),
+    products: products.map((p) => ({ ...p, price: toNumeric(p.price), type: 'product' })),
     suppliers: suppliers.map((s) => ({ ...s, type: 'supplier' })),
     purchases: purchases.map((p) => ({
       ...p,
-      grandTotal: p.grandTotal.toNumber(),
+      grandTotal: toNumeric(p.grandTotal),
       purchaseDate: p.purchaseDate.toISOString(),
       type: 'purchase',
     })),

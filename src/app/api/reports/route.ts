@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+
+import { toNumeric } from '@/lib/numeric';
 import type { Prisma } from '@prisma/client';
 
 const DEFAULT_LIMIT = 50;
@@ -77,10 +79,10 @@ export async function GET(request: Request) {
       branch: sale.branch?.name || '-',
       paymentMethod: sale.paymentMethod,
       items: sale.items?.length || 0,
-      subtotal: formatCurrency(sale.subtotal.toNumber()),
-      discount: formatCurrency(sale.discountAmount.toNumber()),
-      total: formatCurrency(sale.totalAmount.toNumber()),
-      rawTotal: sale.totalAmount.toNumber(),
+      subtotal: formatCurrency(toNumeric(sale.subtotal)),
+      discount: formatCurrency(toNumeric(sale.discountAmount)),
+      total: formatCurrency(toNumeric(sale.totalAmount)),
+      rawTotal: toNumeric(sale.totalAmount),
     }));
   } else if (type === 'products') {
     const products = await prisma.product.findMany({
@@ -97,8 +99,8 @@ export async function GET(request: Request) {
       name: product.name,
       sku: product.sku,
       category: product.category?.name || 'Uncategorized',
-      price: formatCurrency(product.price.toNumber()),
-      costPrice: product.costPrice ? formatCurrency(product.costPrice.toNumber()) : '-',
+      price: formatCurrency(toNumeric(product.price)),
+      costPrice: product.costPrice ? formatCurrency(toNumeric(product.costPrice)) : '-',
       stock: product.inventories?.reduce((sum, inv) => sum + inv.quantity, 0) || 0,
       status: product.isActive ? 'Active' : 'Inactive',
     }));
@@ -142,13 +144,13 @@ export async function GET(request: Request) {
     total = await prisma.sale.count({ where: saleWhere });
     data = sales.map((sale) => {
       const cost = sale.items.reduce((sum, item) => sum + (item.product?.costPrice?.toNumber?.() || 0) * item.quantity, 0);
-      const profit = sale.totalAmount.toNumber() - cost;
+      const profit = toNumeric(sale.totalAmount) - cost;
       return {
         id: sale.id,
         date: formatReportDate(sale.createdAt),
         cashier: sale.cashier?.name || '-',
         branch: sale.branch?.name || '-',
-        revenue: formatCurrency(sale.totalAmount.toNumber()),
+        revenue: formatCurrency(toNumeric(sale.totalAmount)),
         cost: formatCurrency(cost),
         profit: formatCurrency(profit),
         rawProfit: profit,
@@ -172,7 +174,7 @@ export async function GET(request: Request) {
     total = totalCashierCount;
 
     data = cashiers.map((cashier) => {
-      const totalSales = cashier.sales.reduce((sum, s) => sum + s.totalAmount.toNumber(), 0);
+      const totalSales = cashier.sales.reduce((sum, s) => sum + toNumeric(s.totalAmount), 0);
       return {
         id: cashier.id,
         name: cashier.name,
@@ -200,7 +202,7 @@ export async function GET(request: Request) {
     total = totalBranchCount;
 
     data = branches.map((branch) => {
-      const totalSales = branch.sales.reduce((sum, s) => sum + s.totalAmount.toNumber(), 0);
+      const totalSales = branch.sales.reduce((sum, s) => sum + toNumeric(s.totalAmount), 0);
       return {
         id: branch.id,
         name: branch.name,
@@ -241,7 +243,7 @@ export async function GET(request: Request) {
           categoryMap[categoryName] = { category: categoryName, cash: 0, card: 0, bankTransfer: 0, mobileMoney: 0, total: 0 };
         }
         const method = sale.paymentMethod;
-        const amount = item.total.toNumber();
+        const amount = toNumeric(item.total);
         if (method === 'CASH') categoryMap[categoryName].cash += amount;
         else if (method === 'CARD') categoryMap[categoryName].card += amount;
         else if (method === 'BANK_TRANSFER') categoryMap[categoryName].bankTransfer += amount;

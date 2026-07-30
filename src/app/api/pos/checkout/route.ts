@@ -7,6 +7,8 @@ import { CheckoutError } from '@/lib/checkout-errors';
 import { prisma } from '@/lib/prisma';
 import { validateCheckoutDatabaseSchema } from '@/lib/db-validation';
 
+
+import { toNumeric } from '@/lib/numeric';
 function generateRequestId(): string {
   return `req_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
@@ -96,7 +98,7 @@ export async function POST(request: Request) {
         existingSaleId: existingSale.id,
         existingReceiptNo: existingReceipt?.receiptNo,
         existingPaymentStatus: existingSale.paymentStatus,
-        existingTotalAmount: existingSale.totalAmount.toNumber(),
+        existingTotalAmount: toNumeric(existingSale.totalAmount),
         existingCreatedAt: existingSale.createdAt.toISOString(),
         reason: 'Server-side idempotency key matched an existing completed sale. Returning the original sale data without creating a duplicate.',
       });
@@ -104,8 +106,8 @@ export async function POST(request: Request) {
       return NextResponse.json({
         id: existingSale.id,
         receiptNo: existingReceipt?.receiptNo || '',
-        totalAmount: existingSale.totalAmount.toNumber(),
-        changeAmount: existingSale.changeAmount.toNumber(),
+        totalAmount: toNumeric(existingSale.totalAmount),
+        changeAmount: toNumeric(existingSale.changeAmount),
         duplicate: true,
         duplicateReason: 'Idempotency key match',
       });
@@ -122,7 +124,7 @@ export async function POST(request: Request) {
       saleId: result.sale.id,
       receiptNo: result.receiptNo,
       idempotencyKey,
-      totalAmount: result.sale.totalAmount.toNumber(),
+      totalAmount: toNumeric(result.sale.totalAmount),
       durationMs: duration,
       paymentMethod: validated.data.paymentMethod,
     });
@@ -130,8 +132,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       id: result.sale.id,
       receiptNo: result.receiptNo,
-      totalAmount: result.sale.totalAmount.toNumber(),
-      changeAmount: result.sale.changeAmount.toNumber(),
+      totalAmount: toNumeric(result.sale.totalAmount),
+      changeAmount: toNumeric(result.sale.changeAmount),
     });
   } catch (error) {
     const duration = Date.now() - startTime;

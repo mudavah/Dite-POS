@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+
+import { toNumeric } from '@/lib/numeric';
 import type { Prisma } from '@prisma/client';
 
 export async function GET(request: Request) {
@@ -39,7 +41,7 @@ export async function GET(request: Request) {
       name: p.name,
       sku: p.sku,
       barcode: p.barcode,
-      price: p.price.toNumber(),
+      price: toNumeric(p.price),
       image: p.image,
       categoryId: p.categoryId,
       category: p.category ? { name: p.category.name } : undefined,

@@ -6,6 +6,8 @@ import { revalidatePath } from 'next/cache';
 import { StockMovementType } from '@prisma/client';
 import { sanitizeText } from '@/lib/utils';
 
+
+import { toNumeric } from '@/lib/numeric';
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -40,7 +42,7 @@ export async function POST(
         status: 'RECEIVED',
         receivedAt: new Date(),
         outstandingBalance: {
-          decrement: purchase.amountPaid.toNumber ? purchase.amountPaid.toNumber() : Number(purchase.amountPaid),
+          decrement: toNumeric(purchase.amountPaid),
         },
       },
     });

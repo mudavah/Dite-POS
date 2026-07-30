@@ -23,6 +23,8 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
+
+import { toNumeric } from '@/lib/numeric';
 import { useToast } from '@/components/ui/toast';
 import { StockMovementType } from '@prisma/client';
 
@@ -155,7 +157,7 @@ export default function InventoryPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(data?.inventory?.reduce((sum: number, inv: any) => {
-              const cost = inv.product?.costPrice?.toNumber() || inv.product?.price?.toNumber() || 0;
+              const cost = toNumeric(inv.product?.costPrice) || toNumeric(inv.product?.price) || 0;
               return sum + inv.quantity * cost;
             }, 0) || 0)}</div>
           </CardContent>
@@ -233,7 +235,7 @@ export default function InventoryPage() {
                    {(data?.inventory || []).map((item: any) => {
                       const available = item.quantity - (item.reserved || 0);
                       const isLowStock = item.quantity <= item.product.lowStockThreshold;
-                      const cost = item.product?.costPrice?.toNumber() || item.product?.price?.toNumber() || 0;
+                      const cost = toNumeric(item.product?.costPrice) || toNumeric(item.product?.price) || 0;
                       return (
                         <tr key={item.id} className="border-t">
                           <td className="p-3">

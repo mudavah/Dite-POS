@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+
+import { toNumeric } from '@/lib/numeric';
 import { StockMovementType } from '@prisma/client';
 
 export async function GET(request: Request) {
@@ -62,14 +64,14 @@ export async function GET(request: Request) {
   });
 
   const inventoryValue = valuation.reduce((sum, inv) => {
-    const cost = inv.product.costPrice?.toNumber() || inv.product.price.toNumber();
+    const cost = toNumeric(inv.product.costPrice) || toNumeric(inv.product.price);
     return sum + inv.quantity * cost;
   }, 0);
 
   return NextResponse.json({
     inventory: filtered.map((inv) => ({
       ...inv,
-      product: { ...inv.product, price: inv.product.price.toNumber(), costPrice: inv.product.costPrice?.toNumber() || null },
+      product: { ...inv.product, price: toNumeric(inv.product.price), costPrice: toNumeric(inv.product.costPrice) || null },
     })),
     branches,
     summary: {

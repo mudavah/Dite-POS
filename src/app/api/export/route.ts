@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+
+import { toNumeric } from '@/lib/numeric';
 import { format } from 'date-fns';
 
 export async function GET(request: Request) {
@@ -43,7 +45,7 @@ export async function GET(request: Request) {
 
   const data = products.map((p) => {
     const totalStock = p.inventories?.reduce((sum: number, inv: any) => sum + inv.quantity, 0) || 0;
-    const costPrice = p.costPrice?.toNumber() || p.price.toNumber();
+    const costPrice = toNumeric(p.costPrice) || toNumeric(p.price);
     const inventoryValue = totalStock * costPrice;
 
     return {
@@ -53,12 +55,12 @@ export async function GET(request: Request) {
       Category: p.category?.name || '',
       Brand: p.brand || '',
       'Buying Price': costPrice,
-      'Selling Price': p.price.toNumber(),
+      'Selling Price': toNumeric(p.price),
       'Current Stock': totalStock,
       'Inventory Value': inventoryValue,
       'Reorder Level': p.lowStockThreshold,
       Unit: p.unit,
-      Tax: p.taxRate.toNumber(),
+      Tax: toNumeric(p.taxRate),
       Description: p.description || '',
     };
   });

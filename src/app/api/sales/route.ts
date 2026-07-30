@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { createSale } from '@/lib/actions/sales';
 import { saleSchema } from '@/lib/validators';
 
+
+import { toNumeric } from '@/lib/numeric';
 export async function GET(request: Request) {
   const session = await auth();
   if (!session?.user) {
@@ -34,11 +36,11 @@ export async function GET(request: Request) {
       ...sale,
       cashier: sale.cashier ? { name: sale.cashier.name, email: sale.cashier.email } : null,
       branch: sale.branch ? { name: sale.branch.name, code: sale.branch.code } : null,
-      subtotal: sale.subtotal.toNumber(),
-      discountAmount: sale.discountAmount.toNumber(),
-      totalAmount: sale.totalAmount.toNumber(),
-      amountPaid: sale.amountPaid.toNumber(),
-      changeAmount: sale.changeAmount.toNumber(),
+      subtotal: toNumeric(sale.subtotal),
+      discountAmount: toNumeric(sale.discountAmount),
+      totalAmount: toNumeric(sale.totalAmount),
+      amountPaid: toNumeric(sale.amountPaid),
+      changeAmount: toNumeric(sale.changeAmount),
     }))
   );
 }
@@ -67,7 +69,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       id: sale.id,
       receiptNo,
-      totalAmount: sale.totalAmount.toNumber(),
+      totalAmount: toNumeric(sale.totalAmount),
     });
   } catch (error) {
     return NextResponse.json(

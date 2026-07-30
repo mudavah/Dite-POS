@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
+
+import { toNumeric } from '@/lib/numeric';
 export async function GET() {
   const session = await auth();
   if (!session?.user) {
@@ -115,18 +117,18 @@ export async function GET() {
     })
   );
 
-  const revenue = monthSales._sum?.totalAmount?.toNumber() || 0;
+  const revenue = toNumeric(monthSales._sum?.totalAmount) || 0;
   const cost = await prisma.saleItem.aggregate({
     where: {
       sale: { ...branchFilter, createdAt: { gte: monthStart }, paymentStatus: 'COMPLETED' },
     },
     _sum: { total: true },
   });
-  const totalCost = cost._sum?.total?.toNumber() || 0;
+  const totalCost = toNumeric(cost._sum?.total) || 0;
   const profit = revenue - totalCost;
 
   const branchesPerformance = branchPerformance.map((branch) => {
-    const totalSales = branch.sales.reduce((sum: number, sale: { totalAmount: { toNumber: () => number } }) => sum + sale.totalAmount.toNumber(), 0);
+    const totalSales = branch.sales.reduce((sum: number, sale: { totalAmount: { toNumber: () => number } }) => sum + toNumeric(sale.totalAmount), 0);
     return {
       id: branch.id,
       name: branch.name,
@@ -137,21 +139,21 @@ export async function GET() {
   });
 
 return NextResponse.json({
-    todaySales: todaySales._sum?.totalAmount?.toNumber() || 0,
-    weekSales: weekSales._sum?.totalAmount?.toNumber() || 0,
-    monthSales: monthSales._sum?.totalAmount?.toNumber() || 0,
+    todaySales: toNumeric(todaySales._sum?.totalAmount) || 0,
+    weekSales: toNumeric(weekSales._sum?.totalAmount) || 0,
+    monthSales: toNumeric(monthSales._sum?.totalAmount) || 0,
     revenue,
     profit,
     todayPurchases: todayPurchases._count || 0,
     monthPurchases: monthPurchases._count || 0,
     totalPurchases: totalPurchases._count || 0,
-    totalPurchaseValue: totalPurchases._sum?.grandTotal?.toNumber() || 0,
+    totalPurchaseValue: toNumeric(totalPurchases._sum?.grandTotal) || 0,
     recentPurchases: recentPurchases.map((p: any) => ({
       id: p.id,
       purchaseNumber: p.purchaseNumber,
       supplier: p.supplier?.name || '-',
       date: p.purchaseDate.toISOString(),
-      grandTotal: p.grandTotal.toNumber(),
+      grandTotal: toNumeric(p.grandTotal),
       status: p.status,
       items: p.items?.length || 0,
     })),
@@ -162,8 +164,8 @@ return NextResponse.json({
     recentSales: recentSales.map((sale: any) => ({
       ...sale,
       cashier: sale.cashier ? { name: sale.cashier.name, email: sale.cashier.email } : null,
-      totalAmount: sale.totalAmount.toNumber(),
-      subtotal: sale.subtotal.toNumber(),
+      totalAmount: toNumeric(sale.totalAmount),
+      subtotal: toNumeric(sale.subtotal),
     })),
     topProducts: topProductsWithDetails,
     lowStock,

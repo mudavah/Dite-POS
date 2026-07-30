@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { productSchema } from '@/lib/validators';
 import { sanitizeText } from '@/lib/utils';
 import { auditLog } from '@/lib/actions/audit';
+
+import { toNumeric } from '@/lib/numeric';
 import { revalidatePath } from 'next/cache';
 import { StockMovementType } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
@@ -80,10 +82,10 @@ export async function GET(request: Request) {
   return NextResponse.json({
     products: products.map((p) => ({
       ...p,
-      price: p.price.toNumber(),
-      costPrice: p.costPrice?.toNumber() || null,
-      taxRate: p.taxRate.toNumber(),
-      discount: p.discount.toNumber(),
+      price: toNumeric(p.price),
+      costPrice: toNumeric(p.costPrice) || null,
+      taxRate: toNumeric(p.taxRate),
+      discount: toNumeric(p.discount),
       purchaseCount: p.purchaseItems?.length || 0,
     })),
     categories,
@@ -212,9 +214,9 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     ...product,
-    price: product.price.toNumber(),
-    costPrice: product.costPrice?.toNumber() || null,
-    taxRate: product.taxRate.toNumber(),
-    discount: product.discount.toNumber(),
+    price: toNumeric(product.price),
+    costPrice: toNumeric(product.costPrice) || null,
+    taxRate: toNumeric(product.taxRate),
+    discount: toNumeric(product.discount),
   }, { status: 201 });
 }

@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
+
+import { toNumeric } from '@/lib/numeric';
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await auth();
@@ -43,12 +45,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     id: sale.id,
     receiptNo: sale.receipts?.[0]?.receiptNo,
     createdAt: sale.createdAt.toISOString(),
-    subtotal: sale.subtotal.toNumber(),
-    discountAmount: sale.discountAmount.toNumber(),
-    totalAmount: sale.totalAmount.toNumber(),
+    subtotal: toNumeric(sale.subtotal),
+    discountAmount: toNumeric(sale.discountAmount),
+    totalAmount: toNumeric(sale.totalAmount),
     paymentMethod: sale.paymentMethod,
-    amountPaid: sale.amountPaid.toNumber(),
-    changeAmount: sale.changeAmount.toNumber(),
+    amountPaid: toNumeric(sale.amountPaid),
+    changeAmount: toNumeric(sale.changeAmount),
     customerName: sale.customerName,
     customerPhone: sale.customerPhone,
     customerPin: sale.customerPin,
@@ -69,9 +71,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       productName: i.productName,
       sku: i.sku,
       quantity: i.quantity,
-      unitPrice: i.unitPrice.toNumber(),
-      discount: i.discount.toNumber(),
-      total: i.total.toNumber(),
+      unitPrice: toNumeric(i.unitPrice),
+      discount: toNumeric(i.discount),
+      total: toNumeric(i.total),
       notes: i.notes,
     })),
   });

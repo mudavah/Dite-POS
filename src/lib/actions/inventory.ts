@@ -7,6 +7,8 @@ import { StockMovementType } from '@prisma/client';
 import { logger } from '@/lib/logger';
 import { auditLog } from '@/lib/actions/audit';
 
+
+import { toNumeric } from '@/lib/numeric';
 async function requireAuth() {
   const session = await auth();
   if (!session?.user) {
@@ -86,10 +88,10 @@ export async function getInventory(branchId?: string) {
       ...inv,
       product: {
         ...inv.product,
-        price: inv.product.price.toNumber(),
-        costPrice: inv.product.costPrice?.toNumber() || null,
-        taxRate: inv.product.taxRate.toNumber(),
-        discount: inv.product.discount.toNumber(),
+        price: toNumeric(inv.product.price),
+        costPrice: toNumeric(inv.product.costPrice) || null,
+        taxRate: toNumeric(inv.product.taxRate),
+        discount: toNumeric(inv.product.discount),
       },
     })),
     branches,

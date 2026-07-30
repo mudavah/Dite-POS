@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+
+import { toNumeric } from '@/lib/numeric';
 import { z } from 'zod';
 import type { PaymentMethod } from '@prisma/client';
 
@@ -50,7 +52,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     ? (paymentMethod as PaymentMethod)
     : sale.paymentMethod;
 
-  const totalAmount = sale.items.reduce((sum, item) => sum + item.total.toNumber(), 0) - sale.discountAmount.toNumber();
+  const totalAmount = sale.items.reduce((sum, item) => sum + toNumeric(item.total), 0) - toNumeric(sale.discountAmount);
   const cashierId = session.user.id;
 
   try {
@@ -122,7 +124,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({
       id: updatedSale.id,
       receiptNo: (updatedSale as UpdatedSaleWithRelations).receipts?.[0]?.receiptNo,
-      totalAmount: updatedSale.totalAmount.toNumber(),
+      totalAmount: toNumeric(updatedSale.totalAmount),
     });
   } catch (error) {
     return NextResponse.json(

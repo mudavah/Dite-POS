@@ -3,6 +3,8 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { supplierSchema } from '@/lib/validators';
 import { auditLog } from '@/lib/actions/audit';
+
+import { toNumeric } from '@/lib/numeric';
 import type { Prisma } from '@prisma/client';
 
 export async function GET(request: Request) {
@@ -65,8 +67,8 @@ export async function GET(request: Request) {
   for (const stat of purchasesBySupplier) {
     supplierStats.set(stat.supplierId, {
       totalPurchases: stat._count.id,
-      totalAmountPurchased: stat._sum.grandTotal?.toNumber() || 0,
-      outstandingBalance: stat._sum.outstandingBalance?.toNumber() || 0,
+      totalAmountPurchased: toNumeric(stat._sum.grandTotal) || 0,
+      outstandingBalance: toNumeric(stat._sum.outstandingBalance) || 0,
       lastPurchaseDate: null,
     });
   }
@@ -111,8 +113,8 @@ export async function GET(request: Request) {
       totalSuppliers: total,
       activeSuppliers,
       totalPurchases: totalPurchasesResult._sum?.grandTotal ? 0 : 0,
-      totalAmountPurchased: totalPurchasesResult._sum?.grandTotal?.toNumber() || 0,
-      outstandingBalance: outstandingBalanceResult._sum?.outstandingBalance?.toNumber() || 0,
+      totalAmountPurchased: toNumeric(totalPurchasesResult._sum?.grandTotal) || 0,
+      outstandingBalance: toNumeric(outstandingBalanceResult._sum?.outstandingBalance) || 0,
     },
   });
 }

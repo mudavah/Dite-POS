@@ -3,6 +3,8 @@
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 
+
+import { toNumeric } from '@/lib/numeric';
 async function requireAdmin() {
   const session = await auth();
   if (!session?.user || session.user.role !== 'ADMIN') {
@@ -79,9 +81,9 @@ export async function getDashboardStats() {
     })
   );
 
-  const revenue = monthSales._sum.totalAmount?.toNumber() || 0;
+  const revenue = toNumeric(monthSales._sum.totalAmount) || 0;
   const branchesPerformance = branchPerformance.map((branch) => {
-    const totalSales = branch.sales.reduce((sum, sale) => sum + sale.totalAmount.toNumber(), 0);
+    const totalSales = branch.sales.reduce((sum, sale) => sum + toNumeric(sale.totalAmount), 0);
     return {
       id: branch.id,
       name: branch.name,
@@ -92,16 +94,16 @@ export async function getDashboardStats() {
   });
 
   return {
-    todaySales: todaySales._sum.totalAmount?.toNumber() || 0,
-    weekSales: weekSales._sum.totalAmount?.toNumber() || 0,
-    monthSales: monthSales._sum.totalAmount?.toNumber() || 0,
+    todaySales: toNumeric(todaySales._sum.totalAmount) || 0,
+    weekSales: toNumeric(weekSales._sum.totalAmount) || 0,
+    monthSales: toNumeric(monthSales._sum.totalAmount) || 0,
     revenue,
     profit: revenue,
     recentSales: recentSales.map((sale) => ({
       ...sale,
       cashier: sale.cashier ? { name: sale.cashier.name, email: sale.cashier.email } : null,
-      totalAmount: sale.totalAmount.toNumber(),
-      subtotal: sale.subtotal.toNumber(),
+      totalAmount: toNumeric(sale.totalAmount),
+      subtotal: toNumeric(sale.subtotal),
     })),
     topProducts: topProductsWithDetails,
     lowStock,

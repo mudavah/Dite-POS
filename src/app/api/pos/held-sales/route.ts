@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
+
+import { toNumeric } from '@/lib/numeric';
 export async function GET() {
   const session = await auth();
   if (!session?.user) {
@@ -23,8 +25,8 @@ export async function GET() {
       cashierId: s.cashierId,
       customerName: s.customerName,
       itemsJson: s.itemsJson,
-      subtotal: s.subtotal.toNumber(),
-      totalAmount: s.totalAmount.toNumber(),
+      subtotal: toNumeric(s.subtotal),
+      totalAmount: toNumeric(s.totalAmount),
       notes: s.notes,
       createdAt: s.createdAt.toISOString(),
     }))

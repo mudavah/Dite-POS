@@ -3,6 +3,8 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { purchaseSchema } from '@/lib/validators';
 import { auditLog } from '@/lib/actions/audit';
+
+import { toNumeric } from '@/lib/numeric';
 import { revalidatePath } from 'next/cache';
 import { StockMovementType } from '@prisma/client';
 
@@ -37,12 +39,12 @@ export async function GET(
 
   return NextResponse.json({
     ...purchase,
-    subtotal: purchase.subtotal.toNumber(),
-    discountAmount: purchase.discountAmount.toNumber(),
-    taxAmount: purchase.taxAmount.toNumber(),
-    grandTotal: purchase.grandTotal.toNumber(),
-    amountPaid: purchase.amountPaid.toNumber(),
-    outstandingBalance: purchase.outstandingBalance.toNumber(),
+    subtotal: toNumeric(purchase.subtotal),
+    discountAmount: toNumeric(purchase.discountAmount),
+    taxAmount: toNumeric(purchase.taxAmount),
+    grandTotal: toNumeric(purchase.grandTotal),
+    amountPaid: toNumeric(purchase.amountPaid),
+    outstandingBalance: toNumeric(purchase.outstandingBalance),
     purchaseNumber: purchase.purchaseNumber,
     invoiceNumber: purchase.invoiceNumber ?? undefined,
     deliveryNote: purchase.deliveryNote ?? undefined,

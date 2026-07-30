@@ -3,6 +3,8 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { branchSchema } from '@/lib/validators';
 
+
+import { toNumeric } from '@/lib/numeric';
 export async function GET() {
   const session = await auth();
   if (!session?.user) {
@@ -24,7 +26,7 @@ export async function GET() {
   return NextResponse.json(
     branches.map((b) => ({
       ...b,
-      monthlySales: b.sales.reduce((sum, s) => sum + s.totalAmount.toNumber(), 0),
+      monthlySales: b.sales.reduce((sum, s) => sum + toNumeric(s.totalAmount), 0),
       saleCount: b.sales.length,
     }))
   );

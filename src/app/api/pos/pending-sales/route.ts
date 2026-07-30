@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+
+import { toNumeric } from '@/lib/numeric';
 import type { Prisma } from '@prisma/client';
 
 export async function GET(request: Request) {
@@ -39,11 +41,11 @@ export async function GET(request: Request) {
       customerPhone: sale.customerPhone,
       customerPin: sale.customerPin,
       customerTin: sale.customerTin,
-      subtotal: sale.subtotal.toNumber(),
-      discountAmount: sale.discountAmount.toNumber(),
-      totalAmount: sale.totalAmount.toNumber(),
-      amountPaid: sale.amountPaid.toNumber(),
-      changeAmount: sale.changeAmount.toNumber(),
+      subtotal: toNumeric(sale.subtotal),
+      discountAmount: toNumeric(sale.discountAmount),
+      totalAmount: toNumeric(sale.totalAmount),
+      amountPaid: toNumeric(sale.amountPaid),
+      changeAmount: toNumeric(sale.changeAmount),
       paymentMethod: sale.paymentMethod,
       notes: sale.notes,
       createdAt: sale.createdAt.toISOString(),
@@ -53,9 +55,9 @@ export async function GET(request: Request) {
         productName: item.productName,
         sku: item.sku,
         quantity: item.quantity,
-        unitPrice: item.unitPrice.toNumber(),
-        discount: item.discount.toNumber(),
-        total: item.total.toNumber(),
+        unitPrice: toNumeric(item.unitPrice),
+        discount: toNumeric(item.discount),
+        total: toNumeric(item.total),
         notes: item.notes,
         product: item.product,
       })),

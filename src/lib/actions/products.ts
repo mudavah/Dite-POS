@@ -5,6 +5,8 @@ import { revalidatePath } from 'next/cache';
 import { productSchema, ProductInput } from '@/lib/validators';
 import { auth } from '@/lib/auth';
 import { auditLog } from '@/lib/actions/audit';
+
+import { toNumeric } from '@/lib/numeric';
 import { StockMovementType } from '@prisma/client';
 
 async function requireAuth() {
@@ -110,7 +112,7 @@ export async function createProduct(data: unknown) {
   revalidatePath('/products');
   revalidatePath('/inventory');
   revalidatePath('/dashboard');
-  return { data: { ...product, price: product.price.toNumber(), costPrice: product.costPrice?.toNumber() || null } };
+  return { data: { ...product, price: toNumeric(product.price), costPrice: toNumeric(product.costPrice) || null } };
 }
 
 export async function updateProduct(id: string, data: unknown) {
@@ -157,7 +159,7 @@ export async function updateProduct(id: string, data: unknown) {
   revalidatePath('/products');
   revalidatePath(`/products/${id}`);
   revalidatePath('/inventory');
-  return { data: { ...product, price: product.price.toNumber(), costPrice: product.costPrice?.toNumber() || null } };
+  return { data: { ...product, price: toNumeric(product.price), costPrice: toNumeric(product.costPrice) || null } };
 }
 
 export async function deleteProduct(id: string) {

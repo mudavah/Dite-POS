@@ -3,6 +3,8 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { purchaseSchema } from '@/lib/validators';
 import { auditLog } from '@/lib/actions/audit';
+
+import { toNumeric } from '@/lib/numeric';
 import { revalidatePath } from 'next/cache';
 import { StockMovementType } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
@@ -75,12 +77,12 @@ export async function GET(request: Request) {
   return NextResponse.json({
     purchases: purchases.map((p) => ({
       ...p,
-      subtotal: p.subtotal.toNumber(),
-      discountAmount: p.discountAmount.toNumber(),
-      taxAmount: p.taxAmount.toNumber(),
-      grandTotal: p.grandTotal.toNumber(),
-      amountPaid: p.amountPaid.toNumber(),
-      outstandingBalance: p.outstandingBalance.toNumber(),
+      subtotal: toNumeric(p.subtotal),
+      discountAmount: toNumeric(p.discountAmount),
+      taxAmount: toNumeric(p.taxAmount),
+      grandTotal: toNumeric(p.grandTotal),
+      amountPaid: toNumeric(p.amountPaid),
+      outstandingBalance: toNumeric(p.outstandingBalance),
     })),
     total,
     page,

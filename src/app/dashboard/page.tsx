@@ -27,6 +27,8 @@ import {
   Cell,
 } from 'recharts';
 import { formatCurrency } from '@/lib/utils';
+
+import { toNumeric } from '@/lib/numeric';
 import { format } from 'date-fns';
 
 interface LowStockItem {
@@ -258,7 +260,7 @@ export default function DashboardPage() {
                         <p className="text-xs text-muted-foreground">{s._count.id} purchases</p>
                       </div>
                     </div>
-                    <p className="font-medium">{formatCurrency(s._sum.grandTotal?.toNumber() || 0)}</p>
+                    <p className="font-medium">{formatCurrency(toNumeric(s._sum.grandTotal) || 0)}</p>
                   </div>
                 ))}
               </div>
