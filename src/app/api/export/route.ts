@@ -72,7 +72,7 @@ export async function GET(request: Request) {
   const headers = Object.keys(data[0]);
   const csvRows = [headers.join(',')];
   for (const row of data) {
-    csvRows.push(headers.map((h) => `"${(row[h as keyof typeof row] as string)?.replace(/"/g, '""') || ''}"`).join(','));
+    csvRows.push(headers.map((h) => `"${String(row[h as keyof typeof row] ?? '').replace(/"/g, '""')}"`).join(','));
   }
 
   if (formatType === 'csv') {
