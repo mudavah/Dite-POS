@@ -5,7 +5,7 @@ import { productSchema } from '@/lib/validators';
 import { sanitizeText } from '@/lib/utils';
 import { auditLog } from '@/lib/actions/audit';
 
-import { toNumeric } from '@/lib/numeric';
+import { toNumeric, toNullableNumeric } from '@/lib/numeric';
 import { revalidatePath } from 'next/cache';
 import { StockMovementType } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
@@ -83,7 +83,7 @@ export async function GET(request: Request) {
     products: products.map((p) => ({
       ...p,
       price: toNumeric(p.price),
-      costPrice: toNumeric(p.costPrice) || null,
+      costPrice: toNullableNumeric(p.costPrice),
       taxRate: toNumeric(p.taxRate),
       discount: toNumeric(p.discount),
       purchaseCount: p.purchaseItems?.length || 0,

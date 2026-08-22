@@ -35,11 +35,22 @@ describe('formatCurrency', () => {
   it('should handle zero', () => {
     const result = formatCurrency(0);
     expect(result).toContain('0.00');
+    expect(result).toContain('KSh');
   });
 
   it('should handle decimal values', () => {
     const result = formatCurrency(99.5);
     expect(result).toContain('99.50');
+  });
+
+  it('should handle null as em dash', () => {
+    const result = formatCurrency(null);
+    expect(result).toBe('KSh —');
+  });
+
+  it('should handle undefined as em dash', () => {
+    const result = formatCurrency(undefined);
+    expect(result).toBe('KSh —');
   });
 });
 

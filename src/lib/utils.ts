@@ -16,8 +16,10 @@ export function calculateVatBreakdown(grandTotal: number, vatRate: number = 0.16
   };
 }
 
-export function formatCurrency(amount: number | string, currency: string = 'KES', symbol: string = 'KSh') { // eslint-disable-line @typescript-eslint/no-unused-vars
+export function formatCurrency(amount: number | string | null | undefined, _currency: string = 'KES', symbol: string = 'KSh'): string {
+  if (amount === null || amount === undefined) return `${symbol} —`;
   const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+  if (typeof num !== 'number' || Number.isNaN(num) || !Number.isFinite(num)) return `${symbol} —`;
   return `${symbol} ${num.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
