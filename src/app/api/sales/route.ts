@@ -7,42 +7,47 @@ import { saleSchema } from '@/lib/validators';
 
 import { toNumeric } from '@/lib/numeric';
 export async function GET(request: Request) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+    const branchId = searchParams.get('branchId');
+    const cashierId = searchParams.get('cashierId');
+
+    const where: Record<string, unknown> = session.user.role === 'ADMIN' ? {} : { branchId: session.user.branchId };
+    if (startDate) where.createdAt = { ...(where.createdAt as Record<string, unknown> | undefined), gte: new Date(startDate) };
+    if (endDate) where.createdAt = { ...(where.createdAt as Record<string, unknown> | undefined), lte: new Date(endDate) };
+    if (branchId && session.user.role === 'ADMIN') where.branchId = branchId;
+    if (cashierId && session.user.role === 'ADMIN') where.cashierId = cashierId;
+
+    const sales = await prisma.sale.findMany({
+      where,
+      include: { cashier: { select: { name: true, email: true } }, branch: { select: { name: true, code: true } }, items: { include: { product: { select: { name: true, sku: true } } } }, payments: { select: { method: true, amount: true } }, receipts: { select: { receiptNo: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    return NextResponse.json(
+      sales.map((sale) => ({
+        ...sale,
+        cashier: sale.cashier ? { name: sale.cashier.name, email: sale.cashier.email } : null,
+        branch: sale.branch ? { name: sale.branch.name, code: sale.branch.code } : null,
+        subtotal: toNumeric(sale.subtotal),
+        discountAmount: toNumeric(sale.discountAmount),
+        totalAmount: toNumeric(sale.totalAmount),
+        amountPaid: toNumeric(sale.amountPaid),
+        changeAmount: toNumeric(sale.changeAmount),
+      }))
+    );
+  } catch (error) {
+    console.error('Fetch sales failed:', error);
+    return NextResponse.json({ error: 'Failed to fetch sales' }, { status: 500 });
   }
-
-  const { searchParams } = new URL(request.url);
-  const startDate = searchParams.get('startDate');
-  const endDate = searchParams.get('endDate');
-  const branchId = searchParams.get('branchId');
-  const cashierId = searchParams.get('cashierId');
-
-  const where: Record<string, unknown> = session.user.role === 'ADMIN' ? {} : { branchId: session.user.branchId };
-  if (startDate) where.createdAt = { ...(where.createdAt as Record<string, unknown> | undefined), gte: new Date(startDate) };
-  if (endDate) where.createdAt = { ...(where.createdAt as Record<string, unknown> | undefined), lte: new Date(endDate) };
-  if (branchId && session.user.role === 'ADMIN') where.branchId = branchId;
-  if (cashierId && session.user.role === 'ADMIN') where.cashierId = cashierId;
-
-  const sales = await prisma.sale.findMany({
-    where,
-    include: { cashier: { select: { name: true, email: true } }, branch: { select: { name: true, code: true } }, items: { include: { product: { select: { name: true, sku: true } } } }, payments: { select: { method: true, amount: true } }, receipts: { select: { receiptNo: true } } },
-    orderBy: { createdAt: 'desc' },
-    take: 100,
-  });
-
-  return NextResponse.json(
-    sales.map((sale) => ({
-      ...sale,
-      cashier: sale.cashier ? { name: sale.cashier.name, email: sale.cashier.email } : null,
-      branch: sale.branch ? { name: sale.branch.name, code: sale.branch.code } : null,
-      subtotal: toNumeric(sale.subtotal),
-      discountAmount: toNumeric(sale.discountAmount),
-      totalAmount: toNumeric(sale.totalAmount),
-      amountPaid: toNumeric(sale.amountPaid),
-      changeAmount: toNumeric(sale.changeAmount),
-    }))
-  );
 }
 
 export async function POST(request: Request) {

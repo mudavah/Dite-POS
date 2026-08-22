@@ -94,6 +94,7 @@ export async function GET(request: Request) {
   const totalPurchasesResult = await prisma.purchase.aggregate({
     where: {},
     _sum: { grandTotal: true },
+    _count: { id: true },
   });
 
   const activeSuppliers = await prisma.supplier.count({ where: { status: 'ACTIVE' } });
@@ -112,7 +113,7 @@ export async function GET(request: Request) {
     summary: {
       totalSuppliers: total,
       activeSuppliers,
-      totalPurchases: totalPurchasesResult._sum?.grandTotal ? 0 : 0,
+      totalPurchases: totalPurchasesResult._count.id || 0,
       totalAmountPurchased: toNumeric(totalPurchasesResult._sum?.grandTotal) || 0,
       outstandingBalance: toNumeric(outstandingBalanceResult._sum?.outstandingBalance) || 0,
     },
@@ -120,29 +121,35 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const session = await auth();
-  if (!session?.user || !['ADMIN', 'MANAGER'].includes(session.user.role)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  try {
+    const session = await auth();
+    if (!session?.user || !['ADMIN', 'MANAGER'].includes(session.user.role)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const validated = supplierSchema.safeParse(body);
+    if (!validated.success) {
+      return NextResponse.json({ error: validated.error.flatten() }, { status: 400 });
+    }
+
+    const supplier = await prisma.supplier.create({
+      data: validated.data,
+    });
+
+    await auditLog({
+      userId: session.user.id,
+      action: 'SUPPLIER_ADDED',
+      entity: 'Supplier',
+      entityId: supplier.id,
+      newValues: JSON.stringify(supplier),
+      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+    });
+
+    return NextResponse.json(supplier, { status: 201 });
+  } catch (error) {
+    console.error('Supplier creation failed:', error);
+    const message = error instanceof Error ? error.message : 'Failed to create supplier';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  const body = await request.json();
-  const validated = supplierSchema.safeParse(body);
-  if (!validated.success) {
-    return NextResponse.json({ error: validated.error.flatten() }, { status: 400 });
-  }
-
-  const supplier = await prisma.supplier.create({
-    data: validated.data,
-  });
-
-  await auditLog({
-    userId: session.user.id,
-    action: 'SUPPLIER_ADDED',
-    entity: 'Supplier',
-    entityId: supplier.id,
-    newValues: JSON.stringify(supplier),
-    ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
-  });
-
-  return NextResponse.json(supplier, { status: 201 });
 }

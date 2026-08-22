@@ -7,7 +7,6 @@ import {
   Search,
   Plus,
   Trash2,
-  Edit3,
   RefreshCw,
   Filter,
   Package,
@@ -19,7 +18,6 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
-import { useRouter } from 'next/navigation';
 
 async function fetchSuppliers(params?: Record<string, string>) {
   const query = new URLSearchParams();
@@ -41,7 +39,6 @@ async function deleteSupplier(id: string) {
 export default function SuppliersPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const router = useRouter();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -185,24 +182,17 @@ export default function SuppliersPage() {
                             {supplier.status}
                           </Badge>
                         </td>
-                        <td className="p-3">
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => router.push(`/suppliers/${supplier.id}`)}
-                            >
-                              <Edit3 className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => deleteMutation.mutate(supplier.id)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </div>
-                        </td>
+                         <td className="p-3">
+                           <div className="flex items-center gap-2">
+                             <Button
+                               variant="ghost"
+                               size="sm"
+                               onClick={() => deleteMutation.mutate(supplier.id)}
+                             >
+                               <Trash2 className="h-4 w-4 text-destructive" />
+                             </Button>
+                           </div>
+                         </td>
                       </tr>
                     ))}
                     {data?.suppliers?.length === 0 && (

@@ -115,6 +115,12 @@ export default function ProductsPage() {
   const [importStep, setImportStep] = useState(1);
   const [importMode, setImportMode] = useState('skip');
   const [isImporting, setIsImporting] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    action: () => void;
+  }>({ open: false, title: '', description: '', action: () => {} });
 
   const { data, isLoading } = useQuery({
     queryKey: ['products', { search, categoryId, brand, supplierId, status, archived: showArchived, page: currentPage, limit }],
@@ -158,7 +164,28 @@ export default function ProductsPage() {
 
   const handleBulkAction = (action: string) => {
     if (selectedIds.length === 0) return;
-    bulkMutation.mutate({ action, productIds: selectedIds });
+    const actionLabel = action === 'delete' ? 'delete (archive)' : action;
+    setConfirmDialog({
+      open: true,
+      title: `Confirm ${actionLabel}`,
+      description: `Are you sure you want to ${actionLabel} ${selectedIds.length} product(s)? This action cannot be undone.`,
+      action: () => {
+        bulkMutation.mutate({ action, productIds: selectedIds });
+        setConfirmDialog((prev) => ({ ...prev, open: false }));
+      },
+    });
+  };
+
+  const handleDeleteProduct = (id: string) => {
+    setConfirmDialog({
+      open: true,
+      title: 'Archive Product',
+      description: 'Are you sure you want to archive this product? It will be hidden from the active product list.',
+      action: () => {
+        deleteMutation.mutate(id);
+        setConfirmDialog((prev) => ({ ...prev, open: false }));
+      },
+    });
   };
 
   const handleImport = async () => {
@@ -388,11 +415,11 @@ export default function ProductsPage() {
                                 <Eye className="h-4 w-4 mr-2" />
                                 View
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => router.push(`/products/${product.id}/edit`)}>
+                              <DropdownMenuItem onClick={() => router.push(`/products/${product.id}`)}>
                                 <Edit3 className="h-4 w-4 mr-2" />
                                 Edit
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => deleteMutation.mutate(product.id)}>
+                              <DropdownMenuItem onClick={() => handleDeleteProduct(product.id)}>
                                 <Archive className="h-4 w-4 mr-2" />
                                 Archive
                               </DropdownMenuItem>
@@ -559,6 +586,24 @@ export default function ProductsPage() {
               </DialogFooter>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={confirmDialog.open} onOpenChange={(open) => setConfirmDialog((prev) => ({ ...prev, open }))}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{confirmDialog.title}</DialogTitle>
+            <DialogDescription>{confirmDialog.description}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDialog((prev) => ({ ...prev, open: false }))}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDialog.action}>
+              Confirm
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

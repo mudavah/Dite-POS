@@ -92,69 +92,75 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const session = await auth();
-  if (!session?.user || !['ADMIN', 'MANAGER'].includes(session.user.role)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  try {
+    const session = await auth();
+    if (!session?.user || !['ADMIN', 'MANAGER'].includes(session.user.role)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-  const body = await request.json();
-  const validated = purchaseSchema.safeParse(body);
-  if (!validated.success) {
-    return NextResponse.json({ error: validated.error.flatten() }, { status: 400 });
-  }
+    const body = await request.json();
+    const validated = purchaseSchema.safeParse(body);
+    if (!validated.success) {
+      return NextResponse.json({ error: validated.error.flatten() }, { status: 400 });
+    }
 
-  const purchaseNumber = generatePurchaseNumber();
+    const purchaseNumber = generatePurchaseNumber();
 
-  const purchase = await prisma.$transaction(async (tx) => {
-    const newPurchase = await tx.purchase.create({
-      data: {
-        purchaseNumber,
-        userId: session.user!.id,
-        branchId: session.user!.branchId as string,
-        supplierId: validated.data.supplierId,
-        purchaseDate: validated.data.purchaseDate ? new Date(validated.data.purchaseDate) : undefined,
-        invoiceNumber: validated.data.invoiceNumber || undefined,
-        deliveryNote: validated.data.deliveryNote || undefined,
-        paymentMethod: validated.data.paymentMethod,
-        status: validated.data.status || 'DRAFT',
-        notes: validated.data.notes || undefined,
-        subtotal: validated.data.items.reduce((sum, item) => sum + item.lineTotal, 0),
-        discountAmount: validated.data.items.reduce((sum, item) => sum + item.discount, 0),
-        taxAmount: validated.data.items.reduce((sum, item) => sum + item.tax, 0),
-        grandTotal: validated.data.items.reduce((sum, item) => sum + item.lineTotal, 0),
-        items: {
-          create: validated.data.items.map((item) => ({
-            productId: item.productId || undefined,
-            productName: item.productName,
-            sku: item.sku || undefined,
-            barcode: item.barcode || undefined,
-            quantity: item.quantity,
-            buyingPrice: item.buyingPrice,
-            sellingPrice: item.sellingPrice,
-            discount: item.discount,
-            tax: item.tax,
-            lineTotal: item.lineTotal,
-            notes: item.notes || undefined,
-          })),
+    const purchase = await prisma.$transaction(async (tx) => {
+      const newPurchase = await tx.purchase.create({
+        data: {
+          purchaseNumber,
+          userId: session.user!.id,
+          branchId: session.user!.branchId as string,
+          supplierId: validated.data.supplierId,
+          purchaseDate: validated.data.purchaseDate ? new Date(validated.data.purchaseDate) : undefined,
+          invoiceNumber: validated.data.invoiceNumber || undefined,
+          deliveryNote: validated.data.deliveryNote || undefined,
+          paymentMethod: validated.data.paymentMethod,
+          status: validated.data.status || 'DRAFT',
+          notes: validated.data.notes || undefined,
+          subtotal: validated.data.items.reduce((sum, item) => sum + item.lineTotal, 0),
+          discountAmount: validated.data.items.reduce((sum, item) => sum + item.discount, 0),
+          taxAmount: validated.data.items.reduce((sum, item) => sum + item.tax, 0),
+          grandTotal: validated.data.items.reduce((sum, item) => sum + item.lineTotal, 0),
+          items: {
+            create: validated.data.items.map((item) => ({
+              productId: item.productId || undefined,
+              productName: item.productName,
+              sku: item.sku || undefined,
+              barcode: item.barcode || undefined,
+              quantity: item.quantity,
+              buyingPrice: item.buyingPrice,
+              sellingPrice: item.sellingPrice,
+              discount: item.discount,
+              tax: item.tax,
+              lineTotal: item.lineTotal,
+              notes: item.notes || undefined,
+            })),
+          },
         },
-      },
+      });
+
+      await auditLog({
+        userId: session.user!.id,
+        action: 'PURCHASE_CREATED',
+        entity: 'Purchase',
+        entityId: newPurchase.id,
+        newValues: JSON.stringify(newPurchase),
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+      });
+
+      return newPurchase;
     });
 
-    await auditLog({
-      userId: session.user!.id,
-      action: 'PURCHASE_CREATED',
-      entity: 'Purchase',
-      entityId: newPurchase.id,
-      newValues: JSON.stringify(newPurchase),
-      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
-    });
+    revalidatePath('/purchases');
+    revalidatePath('/inventory');
+    revalidatePath('/dashboard');
 
-    return newPurchase;
-  });
-
-  revalidatePath('/purchases');
-  revalidatePath('/inventory');
-  revalidatePath('/dashboard');
-
-  return NextResponse.json({ ...purchase, purchaseNumber }, { status: 201 });
+    return NextResponse.json({ ...purchase, purchaseNumber }, { status: 201 });
+  } catch (error) {
+    console.error('Purchase creation failed:', error);
+    const message = error instanceof Error ? error.message : 'Failed to create purchase';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

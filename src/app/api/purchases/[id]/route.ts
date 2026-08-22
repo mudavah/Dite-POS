@@ -57,106 +57,118 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-  const session = await auth();
-  if (!session?.user || !['ADMIN', 'MANAGER'].includes(session.user.role)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  try {
+    const { id } = await params;
+    const session = await auth();
+    if (!session?.user || !['ADMIN', 'MANAGER'].includes(session.user.role)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-  const body = await request.json();
-  const validated = purchaseSchema.safeParse(body);
-  if (!validated.success) {
-    return NextResponse.json({ error: validated.error.flatten() }, { status: 400 });
-  }
+    const body = await request.json();
+    const validated = purchaseSchema.safeParse(body);
+    if (!validated.success) {
+      return NextResponse.json({ error: validated.error.flatten() }, { status: 400 });
+    }
 
-  const existing = await prisma.purchase.findUnique({ where: { id } });
-  if (!existing) {
-    return NextResponse.json({ error: 'Purchase not found' }, { status: 404 });
-  }
+    const existing = await prisma.purchase.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ error: 'Purchase not found' }, { status: 404 });
+    }
 
-  const oldValues = JSON.stringify(existing);
+    const oldValues = JSON.stringify(existing);
 
-  const purchase = await prisma.$transaction(async (tx) => {
-    const updated = await tx.purchase.update({
-      where: { id },
-      data: {
-        supplierId: validated.data.supplierId,
-        purchaseDate: validated.data.purchaseDate ? new Date(validated.data.purchaseDate) : undefined,
-        invoiceNumber: (validated.data.invoiceNumber as string) || undefined,
-        deliveryNote: (validated.data.deliveryNote as string) || undefined,
-        paymentMethod: validated.data.paymentMethod,
-        status: validated.data.status || 'DRAFT',
-        notes: (validated.data.notes as string) || undefined,
-        items: {
-          deleteMany: {},
-          create: validated.data.items.map((item) => ({
-            productId: item.productId || undefined,
-            productName: item.productName,
-            sku: (item.sku as string) || undefined,
-            barcode: (item.barcode as string) || undefined,
-            quantity: item.quantity,
-            buyingPrice: item.buyingPrice,
-            sellingPrice: item.sellingPrice,
-            discount: item.discount,
-            tax: item.tax,
-            lineTotal: item.lineTotal,
-            notes: (item.notes as string) || undefined,
-          })),
+    const purchase = await prisma.$transaction(async (tx) => {
+      const updated = await tx.purchase.update({
+        where: { id },
+        data: {
+          supplierId: validated.data.supplierId,
+          purchaseDate: validated.data.purchaseDate ? new Date(validated.data.purchaseDate) : undefined,
+          invoiceNumber: (validated.data.invoiceNumber as string) || undefined,
+          deliveryNote: (validated.data.deliveryNote as string) || undefined,
+          paymentMethod: validated.data.paymentMethod,
+          status: validated.data.status || 'DRAFT',
+          notes: (validated.data.notes as string) || undefined,
+          items: {
+            deleteMany: {},
+            create: validated.data.items.map((item) => ({
+              productId: item.productId || undefined,
+              productName: item.productName,
+              sku: (item.sku as string) || undefined,
+              barcode: (item.barcode as string) || undefined,
+              quantity: item.quantity,
+              buyingPrice: item.buyingPrice,
+              sellingPrice: item.sellingPrice,
+              discount: item.discount,
+              tax: item.tax,
+              lineTotal: item.lineTotal,
+              notes: (item.notes as string) || undefined,
+            })),
+          },
         },
-      },
-      include: { items: true },
+        include: { items: true },
+      });
+
+      await auditLog({
+        userId: session.user.id,
+        action: 'PURCHASE_EDITED',
+        entity: 'Purchase',
+        entityId: id,
+        oldValues,
+        newValues: JSON.stringify(updated),
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+      });
+
+      return updated;
     });
 
-    await auditLog({
-      userId: session.user.id,
-      action: 'PURCHASE_EDITED',
-      entity: 'Purchase',
-      entityId: id,
-      oldValues,
-      newValues: JSON.stringify(updated),
-      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
-    });
+    revalidatePath('/purchases');
+    revalidatePath(`/purchases/${id}`);
 
-    return updated;
-  });
-
-  revalidatePath('/purchases');
-  revalidatePath(`/purchases/${id}`);
-
-  return NextResponse.json(purchase);
+    return NextResponse.json(purchase);
+  } catch (error) {
+    console.error('Purchase update failed:', error);
+    const message = error instanceof Error ? error.message : 'Failed to update purchase';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
 
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-  const session = await auth();
-  if (!session?.user || session.user.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  try {
+    const { id } = await params;
+    const session = await auth();
+    if (!session?.user || session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-  const existing = await prisma.purchase.findUnique({ where: { id } });
-  if (!existing) {
-    return NextResponse.json({ error: 'Purchase not found' }, { status: 404 });
-  }
+    const existing = await prisma.purchase.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ error: 'Purchase not found' }, { status: 404 });
+    }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.purchaseItem.deleteMany({ where: { purchaseId: id } });
-    await tx.purchaseAttachment.deleteMany({ where: { purchaseId: id } });
-    await tx.purchase.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      await tx.purchaseItem.deleteMany({ where: { purchaseId: id } });
+      await tx.purchaseAttachment.deleteMany({ where: { purchaseId: id } });
+      await tx.purchase.delete({ where: { id } });
 
-    await auditLog({
-      userId: session.user.id,
-      action: 'PURCHASE_DELETED',
-      entity: 'Purchase',
-      entityId: id,
-      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+      await auditLog({
+        userId: session.user.id,
+        action: 'PURCHASE_DELETED',
+        entity: 'Purchase',
+        entityId: id,
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+      });
     });
-  });
 
-  revalidatePath('/purchases');
-  revalidatePath('/inventory');
+    revalidatePath('/purchases');
+    revalidatePath('/inventory');
 
-  return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Purchase deletion failed:', error);
+    const message = error instanceof Error ? error.message : 'Failed to delete purchase';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

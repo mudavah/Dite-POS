@@ -25,43 +25,55 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 }
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const session = await auth();
-  if (!session?.user || session.user.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  try {
+    const { id } = await params;
+    const session = await auth();
+    if (!session?.user || session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const validated = userSchema.safeParse(body);
+    if (!validated.success) {
+      return NextResponse.json({ error: validated.error.flatten() }, { status: 400 });
+    }
+
+    const { password, ...userData } = validated.data;
+    const updateData: Prisma.UserUpdateInput = { ...userData };
+    if (password) {
+      updateData.password = await hash(password, 12);
+    }
+
+    const user = await prisma.user.update({
+      where: { id },
+      data: updateData,
+    });
+
+    return NextResponse.json({ ...user, password: undefined });
+  } catch (error) {
+    console.error('User update failed:', error);
+    const message = error instanceof Error ? error.message : 'Failed to update user';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  const body = await request.json();
-  const validated = userSchema.safeParse(body);
-  if (!validated.success) {
-    return NextResponse.json({ error: validated.error.flatten() }, { status: 400 });
-  }
-
-  const { password, ...userData } = validated.data;
-  const updateData: Prisma.UserUpdateInput = { ...userData };
-  if (password) {
-    updateData.password = await hash(password, 12);
-  }
-
-  const user = await prisma.user.update({
-    where: { id },
-    data: updateData,
-  });
-
-  return NextResponse.json({ ...user, password: undefined });
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const session = await auth();
-  if (!session?.user || session.user.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  try {
+    const { id } = await params;
+    const session = await auth();
+    if (!session?.user || session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    await prisma.user.update({
+      where: { id },
+      data: { isActive: false },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('User deactivation failed:', error);
+    const message = error instanceof Error ? error.message : 'Failed to deactivate user';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  await prisma.user.update({
-    where: { id },
-    data: { isActive: false },
-  });
-
-  return NextResponse.json({ success: true });
 }

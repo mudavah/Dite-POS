@@ -98,125 +98,131 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const session = await auth();
-  if (!session?.user || !['ADMIN', 'MANAGER'].includes(session.user.role)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  try {
+    const session = await auth();
+    if (!session?.user || !['ADMIN', 'MANAGER'].includes(session.user.role)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-  const body = await request.json();
-  const validated = productSchema.safeParse(body);
-  if (!validated.success) {
-    return NextResponse.json({ error: validated.error.flatten() }, { status: 400 });
-  }
+    const body = await request.json();
+    const validated = productSchema.safeParse(body);
+    if (!validated.success) {
+      return NextResponse.json({ error: validated.error.flatten() }, { status: 400 });
+    }
 
-  const sanitized = {
-    ...validated.data,
-    name: sanitizeText(validated.data.name)!,
-    description: sanitizeText(validated.data.description),
-    barcode: sanitizeText(validated.data.barcode),
-    brand: sanitizeText(validated.data.brand),
-    unit: validated.data.unit,
-    reorderLevel: validated.data.reorderLevel,
-    maxStock: validated.data.maxStock,
-    taxRate: validated.data.taxRate,
-    discount: validated.data.discount,
-    costPrice: validated.data.costPrice,
-    openingStock: validated.data.openingStock,
-    defaultSupplierId: validated.data.defaultSupplierId,
-  };
+    const sanitized = {
+      ...validated.data,
+      name: sanitizeText(validated.data.name)!,
+      description: sanitizeText(validated.data.description),
+      barcode: sanitizeText(validated.data.barcode),
+      brand: sanitizeText(validated.data.brand),
+      unit: validated.data.unit,
+      reorderLevel: validated.data.reorderLevel,
+      maxStock: validated.data.maxStock,
+      taxRate: validated.data.taxRate,
+      discount: validated.data.discount,
+      costPrice: validated.data.costPrice,
+      openingStock: validated.data.openingStock,
+      defaultSupplierId: validated.data.defaultSupplierId,
+    };
 
-  const product = await prisma.$transaction(async (tx) => {
-    const newProduct = await tx.product.create({
-      data: {
-        name: sanitized.name,
-        sku: sanitized.sku,
-        barcode: sanitized.barcode || undefined,
-        description: sanitized.description || undefined,
-        price: sanitized.price,
-        costPrice: sanitized.costPrice || null,
-        categoryId: sanitized.categoryId || undefined,
-        lowStockThreshold: sanitized.lowStockThreshold,
-        maxStock: sanitized.maxStock,
-        brand: sanitized.brand || undefined,
-        unit: sanitized.unit,
-        reorderLevel: sanitized.reorderLevel,
-        taxRate: sanitized.taxRate,
-        discount: sanitized.discount,
-        image: sanitized.image || undefined,
-        isActive: sanitized.isActive,
-      },
-    });
-
-    if (sanitized.openingStock && sanitized.openingStock > 0) {
-      let inventory = await tx.inventory.findUnique({
-        where: { branchId_productId: { branchId: session.user!.branchId as string, productId: newProduct.id } },
+    const product = await prisma.$transaction(async (tx) => {
+      const newProduct = await tx.product.create({
+        data: {
+          name: sanitized.name,
+          sku: sanitized.sku,
+          barcode: sanitized.barcode || undefined,
+          description: sanitized.description || undefined,
+          price: sanitized.price,
+          costPrice: sanitized.costPrice || null,
+          categoryId: sanitized.categoryId || undefined,
+          lowStockThreshold: sanitized.lowStockThreshold,
+          maxStock: sanitized.maxStock,
+          brand: sanitized.brand || undefined,
+          unit: sanitized.unit,
+          reorderLevel: sanitized.reorderLevel,
+          taxRate: sanitized.taxRate,
+          discount: sanitized.discount,
+          image: sanitized.image || undefined,
+          isActive: sanitized.isActive,
+        },
       });
 
-      if (!inventory) {
-        inventory = await tx.inventory.create({
+      if (sanitized.openingStock && sanitized.openingStock > 0) {
+        let inventory = await tx.inventory.findUnique({
+          where: { branchId_productId: { branchId: session.user!.branchId as string, productId: newProduct.id } },
+        });
+
+        if (!inventory) {
+          inventory = await tx.inventory.create({
+            data: {
+              branchId: session.user!.branchId as string,
+              productId: newProduct.id,
+              quantity: sanitized.openingStock,
+            },
+          });
+        } else {
+          await tx.inventory.update({
+            where: { id: inventory.id },
+            data: { quantity: { increment: sanitized.openingStock } },
+          });
+        }
+
+        const oldStock = inventory.quantity - sanitized.openingStock;
+
+        await tx.stockMovement.create({
           data: {
-            branchId: session.user!.branchId as string,
-            productId: newProduct.id,
+            inventoryId: inventory.id,
+            type: StockMovementType.OPENING_STOCK,
             quantity: sanitized.openingStock,
+            reference: 'Opening Stock',
+            notes: `Opening stock for ${newProduct.name}`,
+            createdById: session.user!.id,
           },
         });
-      } else {
-        await tx.inventory.update({
-          where: { id: inventory.id },
-          data: { quantity: { increment: sanitized.openingStock } },
+
+        await tx.inventoryTransaction.create({
+          data: {
+            inventoryId: inventory.id,
+            productId: newProduct.id,
+            branchId: session.user!.branchId as string,
+            type: StockMovementType.OPENING_STOCK,
+            quantity: sanitized.openingStock,
+            previousStock: oldStock,
+            newStock: inventory.quantity,
+            referenceNumber: 'OPENING',
+            notes: `Opening stock for ${newProduct.name}`,
+            createdById: session.user!.id,
+          },
         });
       }
 
-      const oldStock = inventory.quantity - sanitized.openingStock;
-
-      await tx.stockMovement.create({
-        data: {
-          inventoryId: inventory.id,
-          type: StockMovementType.OPENING_STOCK,
-          quantity: sanitized.openingStock,
-          reference: 'Opening Stock',
-          notes: `Opening stock for ${newProduct.name}`,
-          createdById: session.user!.id,
-        },
+      await auditLog({
+        userId: session.user!.id,
+        action: 'PRODUCT_CREATED',
+        entity: 'Product',
+        entityId: newProduct.id,
+        newValues: JSON.stringify(newProduct),
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
       });
 
-      await tx.inventoryTransaction.create({
-        data: {
-          inventoryId: inventory.id,
-          productId: newProduct.id,
-          branchId: session.user!.branchId as string,
-          type: StockMovementType.OPENING_STOCK,
-          quantity: sanitized.openingStock,
-          previousStock: oldStock,
-          newStock: inventory.quantity,
-          referenceNumber: 'OPENING',
-          notes: `Opening stock for ${newProduct.name}`,
-          createdById: session.user!.id,
-        },
-      });
-    }
-
-    await auditLog({
-      userId: session.user!.id,
-      action: 'PRODUCT_CREATED',
-      entity: 'Product',
-      entityId: newProduct.id,
-      newValues: JSON.stringify(newProduct),
-      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+      return newProduct;
     });
 
-    return newProduct;
-  });
+    revalidatePath('/products');
+    revalidatePath('/inventory');
+    revalidatePath('/dashboard');
 
-  revalidatePath('/products');
-  revalidatePath('/inventory');
-  revalidatePath('/dashboard');
-
-  return NextResponse.json({
-    ...product,
-    price: toNumeric(product.price),
-    costPrice: toNumeric(product.costPrice) || null,
-    taxRate: toNumeric(product.taxRate),
-    discount: toNumeric(product.discount),
-  }, { status: 201 });
+    return NextResponse.json({
+      ...product,
+      price: toNumeric(product.price),
+      costPrice: toNumeric(product.costPrice) || null,
+      taxRate: toNumeric(product.taxRate),
+      discount: toNumeric(product.discount),
+    }, { status: 201 });
+  } catch (error) {
+    console.error('Product creation failed:', error);
+    const message = error instanceof Error ? error.message : 'Failed to create product';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

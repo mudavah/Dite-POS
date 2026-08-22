@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useRouter } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle, Button, Input, Badge, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Label } from '@/components/ui';
+import { Card, CardContent, CardHeader, CardTitle, Button, Input, Badge, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Label, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui';
 import { ArrowLeft, Save, Trash2, Upload, Package, DollarSign, Hash, Barcode, Tag, ShoppingBag, Weight, Box, AlertTriangle, X } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
@@ -35,7 +35,20 @@ async function createProduct(data: any) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error('Failed to create product');
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => null);
+    if (errorData?.error) {
+      const fieldErrors = typeof errorData.error === 'object' ? errorData.error : null;
+      const messages: string[] = [];
+      if (fieldErrors) {
+        for (const [, errs] of Object.entries(fieldErrors)) {
+          if (Array.isArray(errs)) messages.push(...errs);
+        }
+      }
+      throw new Error(messages.join(', ') || 'Failed to create product');
+    }
+    throw new Error('Failed to create product');
+  }
   return res.json();
 }
 
@@ -45,7 +58,20 @@ async function updateProduct(id: string, data: any) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error('Failed to update product');
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => null);
+    if (errorData?.error) {
+      const fieldErrors = typeof errorData.error === 'object' ? errorData.error : null;
+      const messages: string[] = [];
+      if (fieldErrors) {
+        for (const [, errs] of Object.entries(fieldErrors)) {
+          if (Array.isArray(errs)) messages.push(...errs);
+        }
+      }
+      throw new Error(messages.join(', ') || 'Failed to update product');
+    }
+    throw new Error('Failed to update product');
+  }
   return res.json();
 }
 
@@ -124,6 +150,7 @@ export default function ProductEditPage() {
   const [form, setForm] = useState(initialForm);
   const [imagePreview, setImagePreview] = useState<string | null>(product?.image || null);
   const [activeTab, setActiveTab] = useState<'general' | 'pricing' | 'inventory' | 'supplier' | 'other'>('general');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const updateMutation = useMutation({
     mutationFn: (data: any) => (isNew ? createProduct(data) : updateProduct(id, data)),
@@ -199,7 +226,7 @@ export default function ProductEditPage() {
         </div>
         <div className="flex items-center gap-2">
           {!isNew && (
-            <Button variant="destructive" onClick={() => deleteMutation.mutate(id)}>
+            <Button variant="destructive" onClick={() => setShowDeleteConfirm(true)}>
               <Trash2 className="h-4 w-4 mr-2" />
               Archive
             </Button>
@@ -444,6 +471,26 @@ export default function ProductEditPage() {
           </Button>
         </div>
       </form>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Archive Product</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to archive this product? It will be hidden from the active product list and can be restored later.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={() => deleteMutation.mutate(id)}>
+              Archive
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -68,6 +68,13 @@ export async function GET(request: Request) {
     return sum + inv.quantity * cost;
   }, 0);
 
+  const uniqueProducts = await prisma.inventory.findMany({
+    where: branchId ? { branchId } : undefined,
+    select: { productId: true },
+    distinct: ['productId'],
+  });
+  const totalProducts = uniqueProducts.length;
+
   return NextResponse.json({
     inventory: filtered.map((inv) => ({
       ...inv,
@@ -76,49 +83,56 @@ export async function GET(request: Request) {
     branches,
     summary: {
       totalItems: totalValue._sum.quantity || 0,
+      totalProducts,
       totalValue: inventoryValue,
     },
   });
 }
 
 export async function POST(request: Request) {
-  const session = await auth();
-  if (!session?.user || !['ADMIN', 'CASHIER'].includes(session.user.role)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  try {
+    const session = await auth();
+    if (!session?.user || !['ADMIN', 'CASHIER'].includes(session.user.role)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { inventoryId, quantity, type, notes } = body as {
+      inventoryId: string;
+      quantity: number;
+      type?: string;
+      notes?: string;
+    };
+
+    const inventory = await prisma.inventory.findUnique({
+      where: { id: inventoryId },
+    });
+
+    if (!inventory) {
+      return NextResponse.json({ error: 'Inventory not found' }, { status: 404 });
+    }
+
+    const movement = await prisma.stockMovement.create({
+      data: {
+        inventoryId,
+        type: Object.values(StockMovementType).includes(type as StockMovementType)
+          ? (type as StockMovementType)
+          : StockMovementType.ADJUSTMENT,
+        quantity,
+        notes,
+        createdById: session.user.id,
+      },
+    });
+
+    await prisma.inventory.update({
+      where: { id: inventoryId },
+      data: { quantity: { increment: quantity } },
+    });
+
+    return NextResponse.json(movement);
+  } catch (error) {
+    console.error('Stock adjustment failed:', error);
+    const message = error instanceof Error ? error.message : 'Failed to adjust stock';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  const body = await request.json();
-  const { inventoryId, quantity, type, notes } = body as {
-    inventoryId: string;
-    quantity: number;
-    type?: string;
-    notes?: string;
-  };
-
-  const inventory = await prisma.inventory.findUnique({
-    where: { id: inventoryId },
-  });
-
-  if (!inventory) {
-    return NextResponse.json({ error: 'Inventory not found' }, { status: 404 });
-  }
-
-  const movement = await prisma.stockMovement.create({
-    data: {
-      inventoryId,
-      type: Object.values(StockMovementType).includes(type as StockMovementType)
-        ? (type as StockMovementType)
-        : StockMovementType.ADJUSTMENT,
-      quantity,
-      notes,
-      createdById: session.user.id,
-    },
-  });
-
-  await prisma.inventory.update({
-    where: { id: inventoryId },
-    data: { quantity: { increment: quantity } },
-  });
-
-  return NextResponse.json(movement);
 }

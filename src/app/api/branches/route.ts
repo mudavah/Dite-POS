@@ -33,24 +33,30 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  try {
+    const session = await auth();
+    if (!session?.user || session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const validated = branchSchema.safeParse(body);
+    if (!validated.success) {
+      return NextResponse.json({ error: validated.error.flatten() }, { status: 400 });
+    }
+
+    const branch = await prisma.branch.create({
+      data: validated.data,
+    });
+
+    await prisma.branchSetting.create({
+      data: { branchId: branch.id },
+    });
+
+    return NextResponse.json(branch);
+  } catch (error) {
+    console.error('Branch creation failed:', error);
+    const message = error instanceof Error ? error.message : 'Failed to create branch';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  const body = await request.json();
-  const validated = branchSchema.safeParse(body);
-  if (!validated.success) {
-    return NextResponse.json({ error: validated.error.flatten() }, { status: 400 });
-  }
-
-  const branch = await prisma.branch.create({
-    data: validated.data,
-  });
-
-  await prisma.branchSetting.create({
-    data: { branchId: branch.id },
-  });
-
-  return NextResponse.json(branch);
 }
