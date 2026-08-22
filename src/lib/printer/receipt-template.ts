@@ -381,9 +381,9 @@ function generateFiscalHtmlTemplate(data: FiscalReceiptData, paperSize: PaperSiz
       <tr><th>VAT CODE</th><th>RATE</th><th>TAXABLE AMOUNT</th><th>VAT AMOUNT</th></tr>
       <tr><td>A</td><td>16%</td><td class="right">${formatCurrency(data.subtotal, data.currency, data.currencySymbol)}</td><td class="right">${formatCurrency(data.totalAmount - data.subtotal, data.currency, data.currencySymbol)}</td></tr>
     </table>
-    <div class="border-top"></div>
-    <div class="center"><img src="/assets/receipt-qr.png" alt="QR Code" style="width:100px;height:100px;" /></div>
-    <div class="border-top"></div>
+     <div class="border-top"></div>
+     <div class="center">[QR CODE]</div>
+     <div class="border-top"></div>
     <div class="center">Control Unit Serial: ${escapeHtml(data.controlUnitSerial)}</div>
     <div class="center">Control Unit Invoice: ${escapeHtml(data.controlUnitInvoice)}</div>
     <div class="center">Attended By: ${escapeHtml(data.attendedBy)}</div>

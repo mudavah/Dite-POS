@@ -1,22 +1,27 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import type { Product, Category, Supplier } from '@prisma/client';
 import { auditLog } from '@/lib/actions/audit';
 import { revalidatePath } from 'next/cache';
 import { importRowSchema, ImportRowInput } from '@/lib/validators';
 import { StockMovementType } from '@prisma/client';
 import { sanitizeText } from '@/lib/utils';
 
-function parseExcelFile(buffer: Buffer, ext: string): any[] {
+interface ExcelRow {
+  [key: string]: string | number | undefined;
+}
+
+function parseExcelFile(buffer: Buffer, ext: string): ExcelRow[] {
   if (ext === 'csv') {
     const text = buffer.toString('utf-8');
     const lines = text.split('\n').filter((l) => l.trim());
     if (lines.length < 2) return [];
     const headers = lines[0].split(',').map((h) => h.trim().toLowerCase().replace(/[^a-z0-9]/g, ''));
-    const rows: any[] = [];
+    const rows: ExcelRow[] = [];
     for (let i = 1; i < lines.length; i++) {
       const values = lines[i].split(',');
-      const row: any = {};
+      const row: ExcelRow = {};
       headers.forEach((h, idx) => { row[h] = values[idx]?.trim(); });
       rows.push(row);
     }
@@ -24,10 +29,11 @@ function parseExcelFile(buffer: Buffer, ext: string): any[] {
   }
 
   if (ext === 'xlsx' || ext === 'xls') {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const XLSX = require('xlsx');
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    return XLSX.utils.sheet_to_json(sheet);
+    return XLSX.utils.sheet_to_json(sheet) as ExcelRow[];
   }
 
   return [];
@@ -61,9 +67,9 @@ export async function POST(request: Request) {
   }
 
   const validationResults: Array<{ row: number; data: ImportRowInput; errors: string[]; warnings: string[] }> = [];
-  const errors: any[] = [];
-  const duplicates: any[] = [];
-  const warnings: any[] = [];
+  const errors: Array<{ row: number; errors: string[]; productName: string }> = [];
+  const duplicates: Array<{ row: number; sku: string; productName: string; reason: string }> = [];
+  const warnings: Array<{ row: number; warnings: string[] }> = [];
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -71,9 +77,9 @@ export async function POST(request: Request) {
     const rowErrors: string[] = [];
     const rowWarnings: string[] = [];
 
-    const productName = row.productname || row.name || row.ProductName || row.Name || '';
-    const sku = row.sku || row.productcode || row.SKU || row.ProductCode || '';
-    const barcode = row.barcode || row.ean || row.upc || row.Barcode || row.EAN || '';
+    const productName = String(row.productname || row.name || row.ProductName || row.Name || '');
+    const sku = String(row.sku || row.productcode || row.SKU || row.ProductCode || '');
+    const barcode = String(row.barcode || row.ean || row.upc || row.Barcode || row.EAN || '');
 
     if (!productName) {
       rowErrors.push('Product name is required');
@@ -92,7 +98,7 @@ export async function POST(request: Request) {
       continue;
     }
 
-    const parseNumber = (val: any, fieldName: string) => {
+    const parseNumber = (val: string | number | undefined, fieldName: string): number | null => {
       if (val === undefined || val === null || val === '') return null;
       const num = parseFloat(String(val).replace(/[,₹$]/g, '').trim());
       if (isNaN(num)) {
@@ -220,7 +226,7 @@ export async function PUT(request: Request) {
     let updated = 0;
     let skipped = 0;
     let failed = 0;
-    const importErrors: any[] = [];
+    const importErrors: Array<{ row: number; error: string }> = [];
 
     for (const row of rows) {
       try {
@@ -311,7 +317,7 @@ export async function PUT(request: Request) {
           }
         }
 
-         let category: any = null;
+        let category: Category | null = null;
          if (row.data.category) {
            category = await tx.category.findFirst({ where: { name: String(row.data.category) } });
            if (!category) {
@@ -319,7 +325,7 @@ export async function PUT(request: Request) {
            }
          }
 
-         let supplier: any = null;
+         let supplier: Supplier | null = null;
          if (row.data.supplier) {
            supplier = await tx.supplier.findFirst({ where: { name: String(row.data.supplier) } });
            if (!supplier) {
@@ -394,9 +400,9 @@ export async function PUT(request: Request) {
         }
 
         imported++;
-      } catch (err: any) {
+      } catch (err: unknown) {
         failed++;
-        importErrors.push({ row: rows.indexOf(row) + 2, error: err.message || 'Unknown error' });
+        importErrors.push({ row: rows.indexOf(row) + 2, error: err instanceof Error ? err.message : 'Unknown error' });
       }
     }
 

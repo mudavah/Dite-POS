@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-
 import { toNumeric } from '@/lib/numeric';
 export async function GET() {
   const session = await auth();
@@ -148,7 +147,7 @@ return NextResponse.json({
     monthPurchases: monthPurchases._count || 0,
     totalPurchases: totalPurchases._count || 0,
     totalPurchaseValue: toNumeric(totalPurchases._sum?.grandTotal) || 0,
-    recentPurchases: recentPurchases.map((p: any) => ({
+    recentPurchases: recentPurchases.map((p) => ({
       id: p.id,
       purchaseNumber: p.purchaseNumber,
       supplier: p.supplier?.name || '-',
@@ -157,11 +156,11 @@ return NextResponse.json({
       status: p.status,
       items: p.items?.length || 0,
     })),
-    topPurchasedProducts: (topPurchasedProducts || []).map((item: any) => {
-      const product = topProductsWithDetails.find((p: any) => p.productId === item.productId);
+    topPurchasedProducts: (topPurchasedProducts || []).map((item) => {
+      const product = topProductsWithDetails.find((p) => p.productId === item.productId);
       return { ...item, product };
     }),
-    recentSales: recentSales.map((sale: any) => ({
+    recentSales: recentSales.map((sale) => ({
       ...sale,
       cashier: sale.cashier ? { name: sale.cashier.name, email: sale.cashier.email } : null,
       totalAmount: toNumeric(sale.totalAmount),

@@ -44,7 +44,7 @@ export async function GET(request: Request) {
   });
 
   const data = products.map((p) => {
-    const totalStock = p.inventories?.reduce((sum: number, inv: any) => sum + inv.quantity, 0) || 0;
+    const totalStock = p.inventories?.reduce((sum: number, inv) => sum + inv.quantity, 0) || 0;
     const costPrice = toNumeric(p.costPrice) || toNumeric(p.price);
     const inventoryValue = totalStock * costPrice;
 
