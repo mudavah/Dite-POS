@@ -168,10 +168,16 @@ export async function deleteProduct(id: string) {
     throw new Error('Unauthorized');
   }
 
-  await prisma.product.update({
-    where: { id },
-    data: { isArchived: true },
-  });
+  await prisma.$transaction([
+    prisma.product.update({
+      where: { id },
+      data: { isArchived: true },
+    }),
+    prisma.inventory.updateMany({
+      where: { productId: id },
+      data: { quantity: 0, reserved: 0 },
+    }),
+  ]);
 
   await auditLog({
     userId: session.user.id,
@@ -181,6 +187,7 @@ export async function deleteProduct(id: string) {
   });
 
   revalidatePath('/products');
+  revalidatePath('/inventory');
   return { success: true };
 }
 
@@ -190,10 +197,18 @@ export async function bulkUpdateProducts(ids: string[], data: { isActive?: boole
     throw new Error('Unauthorized');
   }
 
-  await prisma.product.updateMany({
-    where: { id: { in: ids } },
-    data,
-  });
+  await prisma.$transaction([
+    prisma.product.updateMany({
+      where: { id: { in: ids } },
+      data,
+    }),
+    ...(data.isArchived
+      ? [prisma.inventory.updateMany({
+          where: { productId: { in: ids } },
+          data: { quantity: 0, reserved: 0 },
+        })]
+      : []),
+  ]);
 
   await auditLog({
     userId: session.user.id,
@@ -203,5 +218,6 @@ export async function bulkUpdateProducts(ids: string[], data: { isActive?: boole
   });
 
   revalidatePath('/products');
+  revalidatePath('/inventory');
   return { success: true };
 }

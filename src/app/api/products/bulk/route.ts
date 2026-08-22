@@ -25,6 +25,10 @@ export async function POST(request: Request) {
           where: { id: { in: productIds } },
           data: { isArchived: true, isActive: false },
         });
+        await tx.inventory.updateMany({
+          where: { productId: { in: productIds } },
+          data: { quantity: 0, reserved: 0 },
+        });
       } else if (action === 'unarchive') {
         await tx.product.updateMany({
           where: { id: { in: productIds } },
@@ -34,6 +38,10 @@ export async function POST(request: Request) {
         await tx.product.updateMany({
           where: { id: { in: productIds } },
           data: { isArchived: true, isActive: false },
+        });
+        await tx.inventory.updateMany({
+          where: { productId: { in: productIds } },
+          data: { quantity: 0, reserved: 0 },
         });
       } else if (action === 'update') {
         await tx.product.updateMany({

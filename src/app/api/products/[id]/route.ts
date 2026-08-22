@@ -105,10 +105,16 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    await prisma.product.update({
-      where: { id },
-      data: { isArchived: true },
-    });
+    await prisma.$transaction([
+      prisma.product.update({
+        where: { id },
+        data: { isArchived: true },
+      }),
+      prisma.inventory.updateMany({
+        where: { productId: id },
+        data: { quantity: 0, reserved: 0 },
+      }),
+    ]);
 
     await auditLog({
       userId: session.user.id,
@@ -118,6 +124,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     });
 
     revalidatePath('/products');
+    revalidatePath('/inventory');
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Product archive failed:', error);
