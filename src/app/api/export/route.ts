@@ -65,7 +65,11 @@ export async function GET(request: Request) {
     };
   });
 
-  const headers = Object.keys(data[0] || {});
+  if (data.length === 0) {
+    return NextResponse.json({ error: 'No products to export' }, { status: 404 });
+  }
+
+  const headers = Object.keys(data[0]);
   const csvRows = [headers.join(',')];
   for (const row of data) {
     csvRows.push(headers.map((h) => `"${(row[h as keyof typeof row] as string)?.replace(/"/g, '""') || ''}"`).join(','));

@@ -236,7 +236,10 @@ export default function ProductsPage() {
   };
 
   const handleExport = () => {
-    exportProducts({ search, categoryId, brand, status });
+    exportProducts({ search, categoryId, brand, status })
+      .catch((err) => {
+        toast({ title: 'Export failed', description: err.message, variant: 'destructive' });
+      });
   };
 
   const handleDownloadTemplate = () => {
