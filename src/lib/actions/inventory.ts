@@ -6,9 +6,8 @@ import { auth } from '@/lib/auth';
 import { StockMovementType } from '@prisma/client';
 import { logger } from '@/lib/logger';
 import { auditLog } from '@/lib/actions/audit';
-
-
 import { toNumeric } from '@/lib/numeric';
+
 async function requireAuth() {
   const session = await auth();
   if (!session?.user) {
@@ -18,7 +17,7 @@ async function requireAuth() {
 }
 
 export async function adjustStock(data: { inventoryId: string; quantity: number; type: StockMovementType; notes?: string }) {
-  await requireAuth();
+  const session = await requireAuth();
 
   const inventory = await prisma.inventory.findUnique({
     where: { id: data.inventoryId },
@@ -28,8 +27,12 @@ export async function adjustStock(data: { inventoryId: string; quantity: number;
     return { error: 'Inventory not found' };
   }
 
-  const session = await auth();
-  const createdById = session?.user?.id || 'system';
+  const createdById = session.user.id;
+
+  const newQuantity = inventory.quantity + data.quantity;
+  if (newQuantity < 0) {
+    return { error: 'Insufficient stock for this adjustment' };
+  }
 
   try {
     await prisma.stockMovement.create({
@@ -44,7 +47,7 @@ export async function adjustStock(data: { inventoryId: string; quantity: number;
 
     await prisma.inventory.update({
       where: { id: data.inventoryId },
-      data: { quantity: { increment: data.quantity } },
+      data: { quantity: newQuantity },
     });
 
     await auditLog({

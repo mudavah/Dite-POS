@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-
 import { toNumeric } from '@/lib/numeric';
 import type { Prisma } from '@prisma/client';
 
@@ -42,7 +41,10 @@ export async function GET(request: Request) {
   const page = Math.max(parseInt(searchParams.get('page') || '1', 10), 1);
   const skip = (page - 1) * limit;
 
-  const saleWhere: Prisma.SaleWhereInput = { paymentStatus: 'COMPLETED' };
+  const isAdmin = session.user.role === 'ADMIN';
+  const branchFilter = isAdmin ? {} : { branchId: session.user.branchId ?? '' };
+
+  const saleWhere: Prisma.SaleWhereInput = { ...branchFilter, paymentStatus: 'COMPLETED' };
   if (startDate || endDate) {
     const createdAt: Prisma.SaleWhereInput['createdAt'] = {};
     if (startDate) createdAt.gte = startDate;
@@ -87,9 +89,9 @@ export async function GET(request: Request) {
   } else if (type === 'products') {
     const products = await prisma.product.findMany({
       where: { isArchived: false },
-      include: { 
+      include: {
         category: { select: { name: true } },
-        inventories: { select: { quantity: true } },
+        inventories: { select: { quantity: true, branchId: true } },
       },
       orderBy: { name: 'asc' },
     });
@@ -101,12 +103,15 @@ export async function GET(request: Request) {
       category: product.category?.name || 'Uncategorized',
       price: formatCurrency(toNumeric(product.price)),
       costPrice: product.costPrice ? formatCurrency(toNumeric(product.costPrice)) : '-',
-      stock: product.inventories?.reduce((sum, inv) => sum + inv.quantity, 0) || 0,
+      stock: product.inventories?.reduce((sum, inv) => {
+        if (branchFilter.branchId && inv.branchId !== branchFilter.branchId) return sum;
+        return sum + inv.quantity;
+      }, 0) || 0,
       status: product.isActive ? 'Active' : 'Inactive',
     }));
     total = products.length;
   } else if (type === 'inventory') {
-    const inventoryWhere: Prisma.InventoryWhereInput = {};
+    const inventoryWhere: Prisma.InventoryWhereInput = { ...branchFilter };
     const inventory = await prisma.inventory.findMany({
       where: inventoryWhere,
       include: {
@@ -119,15 +124,21 @@ export async function GET(request: Request) {
     });
 
     total = await prisma.inventory.count({ where: inventoryWhere });
-    data = inventory.map((inv) => ({
-      id: inv.id,
-      product: inv.product?.name || '-',
-      sku: inv.product?.sku || '-',
-      branch: inv.branch?.name || '-',
-      quantity: inv.quantity,
-      value: formatCurrency((inv.product?.costPrice?.toNumber?.() || inv.product?.price?.toNumber?.() || 0) * inv.quantity),
-      rawValue: (inv.product?.costPrice?.toNumber?.() || inv.product?.price?.toNumber?.() || 0) * inv.quantity,
-    }));
+    data = inventory.map((inv) => {
+      const costPriceNum = toNumeric(inv.product?.costPrice);
+      const priceNum = toNumeric(inv.product?.price);
+      const unitCost = costPriceNum !== null && costPriceNum !== undefined && costPriceNum !== 0 ? costPriceNum : priceNum;
+      const rawValue = inv.quantity * (unitCost || 0);
+      return {
+        id: inv.id,
+        product: inv.product?.name || '-',
+        sku: inv.product?.sku || '-',
+        branch: inv.branch?.name || '-',
+        quantity: inv.quantity,
+        value: formatCurrency(rawValue),
+        rawValue,
+      };
+    });
   } else if (type === 'profit') {
     const sales = await prisma.sale.findMany({
       where: saleWhere,
@@ -143,7 +154,7 @@ export async function GET(request: Request) {
 
     total = await prisma.sale.count({ where: saleWhere });
     data = sales.map((sale) => {
-      const cost = sale.items.reduce((sum, item) => sum + (item.product?.costPrice?.toNumber?.() || 0) * item.quantity, 0);
+      const cost = sale.items.reduce((sum, item) => sum + (toNumeric(item.product?.costPrice) || 0) * item.quantity, 0);
       const profit = toNumeric(sale.totalAmount) - cost;
       return {
         id: sale.id,
@@ -154,6 +165,7 @@ export async function GET(request: Request) {
         cost: formatCurrency(cost),
         profit: formatCurrency(profit),
         rawProfit: profit,
+        rawCost: cost,
       };
     });
   } else if (type === 'cashiers') {
@@ -161,7 +173,7 @@ export async function GET(request: Request) {
       where: { role: 'CASHIER', isActive: true },
       include: {
         sales: {
-          where: { paymentStatus: 'COMPLETED' },
+          where: { ...saleWhere },
           select: { totalAmount: true, createdAt: true },
         },
       },
@@ -189,7 +201,7 @@ export async function GET(request: Request) {
       where: { isActive: true },
       include: {
         sales: {
-          where: { paymentStatus: 'COMPLETED' },
+          where: saleWhere,
           select: { totalAmount: true, createdAt: true },
         },
       },

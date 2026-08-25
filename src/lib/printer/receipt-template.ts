@@ -104,25 +104,32 @@ function generateTextTemplate(data: ReceiptData, paperSize: PaperSize): string {
   lines.push(sep);
 
   for (const item of data.items) {
-    const name = item.productName.length > width - 10 ? item.productName.slice(0, width - 13) + '...' : item.productName;
+    const maxNameLen = Math.max(10, width - 16);
+    const name = item.productName.length > maxNameLen ? item.productName.slice(0, maxNameLen - 3) + '...' : item.productName;
     lines.push(`Item: ${name}`);
     if (item.sku) lines.push(`SKU: ${item.sku}`);
     const qtyPrice = `${item.quantity} x ${formatCurrency(item.unitPrice, data.currency, data.currencySymbol)}`;
-    lines.push(`  ${qtyPrice}${' '.repeat(Math.max(0, width - 12 - qtyPrice.length - formatCurrency(item.total, data.currency, data.currencySymbol).length))}${formatCurrency(item.total, data.currency, data.currencySymbol)}`);
+    const totalStr = formatCurrency(item.total, data.currency, data.currencySymbol);
+    const padding = Math.max(0, width - qtyPrice.length - totalStr.length - 2);
+    lines.push(`  ${qtyPrice}${' '.repeat(padding)}${totalStr}`);
   }
 
   lines.push(sep);
-  lines.push(`Subtotal:`.padEnd(width - 12) + formatCurrency(vat.vatExclusive, data.currency, data.currencySymbol).padStart(12));
-  lines.push(`VAT (16%):`.padEnd(width - 12) + formatCurrency(vat.vatAmount, data.currency, data.currencySymbol).padStart(12));
+  const subtotalLabel = `Subtotal:`.slice(0, width - 13);
+  const vatLabel = `VAT (16%):`.slice(0, width - 13);
+  const discountLabel = `Discount:`.slice(0, width - 13);
+  const totalLabel = `TOTAL:`.slice(0, width - 13);
+  lines.push(subtotalLabel.padEnd(width - 12) + formatCurrency(vat.vatExclusive, data.currency, data.currencySymbol).padStart(12));
+  lines.push(vatLabel.padEnd(width - 12) + formatCurrency(vat.vatAmount, data.currency, data.currencySymbol).padStart(12));
   if ((data.discountAmount || 0) > 0) {
-    lines.push(`Discount:`.padEnd(width - 12) + formatCurrency(data.discountAmount || 0, data.currency, data.currencySymbol).padStart(12));
+    lines.push(discountLabel.padEnd(width - 12) + formatCurrency(data.discountAmount || 0, data.currency, data.currencySymbol).padStart(12));
   }
-  lines.push(`TOTAL:`.padEnd(width - 12) + formatCurrency(data.total || 0, data.currency, data.currencySymbol).padStart(12));
+  lines.push(totalLabel.padEnd(width - 12) + formatCurrency(data.total || 0, data.currency, data.currencySymbol).padStart(12));
   lines.push(sep);
   lines.push(`Payment: ${data.paymentMethod || 'CASH'}`);
-  lines.push(`Paid: ${data.currencySymbol || 'KSh'} ${formatCurrency(data.amountPaid || 0, data.currency, data.currencySymbol)}`);
+  lines.push(`Paid: ${formatCurrency(data.amountPaid || 0, data.currency, data.currencySymbol)}`);
   if ((data.changeAmount || 0) > 0) {
-    lines.push(`Change: ${data.currencySymbol || 'KSh'} ${formatCurrency(data.changeAmount || 0, data.currency, data.currencySymbol)}`);
+    lines.push(`Change: ${formatCurrency(data.changeAmount || 0, data.currency, data.currencySymbol)}`);
   }
   lines.push(sep);
   if (data.footerText) {
@@ -232,11 +239,24 @@ export function buildEscpos(data: ReceiptData, paperSize: PaperSize = '80mm'): U
   const bytes: number[] = [];
 
   bytes.push(0x1B, 0x40);
+  bytes.push(0x1B, 0x33, 0x1E);
+  bytes.push(0x1B, 0x61, 0x01);
 
-  for (const char of text) {
-    bytes.push(char.charCodeAt(0));
+  const lines = text.split('\n');
+  for (const line of lines) {
+    if (line.startsWith('─')) {
+      bytes.push(0x1B, 0x45, 0x01);
+    }
+    for (const char of line) {
+      bytes.push(char.charCodeAt(0));
+    }
+    if (line.startsWith('─')) {
+      bytes.push(0x1B, 0x45, 0x00);
+    }
+    bytes.push(0x1B, 0x64, 0x05);
   }
 
+  bytes.push(0x1B, 0x61, 0x00);
   bytes.push(0x1D, 0x56, 0x42, 0x00);
   return new Uint8Array(bytes);
 }
@@ -280,9 +300,11 @@ function generateFiscalTextTemplate(data: FiscalReceiptData, paperSize: PaperSiz
   lines.push(sep);
 
   for (const item of data.items) {
-    const desc = item.description.length > width - 26 ? item.description.slice(0, width - 29) + '...' : item.description;
+    const fixedWidth = 4 + 2 + 4 + 2 + 12 + 2 + 12;
+    const maxDescLen = Math.max(8, width - fixedWidth - 2);
+    const desc = item.description.length > maxDescLen ? item.description.slice(0, maxDescLen - 3) + '...' : item.description;
     const qtyStr = String(item.qty).padStart(4);
-    const descStr = desc.padEnd(width - 26);
+    const descStr = desc.padEnd(maxDescLen);
     const vatStr = item.vatCode.padEnd(4);
     const priceStr = formatCurrency(item.unitPrice, data.currency, data.currencySymbol).padStart(12);
     const totalStr = formatCurrency(item.lineTotal, data.currency, data.currencySymbol).padStart(12);
@@ -290,14 +312,20 @@ function generateFiscalTextTemplate(data: FiscalReceiptData, paperSize: PaperSiz
   }
 
   lines.push(sep);
-  lines.push(`SUBTOTAL`.padEnd(width - 12) + formatCurrency(data.subtotal, data.currency, data.currencySymbol).padStart(12));
-  lines.push(`TOTAL AMOUNT`.padEnd(width - 12) + formatCurrency(data.totalAmount, data.currency, data.currencySymbol).padStart(12));
-  lines.push(`CASH`.padEnd(width - 12) + formatCurrency(data.cashReceived, data.currency, data.currencySymbol).padStart(12));
-  lines.push(`CHANGE`.padEnd(width - 12) + formatCurrency(data.changeAmount, data.currency, data.currencySymbol).padStart(12));
+  const subtotalLabel = `SUBTOTAL`.slice(0, Math.max(1, width - 13));
+  const totalLabel = `TOTAL AMOUNT`.slice(0, Math.max(1, width - 13));
+  const cashLabel = `CASH`.slice(0, Math.max(1, width - 13));
+  const changeLabel = `CHANGE`.slice(0, Math.max(1, width - 13));
+  lines.push(subtotalLabel.padEnd(width - 12) + formatCurrency(data.subtotal, data.currency, data.currencySymbol).padStart(12));
+  lines.push(totalLabel.padEnd(width - 12) + formatCurrency(data.totalAmount, data.currency, data.currencySymbol).padStart(12));
+  lines.push(cashLabel.padEnd(width - 12) + formatCurrency(data.cashReceived, data.currency, data.currencySymbol).padStart(12));
+  lines.push(changeLabel.padEnd(width - 12) + formatCurrency(data.changeAmount, data.currency, data.currencySymbol).padStart(12));
   lines.push(sep);
-  lines.push(`VAT CODE  RATE   TAXABLE AMOUNT     VAT AMOUNT`);
-  const taxableStr = formatCurrency(data.subtotal, data.currency, data.currencySymbol).padStart(14);
-  const vatAmtStr = formatCurrency(data.totalAmount - data.subtotal, data.currency, data.currencySymbol).padStart(12);
+  const vatBreakdown = calculateVatBreakdown(data.subtotal);
+  const vatLabel = `VAT CODE  RATE   TAXABLE AMOUNT     VAT AMOUNT`.slice(0, width);
+  lines.push(vatLabel);
+  const taxableStr = formatCurrency(vatBreakdown.vatExclusive, data.currency, data.currencySymbol).padStart(14);
+  const vatAmtStr = formatCurrency(vatBreakdown.vatAmount, data.currency, data.currencySymbol).padStart(12);
   lines.push(`A         16%    ${taxableStr}  ${vatAmtStr}`);
   lines.push(sep);
   lines.push(center('[QR CODE]', width));
@@ -315,6 +343,7 @@ function generateFiscalTextTemplate(data: FiscalReceiptData, paperSize: PaperSiz
 function generateFiscalHtmlTemplate(data: FiscalReceiptData, paperSize: PaperSize): string {
   const width = paperSize === '58mm' ? '280px' : '320px';
   const fontSize = paperSize === '58mm' ? '9px' : '10px';
+  const vatBreakdown = calculateVatBreakdown(data.subtotal);
 
   return `<!DOCTYPE html>
 <html>
@@ -379,7 +408,7 @@ function generateFiscalHtmlTemplate(data: FiscalReceiptData, paperSize: PaperSiz
     <div class="border-top"></div>
     <table>
       <tr><th>VAT CODE</th><th>RATE</th><th>TAXABLE AMOUNT</th><th>VAT AMOUNT</th></tr>
-      <tr><td>A</td><td>16%</td><td class="right">${formatCurrency(data.subtotal, data.currency, data.currencySymbol)}</td><td class="right">${formatCurrency(data.totalAmount - data.subtotal, data.currency, data.currencySymbol)}</td></tr>
+      <tr><td>A</td><td>16%</td><td class="right">${formatCurrency(vatBreakdown.vatExclusive, data.currency, data.currencySymbol)}</td><td class="right">${formatCurrency(vatBreakdown.vatAmount, data.currency, data.currencySymbol)}</td></tr>
     </table>
      <div class="border-top"></div>
      <div class="center">[QR CODE]</div>
@@ -398,11 +427,24 @@ export function buildFiscalEscpos(data: FiscalReceiptData, paperSize: PaperSize 
   const bytes: number[] = [];
 
   bytes.push(0x1B, 0x40);
+  bytes.push(0x1B, 0x33, 0x1E);
+  bytes.push(0x1B, 0x61, 0x01);
 
-  for (const char of text) {
-    bytes.push(char.charCodeAt(0));
+  const lines = text.split('\n');
+  for (const line of lines) {
+    if (line.startsWith('-')) {
+      bytes.push(0x1B, 0x45, 0x01);
+    }
+    for (const char of line) {
+      bytes.push(char.charCodeAt(0));
+    }
+    if (line.startsWith('-')) {
+      bytes.push(0x1B, 0x45, 0x00);
+    }
+    bytes.push(0x1B, 0x64, 0x05);
   }
 
+  bytes.push(0x1B, 0x61, 0x00);
   bytes.push(0x1D, 0x56, 0x42, 0x00);
   return new Uint8Array(bytes);
 }

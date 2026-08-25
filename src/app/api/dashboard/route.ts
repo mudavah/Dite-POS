@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-
 import { toNumeric } from '@/lib/numeric';
+import { Prisma } from '@prisma/client';
+
 export async function GET() {
   const session = await auth();
   if (!session?.user) {
@@ -16,7 +17,7 @@ export async function GET() {
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
   const isAdmin = session.user.role === 'ADMIN';
-  const branchFilter = isAdmin ? {} : { branchId: session.user.branchId as string | undefined };
+  const branchFilter = isAdmin ? {} : { branchId: session.user.branchId ?? '' };
 
   const [
     todaySales,
@@ -24,7 +25,6 @@ export async function GET() {
     monthSales,
     recentSales,
     topProducts,
-    lowStock,
     branchPerformance,
     todayPurchases,
     monthPurchases,
@@ -45,7 +45,7 @@ export async function GET() {
       _sum: { totalAmount: true },
     }),
     prisma.sale.findMany({
-      where: { ...branchFilter, createdAt: { gte: new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000) } },
+      where: { ...branchFilter, createdAt: { gte: new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000) }, paymentStatus: 'COMPLETED' },
       take: 10,
       orderBy: { createdAt: 'desc' },
       include: { cashier: { select: { name: true, email: true } }, branch: { select: { name: true, code: true } } },
@@ -59,13 +59,8 @@ export async function GET() {
       orderBy: { _sum: { total: 'desc' } },
       take: 5,
     }),
-    prisma.inventory.findMany({
-      where: { quantity: { lte: 10 }, product: { isArchived: false } },
-      include: { product: true, branch: true },
-      take: 10,
-    }),
     prisma.branch.findMany({
-      where: { isActive: true },
+      where: isAdmin ? { isActive: true } : { id: session.user.branchId ?? '', isActive: true },
       include: {
         _count: { select: { sales: true } },
         sales: {
@@ -112,18 +107,29 @@ export async function GET() {
         where: { id: item.productId },
         select: { name: true, sku: true, price: true },
       });
-      return { ...item, product };
+      return { ...item, product: product ?? { name: 'Unknown Product', sku: '', price: 0 } };
     })
   );
 
   const revenue = toNumeric(monthSales._sum?.totalAmount) || 0;
-  const cost = await prisma.saleItem.aggregate({
-    where: {
-      sale: { ...branchFilter, createdAt: { gte: monthStart }, paymentStatus: 'COMPLETED' },
-    },
-    _sum: { total: true },
-  });
-  const totalCost = toNumeric(cost._sum?.total) || 0;
+
+  const branchCostClause =
+    isAdmin || !branchFilter.branchId
+      ? Prisma.empty
+      : Prisma.sql`AND "sales"."branchId" = ${branchFilter.branchId}`;
+
+  const costResult = await prisma.$queryRaw<
+    { productCost: number | null }[]
+  >`
+    SELECT COALESCE(SUM("sale_items"."quantity" * "products"."costPrice"), 0) AS "productCost"
+    FROM "sale_items"
+    INNER JOIN "products" ON "sale_items"."productId" = "products"."id"
+    INNER JOIN "sales" ON "sale_items"."saleId" = "sales"."id"
+    WHERE "sales"."createdAt" >= ${monthStart}
+      AND "sales"."paymentStatus" = 'COMPLETED'
+      ${branchCostClause}
+  `;
+  const totalCost = toNumeric(costResult[0]?.productCost) || 0;
   const profit = revenue - totalCost;
 
   const branchesPerformance = branchPerformance.map((branch) => {
@@ -132,12 +138,80 @@ export async function GET() {
       id: branch.id,
       name: branch.name,
       code: branch.code,
-      saleCount: branch._count.sales,
+      saleCount: branch._count?.sales ?? 0,
       totalSales,
     };
   });
 
-return NextResponse.json({
+  const totalProducts = await prisma.inventory.count({
+    where: branchFilter,
+  });
+
+  const inventoryValueResult = await prisma.inventory.findMany({
+    where: branchFilter,
+    include: {
+      product: { select: { costPrice: true, price: true, lowStockThreshold: true, name: true, isArchived: true } },
+      branch: { select: { name: true } },
+    },
+  });
+  const inventoryValue = inventoryValueResult.reduce((sum, inv) => {
+    const cost = toNumeric(inv.product.costPrice) || toNumeric(inv.product.price) || 0;
+    return sum + inv.quantity * cost;
+  }, 0);
+
+  const lowStockList = inventoryValueResult.filter(
+    (inv) => !inv.product.isArchived && inv.quantity <= inv.product.lowStockThreshold
+  );
+  const lowStock = lowStockList.length;
+  const lowStockItems = lowStockList.slice(0, 10).map((inv) => ({
+    id: inv.id,
+    quantity: inv.quantity,
+    product: { name: inv.product.name },
+    branch: { name: inv.branch.name },
+  }));
+
+  const outOfStock = await prisma.inventory.count({
+    where: { ...branchFilter, quantity: 0, product: { isArchived: false } },
+  });
+
+  const totalMovements = await prisma.stockMovement.count({
+    where: { createdAt: { gte: monthStart } },
+  });
+
+  const topSuppliers = await prisma.purchase.groupBy({
+    by: ['supplierId'],
+    where: { ...branchFilter, createdAt: { gte: monthStart } },
+    _sum: { grandTotal: true },
+    _count: { id: true },
+    orderBy: { _sum: { grandTotal: 'desc' } },
+    take: 5,
+  });
+  const suppliersWithNames = await Promise.all(
+    topSuppliers.map(async (s) => {
+      const supplier = await prisma.supplier.findUnique({
+        where: { id: s.supplierId },
+        select: { name: true },
+      });
+      return {
+        supplier: { name: supplier?.name ?? 'Unknown' },
+        _sum: { grandTotal: s._sum.grandTotal },
+        _count: { id: s._count.id },
+      };
+    })
+  );
+
+  const topPurchasedWithDetails = await Promise.all(
+    topPurchasedProducts.map(async (item) => {
+      if (!item.productId) return { ...item, product: undefined };
+      const product = await prisma.product.findUnique({
+        where: { id: item.productId },
+        select: { name: true, sku: true, price: true },
+      });
+      return { ...item, product: product ?? undefined };
+    })
+  );
+
+  return NextResponse.json({
     todaySales: toNumeric(todaySales._sum?.totalAmount) || 0,
     weekSales: toNumeric(weekSales._sum?.totalAmount) || 0,
     monthSales: toNumeric(monthSales._sum?.totalAmount) || 0,
@@ -147,6 +221,12 @@ return NextResponse.json({
     monthPurchases: monthPurchases._count || 0,
     totalPurchases: totalPurchases._count || 0,
     totalPurchaseValue: toNumeric(totalPurchases._sum?.grandTotal) || 0,
+    totalProducts,
+    inventoryValue,
+    outOfStock,
+    totalMovements,
+    lowStock,
+    lowStockItems,
     recentPurchases: recentPurchases.map((p) => ({
       id: p.id,
       purchaseNumber: p.purchaseNumber,
@@ -156,10 +236,7 @@ return NextResponse.json({
       status: p.status,
       items: p.items?.length || 0,
     })),
-    topPurchasedProducts: (topPurchasedProducts || []).map((item) => {
-      const product = topProductsWithDetails.find((p) => p.productId === item.productId);
-      return { ...item, product };
-    }),
+    topPurchasedProducts: topPurchasedWithDetails,
     recentSales: recentSales.map((sale) => ({
       ...sale,
       cashier: sale.cashier ? { name: sale.cashier.name, email: sale.cashier.email } : null,
@@ -167,7 +244,7 @@ return NextResponse.json({
       subtotal: toNumeric(sale.subtotal),
     })),
     topProducts: topProductsWithDetails,
-    lowStock,
     branchPerformance: branchesPerformance,
+    topSuppliers: suppliersWithNames,
   });
 }

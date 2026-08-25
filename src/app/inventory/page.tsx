@@ -28,7 +28,46 @@ import { toNumeric } from '@/lib/numeric';
 import { useToast } from '@/components/ui/toast';
 import { StockMovementType } from '@prisma/client';
 
-async function fetchInventory(params?: Record<string, string>) {
+interface InventoryProduct {
+  name: string;
+  sku: string;
+  price: number;
+  isActive: boolean;
+  lowStockThreshold: number;
+  costPrice: number | null;
+  isArchived: boolean;
+}
+
+interface StockMovement {
+  id: string;
+  type: string;
+  quantity: number;
+  notes: string | null;
+  createdAt: string;
+  user?: { name: string } | null;
+}
+
+interface InventoryItem {
+  id: string;
+  branchId: string;
+  productId: string;
+  quantity: number;
+  reserved: number;
+  createdAt: string;
+  updatedAt: string;
+  product: InventoryProduct;
+  branch: { name: string; code: string };
+  movements: StockMovement[];
+}
+
+interface InventoryData {
+  inventory: InventoryItem[];
+  branches: { id: string; name: string; code: string }[];
+  pagination: { total: number; page: number; limit: number; totalPages: number };
+  summary: { totalItems: number; totalProducts: number; totalValue: number; lowStock: number; outOfStock: number };
+}
+
+async function fetchInventory(params?: Record<string, string>): Promise<InventoryData> {
   const query = new URLSearchParams();
   if (params?.branchId) query.set('branchId', params.branchId);
   if (params?.search) query.set('search', params.search);
@@ -40,7 +79,7 @@ async function fetchInventory(params?: Record<string, string>) {
   return res.json();
 }
 
-async function adjustStock(data: any) {
+async function adjustStock(data: { inventoryId: string; quantity: number; type: StockMovementType; notes?: string }) {
   const res = await fetch('/api/inventory', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -64,7 +103,7 @@ export default function InventoryPage() {
   const [showLowStock, setShowLowStock] = useState(false);
   const [showAdjustModal, setShowAdjustModal] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [limit, setLimit] = useState(20);
 
@@ -98,7 +137,7 @@ export default function InventoryPage() {
     },
   });
 
-  const [adjustForm, setAdjustForm] = useState({ quantity: '', type: 'ADJUSTMENT', notes: '' });
+  const [adjustForm, setAdjustForm] = useState<{ quantity: string; type: StockMovementType; notes: string }>({ quantity: '', type: 'ADJUSTMENT', notes: '' });
   const [activeTab, setActiveTab] = useState<'overview' | 'movements'>('overview');
 
   const handleAdjust = (e: React.FormEvent) => {
@@ -107,7 +146,7 @@ export default function InventoryPage() {
     adjustMutation.mutate({
       inventoryId: selectedItem.id,
       quantity: parseInt(adjustForm.quantity),
-      type: adjustForm.type as any,
+      type: adjustForm.type,
       notes: adjustForm.notes,
     });
     setShowAdjustModal(false);
@@ -115,7 +154,7 @@ export default function InventoryPage() {
     setSelectedItem(null);
   };
 
-  const totalPages = data?.totalPages || 1;
+  const totalPages = data?.pagination?.totalPages || 1;
 
   return (
     <div className="space-y-6">
@@ -156,10 +195,7 @@ export default function InventoryPage() {
             <DollarSign className="h-4 w-4 text-green-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(data?.inventory?.reduce((sum: number, inv: any) => {
-              const cost = toNumeric(inv.product?.costPrice) || toNumeric(inv.product?.price) || 0;
-              return sum + inv.quantity * cost;
-            }, 0) || 0)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(data?.summary?.totalValue || 0)}</div>
           </CardContent>
         </Card>
         <Card>
@@ -169,7 +205,7 @@ export default function InventoryPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {data?.inventory?.filter((inv: any) => inv.quantity <= inv.product.lowStockThreshold).length || 0}
+              {data?.summary?.lowStock || 0}
             </div>
           </CardContent>
         </Card>
@@ -180,7 +216,7 @@ export default function InventoryPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {data?.inventory?.filter((inv: any) => inv.quantity === 0).length || 0}
+              {data?.summary?.outOfStock || 0}
             </div>
           </CardContent>
         </Card>
@@ -232,7 +268,7 @@ export default function InventoryPage() {
                     </tr>
                   </thead>
                   <tbody>
-                   {(data?.inventory || []).map((item: any) => {
+                   {(data?.inventory || []).map((item: InventoryItem) => {
                       const available = item.quantity - (item.reserved || 0);
                       const isLowStock = item.quantity <= item.product.lowStockThreshold;
                       const cost = toNumeric(item.product?.costPrice) || toNumeric(item.product?.price) || 0;
@@ -325,7 +361,7 @@ export default function InventoryPage() {
                   <label className="text-sm font-medium">Type</label>
                   <select
                     value={adjustForm.type}
-                    onChange={(e) => setAdjustForm({ ...adjustForm, type: e.target.value })}
+                    onChange={(e) => setAdjustForm({ ...adjustForm, type: e.target.value as StockMovementType })}
                     className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                   >
                     <option value="ADJUSTMENT">Adjustment</option>
@@ -371,8 +407,8 @@ export default function InventoryPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {(data?.inventory || []).flatMap((item: any) =>
-                  (item.movements || []).map((movement: any) => (
+                {(data?.inventory || []).flatMap((item: InventoryItem) =>
+                  (item.movements || []).map((movement: StockMovement) => (
                     <div key={movement.id} className="flex items-center justify-between border-b pb-3">
                       <div>
                         <p className="font-medium">{item.product?.name || 'Unknown'}</p>

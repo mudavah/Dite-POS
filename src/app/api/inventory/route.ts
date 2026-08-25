@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-
 import { toNumeric } from '@/lib/numeric';
 import { StockMovementType } from '@prisma/client';
 
@@ -15,76 +14,82 @@ export async function GET(request: Request) {
   const branchId = searchParams.get('branchId') || session.user.branchId || '';
   const search = searchParams.get('search') || '';
   const lowStock = searchParams.get('lowStock') === 'true';
+  const page = Math.max(parseInt(searchParams.get('page') || '1', 10), 1);
+  const limit = Math.min(parseInt(searchParams.get('limit') || '20', 10), 100);
 
-  const where: Record<string, unknown> = {};
+  const baseWhere: Record<string, unknown> = {};
   if (branchId) {
-    where.branchId = branchId;
+    baseWhere.branchId = branchId;
+  }
+  if (search) {
+    baseWhere.product = {
+      OR: [
+        { name: { contains: search, mode: 'insensitive' } },
+        { sku: { contains: search, mode: 'insensitive' } },
+      ],
+    };
   }
 
-  const inventory = await prisma.inventory.findMany({
-    where,
+  const allInventory = await prisma.inventory.findMany({
+    where: baseWhere,
     include: {
-      product: { select: { name: true, sku: true, price: true, isActive: true, lowStockThreshold: true, costPrice: true } },
-      branch: { select: { name: true, code: true } },
-      movements: {
-        take: 5,
-        orderBy: { createdAt: 'desc' },
+      product: {
+        select: {
+          name: true,
+          sku: true,
+          price: true,
+          isActive: true,
+          lowStockThreshold: true,
+          costPrice: true,
+          isArchived: true,
+        },
       },
+      branch: { select: { name: true, code: true } },
+      movements: { take: 5, orderBy: { createdAt: 'desc' } },
     },
     orderBy: { updatedAt: 'desc' },
   });
 
-  let filtered = inventory;
-  if (search) {
-    filtered = filtered.filter((inv) =>
-      inv.product.name.toLowerCase().includes(search.toLowerCase()) ||
-      inv.product.sku.toLowerCase().includes(search.toLowerCase())
-    );
-  }
+  const totalValue = allInventory.reduce((sum, inv) => {
+    const cost = toNumeric(inv.product.costPrice) || toNumeric(inv.product.price) || 0;
+    return sum + inv.quantity * cost;
+  }, 0);
 
-  if (lowStock) {
-    filtered = filtered.filter((inv) => inv.quantity <= inv.product.lowStockThreshold);
-  }
+  const totalProducts = new Set(allInventory.map((inv) => inv.productId)).size;
+
+  const lowStockList = allInventory.filter(
+    (inv) => !inv.product.isArchived && inv.quantity <= inv.product.lowStockThreshold
+  );
+  const outOfStockList = allInventory.filter((inv) => inv.quantity === 0);
+
+  const displayList = lowStock ? lowStockList : allInventory;
+  const total = displayList.length;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const start = (page - 1) * limit;
+  const pageItems = displayList.slice(start, start + limit);
 
   const branches = await prisma.branch.findMany({
     where: { isActive: true },
     select: { id: true, name: true, code: true },
   });
 
-  const totalValue = await prisma.inventory.aggregate({
-    where: branchId ? { branchId } : undefined,
-    _sum: {
-      quantity: true,
-    },
-  });
-
-  const valuation = await prisma.inventory.findMany({
-    where: branchId ? { branchId } : undefined,
-    include: { product: { select: { costPrice: true, price: true } } },
-  });
-
-  const inventoryValue = valuation.reduce((sum, inv) => {
-    const cost = toNumeric(inv.product.costPrice) || toNumeric(inv.product.price);
-    return sum + inv.quantity * cost;
-  }, 0);
-
-  const uniqueProducts = await prisma.inventory.findMany({
-    where: branchId ? { branchId } : undefined,
-    select: { productId: true },
-    distinct: ['productId'],
-  });
-  const totalProducts = uniqueProducts.length;
-
   return NextResponse.json({
-    inventory: filtered.map((inv) => ({
+    inventory: pageItems.map((inv) => ({
       ...inv,
-      product: { ...inv.product, price: toNumeric(inv.product.price), costPrice: toNumeric(inv.product.costPrice) || null },
+      product: {
+        ...inv.product,
+        price: toNumeric(inv.product.price),
+        costPrice: toNumeric(inv.product.costPrice) || null,
+      },
     })),
     branches,
+    pagination: { total, page, limit, totalPages },
     summary: {
-      totalItems: totalValue._sum.quantity || 0,
+      totalItems: allInventory.reduce((sum, inv) => sum + inv.quantity, 0),
       totalProducts,
-      totalValue: inventoryValue,
+      totalValue,
+      lowStock: lowStockList.length,
+      outOfStock: outOfStockList.length,
     },
   });
 }
@@ -112,6 +117,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Inventory not found' }, { status: 404 });
     }
 
+    const newQuantity = inventory.quantity + quantity;
+    if (newQuantity < 0) {
+      return NextResponse.json({ error: 'Insufficient stock for this adjustment' }, { status: 400 });
+    }
+
     const movement = await prisma.stockMovement.create({
       data: {
         inventoryId,
@@ -126,7 +136,7 @@ export async function POST(request: Request) {
 
     await prisma.inventory.update({
       where: { id: inventoryId },
-      data: { quantity: { increment: quantity } },
+      data: { quantity: newQuantity },
     });
 
     return NextResponse.json(movement);

@@ -16,6 +16,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
             refetchOnWindowFocus: false,
             refetchOnReconnect: true,
             retry: (failureCount, error) => {
+              const status = (error as { status?: number })?.status;
+              if (typeof status === 'number' && status >= 400 && status < 500 && status !== 429) {
+                return false;
+              }
               if ((error as { code?: string })?.code === 'CHECKOUT_UNAUTHORIZED') return false;
               return failureCount < 3;
             },

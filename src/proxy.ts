@@ -30,11 +30,12 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  const useSecureAuthCookie = process.env.AUTH_URL?.startsWith('https://') ?? false;
   const token = await getToken({
     req: request,
     secret: process.env.AUTH_SECRET,
-    cookieName: process.env.NODE_ENV === 'production' ? '__Secure-authjs.session-token' : 'authjs.session-token',
-    secureCookie: process.env.NODE_ENV === 'production',
+    cookieName: useSecureAuthCookie ? '__Secure-authjs.session-token' : 'authjs.session-token',
+    secureCookie: useSecureAuthCookie,
   });
 
   const isPublicPath = publicPaths.some((path) => pathname.startsWith(path));

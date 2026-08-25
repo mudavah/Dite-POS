@@ -6,9 +6,94 @@ import { Card, CardContent, CardHeader, CardTitle, Button, Input, Badge } from '
 import { Calendar, Download, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 import Papa from 'papaparse';
 import jsPDF from 'jspdf';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils';
 
-async function fetchReports(type: string, startDate?: string, endDate?: string, page = 1, limit = 50) {
+interface SalesRow {
+  id: string;
+  receiptNo: string;
+  date: string;
+  cashier: string;
+  branch: string;
+  paymentMethod: string;
+  items: number;
+  subtotal: string;
+  discount: string;
+  total: string;
+  rawTotal: number;
+}
+
+interface CategorySalesRow {
+  category: string;
+  cash: string;
+  card: string;
+  bankTransfer: string;
+  mobileMoney: string;
+  total: string;
+  rawTotal: number;
+}
+
+interface ProductRow {
+  id: string;
+  name: string;
+  sku: string;
+  category: string;
+  price: string;
+  costPrice: string;
+  stock: number;
+  status: string;
+}
+
+interface InventoryRow {
+  id: string;
+  product: string;
+  sku: string;
+  branch: string;
+  quantity: number;
+  value: string;
+  rawValue: number;
+}
+
+interface ProfitRow {
+  id: string;
+  date: string;
+  cashier: string;
+  branch: string;
+  revenue: string;
+  cost: string;
+  profit: string;
+  rawProfit: number;
+  rawCost: number;
+}
+
+interface CashierRow {
+  id: string;
+  name: string;
+  email: string;
+  salesCount: number;
+  totalSales: string;
+  rawTotal: number;
+}
+
+interface BranchRow {
+  id: string;
+  name: string;
+  code: string;
+  salesCount: number;
+  totalSales: string;
+  rawTotal: number;
+}
+
+type ReportRow = SalesRow | CategorySalesRow | ProductRow | InventoryRow | ProfitRow | CashierRow | BranchRow;
+
+interface ReportResponse {
+  type: string;
+  data: ReportRow[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+async function fetchReports(type: string, startDate?: string, endDate?: string, page = 1, limit = 50): Promise<ReportResponse> {
   const query = new URLSearchParams({ type, ...(startDate && { startDate }), ...(endDate && { endDate }), page: String(page), limit: String(limit) });
   const res = await fetch(`/api/reports?${query}`);
   if (!res.ok) throw new Error('Failed to fetch reports');
@@ -78,7 +163,7 @@ export default function ReportsPage() {
   const exportCSV = () => {
     if (!data?.data || data.data.length === 0) return;
 
-    const exportData = data.data.map((item: Record<string, unknown>) => {
+    const exportData = (data.data as unknown as Record<string, unknown>[]).map((item) => {
       const clean: Record<string, string> = {};
       for (const [key, value] of Object.entries(item)) {
         if (key.startsWith('raw')) continue;
@@ -122,7 +207,7 @@ export default function ReportsPage() {
       y += lineHeight;
 
       doc.setFontSize(9);
-      data.data.forEach((item: any, index: number) => {
+      (data.data as SalesRow[]).forEach((item) => {
         if (y > pageHeight) {
           doc.addPage();
           y = 20;
@@ -146,12 +231,7 @@ export default function ReportsPage() {
       y += lineHeight;
 
       doc.setFontSize(9);
-      data.data.forEach((item: any) => {
-        if (y > pageHeight) {
-          doc.addPage();
-          y = 20;
-        }
-        doc.text(item.category || '-', 14, y);
+      (data.data as CategorySalesRow[]).forEach((item) => {
         doc.text(item.cash || '0', 60, y);
         doc.text(item.card || '0', 85, y);
         doc.text(item.bankTransfer || '0', 105, y);
@@ -170,12 +250,7 @@ export default function ReportsPage() {
       y += lineHeight;
 
       doc.setFontSize(9);
-      data.data.forEach((item: any) => {
-        if (y > pageHeight) {
-          doc.addPage();
-          y = 20;
-        }
-        doc.text(item.id?.slice(-8) || '-', 14, y);
+      (data.data as ProfitRow[]).forEach((item) => {
         doc.text(item.date || '-', 50, y);
         doc.text((item.cashier || '-').slice(0, 18), 90, y);
         doc.text(item.revenue || '-', 130, y);
@@ -187,14 +262,14 @@ export default function ReportsPage() {
       const keys = Object.keys(data.data[0] || {}).filter((k) => !k.startsWith('raw'));
       doc.setFontSize(10);
       let xOffset = 14;
-      keys.forEach((key, i) => {
+      keys.forEach((key) => {
         doc.text(key.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase()), xOffset, y);
         xOffset += Math.max(25, key.length * 3.5);
       });
       y += lineHeight;
 
       doc.setFontSize(9);
-      data.data.forEach((item: any) => {
+      (data.data as unknown as Record<string, unknown>[]).forEach((item) => {
         if (y > pageHeight) {
           doc.addPage();
           y = 20;
@@ -215,9 +290,10 @@ export default function ReportsPage() {
 
   const renderSummaryCards = () => {
     if (reportType === 'sales') {
-      const totalSales = data?.data?.reduce((sum: number, s: any) => sum + (s.rawTotal || 0), 0) || 0;
-      const avgSale = data?.data?.length ? totalSales / data.data.length : 0;
-      const totalTx = data?.data?.length || 0;
+      const rows = data?.data as SalesRow[] | undefined;
+      const totalSales = rows?.reduce((sum, s) => sum + (s.rawTotal || 0), 0) || 0;
+      const avgSale = rows?.length ? totalSales / rows.length : 0;
+      const totalTx = rows?.length || 0;
 
       return (
         <div className="grid gap-4 md:grid-cols-3">
@@ -234,7 +310,7 @@ export default function ReportsPage() {
               <CardTitle className="text-sm font-medium text-muted-foreground">Transactions</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{totalTx.toLocaleString()}</div>
+              <div className="text-2xl font-bold">              {totalTx.toLocaleString()}</div>
             </CardContent>
           </Card>
           <Card>
@@ -250,7 +326,8 @@ export default function ReportsPage() {
     }
 
     if (reportType === 'category-sales') {
-      const total = data?.data?.reduce((sum: number, cat: any) => sum + (cat.rawTotal || 0), 0) || 0;
+      const rows = data?.data as CategorySalesRow[] | undefined;
+      const total = rows?.reduce((sum, cat) => sum + (cat.rawTotal || 0), 0) || 0;
       return (
         <div className="grid gap-4 md:grid-cols-3">
           <Card>
@@ -282,8 +359,9 @@ export default function ReportsPage() {
     }
 
     if (reportType === 'profit') {
-      const totalRevenue = data?.data?.reduce((sum: number, s: any) => sum + (s.rawProfit || 0) + (s.cost ? parseFloat(s.cost.replace(/[^0-9.-]/g, '')) : 0), 0) || 0;
-      const totalProfit = data?.data?.reduce((sum: number, s: any) => sum + (s.rawProfit || 0), 0) || 0;
+      const rows = data?.data as ProfitRow[] | undefined;
+      const totalRevenue = rows?.reduce((sum, s) => sum + (s.rawProfit || 0) + (s.cost ? parseFloat(s.cost.replace(/[^0-9.-]/g, '')) : 0), 0) || 0;
+      const totalProfit = rows?.reduce((sum, s) => sum + (s.rawProfit || 0), 0) || 0;
       const margin = totalRevenue > 0 ? ((totalProfit / totalRevenue) * 100).toFixed(1) : 0;
 
       return (
@@ -388,7 +466,7 @@ export default function ReportsPage() {
             </tr>
           </thead>
           <tbody>
-            {data?.data?.map((sale: any) => (
+            {((data?.data || []) as SalesRow[]).map((sale) => (
               <tr key={sale.id} className="border-t hover:bg-muted/20">
                 <td className="p-3 font-mono text-xs">{sale.receiptNo}</td>
                 <td className="p-3 whitespace-nowrap">{sale.date}</td>
@@ -412,8 +490,8 @@ export default function ReportsPage() {
   );
 
   const renderCategorySalesReport = () => {
-    const categories = data?.data || [];
-    const totals = categories.reduce((acc: any, cat: any) => {
+    const categories = (data?.data || []) as CategorySalesRow[];
+    const totals = categories.reduce((acc, cat) => {
       const cash = parseFloat(cat.cash?.replace(/[^0-9.-]/g, '') || '0');
       const card = parseFloat(cat.card?.replace(/[^0-9.-]/g, '') || '0');
       const bankTransfer = parseFloat(cat.bankTransfer?.replace(/[^0-9.-]/g, '') || '0');
@@ -444,7 +522,7 @@ export default function ReportsPage() {
               </tr>
             </thead>
             <tbody>
-              {categories.map((cat: any) => (
+              {categories.map((cat) => (
                 <tr key={cat.category} className="border-t hover:bg-muted/20">
                   <td className="p-3 font-medium">{cat.category}</td>
                   <td className="p-3 text-right tabular-nums">{cat.cash}</td>
@@ -484,7 +562,7 @@ export default function ReportsPage() {
           </tr>
         </thead>
         <tbody>
-          {data?.data?.map((product: any) => (
+          {((data?.data || []) as ProductRow[]).map((product) => (
             <tr key={product.id} className="border-t hover:bg-muted/20">
               <td className="p-3">{product.name}</td>
               <td className="p-3 font-mono text-xs">{product.sku}</td>
@@ -517,7 +595,7 @@ export default function ReportsPage() {
             </tr>
           </thead>
           <tbody>
-            {data?.data?.map((item: any) => (
+            {((data?.data || []) as InventoryRow[]).map((item) => (
               <tr key={item.id} className="border-t hover:bg-muted/20">
                 <td className="p-3">{item.product}</td>
                 <td className="p-3 font-mono text-xs">{item.sku}</td>
@@ -550,7 +628,7 @@ export default function ReportsPage() {
             </tr>
           </thead>
           <tbody>
-            {data?.data?.map((sale: any) => (
+            {((data?.data || []) as ProfitRow[]).map((sale) => (
               <tr key={sale.id} className="border-t hover:bg-muted/20">
                 <td className="p-3 font-mono text-xs">#{sale.id?.slice(-8)}</td>
                 <td className="p-3 whitespace-nowrap">{sale.date}</td>
@@ -580,7 +658,7 @@ export default function ReportsPage() {
           </tr>
         </thead>
         <tbody>
-          {data?.data?.map((cashier: any) => (
+          {((data?.data || []) as CashierRow[]).map((cashier) => (
             <tr key={cashier.id} className="border-t hover:bg-muted/20">
               <td className="p-3">{cashier.name}</td>
               <td className="p-3 text-muted-foreground">{cashier.email}</td>
@@ -605,7 +683,7 @@ export default function ReportsPage() {
           </tr>
         </thead>
         <tbody>
-          {data?.data?.map((branch: any) => (
+          {((data?.data || []) as BranchRow[]).map((branch) => (
             <tr key={branch.id} className="border-t hover:bg-muted/20">
               <td className="p-3">{branch.name}</td>
               <td className="p-3 font-mono text-xs">{branch.code}</td>

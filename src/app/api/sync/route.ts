@@ -27,7 +27,25 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized', code: 'CHECKOUT_UNAUTHORIZED' }, { status: 401 });
   }
 
-  return NextResponse.json({ isOnline: true, syncStatus: 'complete', pendingCount: 0, conflictCount: 0, items: [] });
+  const [pendingCount, conflictCount] = await Promise.all([
+    prisma.syncQueue.count({ where: { status: 'PENDING' } }),
+    prisma.syncQueue.count({ where: { status: 'CONFLICT' } }),
+  ]);
+
+  const recentItems = await prisma.syncQueue.findMany({
+    where: { status: { in: ['PENDING', 'CONFLICT'] } },
+    orderBy: { createdAt: 'desc' },
+    take: 20,
+    select: { id: true, entityType: true, entityId: true, action: true, status: true, createdAt: true },
+  });
+
+  return NextResponse.json({
+    isOnline: true,
+    syncStatus: pendingCount === 0 ? 'complete' : 'pending',
+    pendingCount,
+    conflictCount,
+    items: recentItems,
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -96,8 +114,17 @@ export async function POST(request: NextRequest) {
       });
 
       if (existingSale) {
-        logger.info('sync: duplicate sale detected (already synced by entityId)', { requestId, saleId: item.entityId, reason: 'A sale with the same entityId already exists in the database. This prevents re-uploading an already-synced offline sale.' });
-        return NextResponse.json({ success: true, message: 'Sale already synced', saleId: existingSale.id, receiptNo: (existingSale as { receiptNo?: string }).receiptNo, duplicateReason: 'Already synced by entityId' });
+        logger.info('sync: duplicate sale detected (already synced by entityId)', { requestId, saleId: item.entityId, reason: 'A sale with the same entityId already exists in the database.' });
+        const existingReceipt = await prisma.receipt.findUnique({
+          where: { saleId: existingSale.id },
+        });
+        return NextResponse.json({
+          success: true,
+          message: 'Sale already synced',
+          saleId: existingSale.id,
+          receiptNo: existingReceipt?.receiptNo,
+          duplicateReason: 'Already synced by entityId'
+        });
       }
 
       const idempotencyKey = salePayloadData.idempotencyKey || item.entityId!;
@@ -107,7 +134,7 @@ export async function POST(request: NextRequest) {
       });
 
       if (existingIdempotency) {
-        logger.info('sync: idempotency hit - sale already exists', { requestId, idempotencyKey, existingSaleId: existingIdempotency.id, existingPaymentStatus: existingIdempotency.paymentStatus, reason: 'The sale payload contains an idempotencyKey that matches an existing completed sale. Returning the original sale data without creating a duplicate.' });
+        logger.info('sync: idempotency hit - sale already exists', { requestId, idempotencyKey, existingSaleId: existingIdempotency.id, existingPaymentStatus: existingIdempotency.paymentStatus, reason: 'The sale payload contains an idempotencyKey that matches an existing completed sale.' });
         const existingReceipt = await prisma.receipt.findUnique({
           where: { saleId: existingIdempotency.id },
         });
