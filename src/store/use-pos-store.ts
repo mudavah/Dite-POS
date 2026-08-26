@@ -195,7 +195,7 @@ export const usePosStore = create<PosState>((set, get) => ({
     const receiptNo = `OFF-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(Date.now() % 100000).padStart(5, '0')}`;
 
     try {
-      const items = (payload.items as Array<Record<string, unknown>>) || [];
+      const items = Array.isArray(payload.items) ? payload.items : [];
       const offlineIdempotencyKey = crypto.randomUUID();
 
       await db.salesQueue.add({

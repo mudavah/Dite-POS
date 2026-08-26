@@ -97,7 +97,9 @@ function generateTextTemplate(data: ReceiptData, paperSize: PaperSize): string {
   lines.push(center('RECEIPT', width));
   lines.push(`Receipt No: ${data.receiptNo}`);
   lines.push(`Sale No: ${data.saleId}`);
-  lines.push(`Date: ${new Date(data.date).toLocaleString()}`);
+  const dateObj = new Date(data.date);
+  const dateStr = Number.isNaN(dateObj.getTime()) ? 'N/A' : dateObj.toLocaleString();
+  lines.push(`Date: ${dateStr}`);
   lines.push(`Cashier: ${data.cashierName}`);
   lines.push(`Customer: ${displayCustomer}`);
   if (data.paymentReference) lines.push(`Reference: ${data.paymentReference}`);
@@ -189,7 +191,7 @@ function generateHtmlTemplate(data: ReceiptData, paperSize: PaperSize): string {
     <table>
       <tr><td>Receipt No:</td><td class="right">${escapeHtml(data.receiptNo)}</td></tr>
       <tr><td>Sale No:</td><td class="right">${escapeHtml(data.saleId)}</td></tr>
-      <tr><td>Date:</td><td class="right">${new Date(data.date).toLocaleString()}</td></tr>
+      <tr><td>Date:</td><td class="right">${(() => { const d = new Date(data.date); return Number.isNaN(d.getTime()) ? 'N/A' : d.toLocaleString(); })()}</td></tr>
       <tr><td>Cashier:</td><td class="right">${escapeHtml(data.cashierName)}</td></tr>
       <tr><td>Customer:</td><td class="right">${escapeHtml(displayCustomer)}</td></tr>
       ${data.paymentReference ? `<tr><td>Reference:</td><td class="right">${escapeHtml(data.paymentReference)}</td></tr>` : ''}

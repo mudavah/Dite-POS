@@ -171,13 +171,13 @@ export function CartPanel({
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
-                      disabled={item.quantity <= 1}
-                      className="h-8 w-8"
-                    >
+                     <Button
+                       variant="outline"
+                       size="icon"
+                       onClick={() => onUpdateQuantity(item.id, -1)}
+                       disabled={item.quantity <= 1}
+                       className="h-8 w-8"
+                     >
                       <Minus className="h-3 w-3" />
                     </Button>
                     <Input
@@ -210,7 +210,7 @@ export function CartPanel({
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
+                      onClick={() => onUpdateQuantity(item.id, 1)}
                       className="h-8 w-8"
                     >
                       <Plus className="h-3 w-3" />

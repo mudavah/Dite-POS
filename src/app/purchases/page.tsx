@@ -40,6 +40,16 @@ async function deletePurchase(id: string) {
   return res.json();
 }
 
+interface PurchaseListItem {
+  id: string;
+  purchaseNumber: string;
+  supplier?: { name: string };
+  createdAt: string;
+  items: Array<{ id: string }>;
+  grandTotal: number;
+  status: string;
+}
+
 export default function PurchasesPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -117,7 +127,7 @@ export default function PurchasesPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatCurrency(data?.purchases?.reduce((sum: number, p: any) => sum + p.grandTotal, 0) || 0)}
+              {formatCurrency(data?.purchases?.reduce((sum: number, p: PurchaseListItem) => sum + p.grandTotal, 0) || 0)}
             </div>
           </CardContent>
         </Card>
@@ -128,7 +138,7 @@ export default function PurchasesPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {data?.purchases?.filter((p: any) => p.status === 'RECEIVED').length || 0}
+               {data?.purchases?.filter((p: PurchaseListItem) => p.status === 'RECEIVED').length || 0}
             </div>
           </CardContent>
         </Card>
@@ -139,7 +149,7 @@ export default function PurchasesPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {data?.purchases?.filter((p: any) => ['DRAFT', 'ORDERED', 'PARTIALLY_RECEIVED'].includes(p.status)).length || 0}
+               {data?.purchases?.filter((p: PurchaseListItem) => ['DRAFT', 'ORDERED', 'PARTIALLY_RECEIVED'].includes(p.status)).length || 0}
             </div>
           </CardContent>
         </Card>
@@ -192,7 +202,7 @@ export default function PurchasesPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data?.purchases?.map((purchase: any) => (
+                     {data?.purchases?.map((purchase: PurchaseListItem) => (
                       <tr key={purchase.id} className="border-t">
                         <td className="p-3 font-mono text-xs">{purchase.purchaseNumber}</td>
                         <td className="p-3">{purchase.supplier?.name || '-'}</td>

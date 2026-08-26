@@ -52,7 +52,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     ? (paymentMethod as PaymentMethod)
     : sale.paymentMethod;
 
-  const totalAmount = sale.items.reduce((sum, item) => sum + toNumeric(item.total), 0) - toNumeric(sale.discountAmount);
+  const totalAmount = sale.items.reduce((sum, item) => sum + toNumeric(item.total), 0);
   const cashierId = session.user.id;
 
   try {

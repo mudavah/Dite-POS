@@ -57,10 +57,20 @@ export async function DELETE(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-const { attachmentId } = await request.json();
+  let body: { attachmentId?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+  }
+
+  const { attachmentId } = body;
+  if (!attachmentId) {
+    return NextResponse.json({ error: 'attachmentId is required' }, { status: 400 });
+  }
 
   await prisma.purchaseAttachment.delete({
-    where: { id: attachmentId as string, purchaseId: id },
+    where: { id: attachmentId, purchaseId: id },
   });
 
   await auditLog({

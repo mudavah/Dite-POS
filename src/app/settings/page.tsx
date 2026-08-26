@@ -12,7 +12,46 @@ async function fetchSettings() {
   return res.json();
 }
 
-async function updateSettings(data: any) {
+interface BranchSetting {
+  id: string;
+  branchId: string;
+  receiptPrefix: string;
+  receiptNextNum: number;
+  receiptTemplate: string;
+  currency: string;
+  currencySymbol: string;
+  footerText?: string;
+  shopName?: string;
+  kraPin?: string;
+  branchAddress?: string;
+  branchPhone?: string;
+  branchEmail?: string;
+}
+
+interface Branch {
+  id: string;
+  name: string;
+}
+
+interface PrinterConfig {
+  id?: string;
+  branchId: string;
+  name: string;
+  type: string;
+  protocol: string;
+  paperSize: string;
+  isDefault: boolean;
+  isActive: boolean;
+  vendorId?: string;
+  productId?: string;
+  endpoint?: string;
+  deviceId?: string;
+  ipAddress?: string;
+  macAddress?: string;
+  port?: number;
+}
+
+async function updateSettings(data: Partial<BranchSetting>) {
   const res = await fetch('/api/settings', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -28,7 +67,7 @@ async function fetchPrinterConfigs() {
   return res.json();
 }
 
-async function savePrinterConfig(data: any) {
+async function savePrinterConfig(data: PrinterConfig) {
   const method = data.id ? 'PUT' : 'POST';
   const res = await fetch('/api/printer-configs', {
     method,
@@ -77,8 +116,8 @@ export default function SettingsPage() {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       toast({ title: 'Changes saved successfully', variant: 'success' });
     },
-    onError: (error: any) => {
-      toast({ title: error?.message || 'Failed to save settings', variant: 'destructive' });
+    onError: (error: unknown) => {
+      toast({ title: error instanceof Error ? error.message : 'Failed to save settings', variant: 'destructive' });
     }
   });
   const printerMutation = useMutation({
@@ -89,8 +128,8 @@ export default function SettingsPage() {
       setPrinterForm({ id: '', branchId: '', name: '', type: 'USB', protocol: 'ESC_POS', paperSize: '80mm', vendorId: '', productId: '', endpoint: '', deviceId: '', ipAddress: '', macAddress: '', port: '9100', isDefault: false, isActive: true });
       toast({ title: 'Printer configuration saved successfully', variant: 'success' });
     },
-    onError: (error: any) => {
-      toast({ title: error?.message || 'Failed to save printer config', variant: 'destructive' });
+    onError: (error: unknown) => {
+      toast({ title: error instanceof Error ? error.message : 'Failed to save printer config', variant: 'destructive' });
     }
   });
   const deletePrinterMutation = useMutation({
@@ -101,8 +140,8 @@ export default function SettingsPage() {
       setPrinterForm({ id: '', branchId: '', name: '', type: 'USB', protocol: 'ESC_POS', paperSize: '80mm', vendorId: '', productId: '', endpoint: '', deviceId: '', ipAddress: '', macAddress: '', port: '9100', isDefault: false, isActive: true });
       toast({ title: 'Printer configuration deleted', variant: 'success' });
     },
-    onError: (error: any) => {
-      toast({ title: error?.message || 'Failed to delete printer config', variant: 'destructive' });
+    onError: (error: unknown) => {
+      toast({ title: error instanceof Error ? error.message : 'Failed to delete printer config', variant: 'destructive' });
     }
   });
 
@@ -155,10 +194,14 @@ export default function SettingsPage() {
   const handleSavePrinter = (e: React.FormEvent) => {
     e.preventDefault();
     const { id, ...rest } = printerForm;
+    const payload = {
+      ...rest,
+      port: rest.port ? parseInt(rest.port as unknown as string, 10) : undefined,
+    };
     if (id) {
-      printerMutation.mutate({ id, ...rest });
+      printerMutation.mutate({ id, ...payload });
     } else {
-      printerMutation.mutate(rest);
+      printerMutation.mutate(payload);
     }
   };
 
@@ -201,8 +244,8 @@ export default function SettingsPage() {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       toast({ title: 'eTRS configuration saved successfully', variant: 'success' });
     },
-    onError: (error: any) => {
-      toast({ title: error?.message || 'Failed to save eTRS config', variant: 'destructive' });
+    onError: (error: unknown) => {
+      toast({ title: error instanceof Error ? error.message : 'Failed to save eTRS config', variant: 'destructive' });
     }
   });
 
@@ -251,7 +294,7 @@ export default function SettingsPage() {
                 <label className="text-sm font-medium">Branch</label>
                 <select value={shopForm.branchId} onChange={(e) => setShopForm({ ...shopForm, branchId: e.target.value })} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" required>
                   <option value="">Select branch</option>
-                  {branches?.map((b: any) => (<option key={b.id} value={b.id}>{b.name}</option>))}
+                   {branches?.map((b: Branch) => (<option key={b.id} value={b.id}>{b.name}</option>))}
                 </select>
               </div>
               <div className="space-y-2">
@@ -306,10 +349,10 @@ export default function SettingsPage() {
               <select
                 id="receipt-template"
                  value={settings?.[0]?.receiptTemplate || 'existing'}
-                onChange={(e) => {
-                  const updated = { ...settings[0], receiptTemplate: e.target.value };
-                  shopMutation.mutate(updated);
-                }}
+                 onChange={(e) => {
+                   const updated = settings?.[0] ? { ...settings[0], receiptTemplate: e.target.value } : { receiptTemplate: e.target.value };
+                   shopMutation.mutate(updated);
+                 }}
                 className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
               >
                 <option value="existing">Existing Receipt</option>
@@ -341,7 +384,7 @@ Footer: ${shopForm.footerText || 'Thank you for your purchase!'}`}
                 <label className="text-sm font-medium">Branch</label>
                 <select value={printerForm.branchId} onChange={(e) => setPrinterForm({ ...printerForm, branchId: e.target.value })} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" required>
                   <option value="">Select branch</option>
-                  {branches?.map((b: any) => (<option key={b.id} value={b.id}>{b.name}</option>))}
+                   {branches?.map((b: Branch) => (<option key={b.id} value={b.id}>{b.name}</option>))}
                 </select>
               </div>
               <div className="space-y-2">
@@ -515,7 +558,7 @@ Footer: ${shopForm.footerText || 'Thank you for your purchase!'}`}
                 <label className="text-sm font-medium">Branch</label>
                 <select value={etrsForm.branchId} onChange={(e) => setEtrsForm({ ...etrsForm, branchId: e.target.value })} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" required>
                   <option value="">Select branch</option>
-                  {branches?.map((b: any) => (<option key={b.id} value={b.id}>{b.name}</option>))}
+                   {branches?.map((b: Branch) => (<option key={b.id} value={b.id}>{b.name}</option>))}
                 </select>
               </div>
               <div className="space-y-2">

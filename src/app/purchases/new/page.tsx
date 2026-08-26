@@ -42,13 +42,32 @@ export default function NewPurchasePage() {
     notes: '',
   });
 
-  const updateItem = (index: number, field: string, value: any) => {
+  const updateItem = (index: number, field: string, value: string | number) => {
     const newItems = [...items];
     newItems[index] = { ...newItems[index], [field]: value };
     if (field === 'quantity' || field === 'buyingPrice') {
       newItems[index].lineTotal = (newItems[index].quantity || 0) * (newItems[index].buyingPrice || 0);
     }
     setItems(newItems);
+  };
+
+  const handleProductSelect = (index: number, productId: string) => {
+    const product = productsData?.products?.find((p: { id: string; name: string; sku: string; barcode?: string; price: number; costPrice?: number }) => p.id === productId);
+    setItems((prevItems) => {
+      const newItems = [...prevItems];
+      const item = { ...newItems[index] };
+      item.productId = productId;
+      if (product) {
+        item.productName = product.name || '';
+        item.sku = product.sku || '';
+        item.barcode = product.barcode || '';
+        item.sellingPrice = product.price || 0;
+        item.buyingPrice = product.costPrice || 0;
+      }
+      item.lineTotal = (item.quantity || 0) * (item.buyingPrice || 0);
+      newItems[index] = item;
+      return newItems;
+    });
   };
 
   const addItem = () => {
@@ -152,7 +171,7 @@ export default function NewPurchasePage() {
                   required
                 >
                   <option value="">Select Supplier</option>
-                  {suppliersData?.suppliers?.map((s: any) => (
+                  {suppliersData?.suppliers?.map((s: { id: string; name: string }) => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
@@ -224,27 +243,28 @@ export default function NewPurchasePage() {
           <CardContent className="space-y-4">
             {items.map((item, index) => (
               <div key={index} className="flex items-start gap-2 p-4 border rounded-md">
-                <div className="flex-1 grid gap-2 md:grid-cols-5">
+                <div className="flex-1 grid gap-2 md:grid-cols-6">
                   <div>
                     <label className="text-xs font-medium">Product</label>
                     <select
                       value={item.productId}
-                      onChange={(e) => {
-                        const product = productsData?.products?.find((p: any) => p.id === e.target.value);
-                        updateItem(index, 'productId', e.target.value);
-                        updateItem(index, 'productName', product?.name || '');
-                        updateItem(index, 'sku', product?.sku || '');
-                        updateItem(index, 'barcode', product?.barcode || '');
-                        updateItem(index, 'sellingPrice', product?.price || 0);
-                        updateItem(index, 'buyingPrice', product?.costPrice || 0);
-                      }}
+                      onChange={(e) => handleProductSelect(index, e.target.value)}
                       className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
                     >
                       <option value="">Select Product</option>
-                      {productsData?.products?.map((p: any) => (
+                       {productsData?.products?.map((p: { id: string; name: string }) => (
                         <option key={p.id} value={p.id}>{p.name}</option>
                       ))}
                     </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium">Product Name</label>
+                    <Input
+                      value={item.productName}
+                      onChange={(e) => updateItem(index, 'productName', e.target.value)}
+                      placeholder="Enter product name"
+                      className="h-9"
+                    />
                   </div>
                   <div>
                     <label className="text-xs font-medium">Qty</label>

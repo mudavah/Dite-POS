@@ -39,6 +39,7 @@ export const importRowSchema = z.object({
   reorderLevel: z.coerce.number().int().nonnegative().default(10),
   supplier: z.string().max(200).optional().nullable(),
   tax: z.coerce.number().nonnegative().default(0),
+  discount: z.coerce.number().nonnegative().default(0),
   description: z.string().max(1000).optional().nullable(),
 });
 
@@ -127,7 +128,7 @@ export const purchaseItemSchema = z.object({
 
 export const purchaseSchema = z.object({
   supplierId: z.string().min(1, 'Supplier is required'),
-  purchaseDate: z.string().optional(),
+  purchaseDate: z.string().refine((val) => !val || !Number.isNaN(new Date(val).getTime()), { message: 'Invalid purchase date' }).optional(),
   invoiceNumber: z.string().optional().nullable(),
   deliveryNote: z.string().optional().nullable(),
   paymentMethod: z.enum(['CASH', 'CARD', 'BANK_TRANSFER', 'MOBILE_MONEY', 'CREDIT']),

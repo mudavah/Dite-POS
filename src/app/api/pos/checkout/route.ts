@@ -31,7 +31,7 @@ export async function POST(request: Request) {
   const startTime = Date.now();
   const session = await auth();
 
-  if (!session?.user) {
+  if (!session?.user || !['ADMIN', 'MANAGER', 'CASHIER'].includes(session.user.role)) {
     logger.warn('checkout: unauthorized', { requestId, ip: request.headers.get('x-forwarded-for') });
     return NextResponse.json({ error: 'Unauthorized', code: 'CHECKOUT_UNAUTHORIZED' }, { status: 401 });
   }

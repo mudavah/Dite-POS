@@ -249,7 +249,7 @@ export default function DashboardPage() {
               <div className="text-muted-foreground">Loading...</div>
             ) : (
               <div className="space-y-4">
-                {data.topSuppliers.map((s: any, i: number) => (
+                {data.topSuppliers.map((s: { supplier: { name: string } | null; _sum: { grandTotal: number | null }; _count: { id: number } }, i: number) => (
                   <div key={i} className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold">

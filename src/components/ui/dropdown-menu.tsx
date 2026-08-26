@@ -9,10 +9,10 @@ import {
   DropdownMenuTrigger as RadixDropdownMenuTrigger,
 } from '@radix-ui/react-dropdown-menu';
 
-interface DropdownMenuProps extends React.ComponentPropsWithoutRef<typeof RadixDropdownMenu> {}
-interface DropdownMenuContentProps extends React.ComponentPropsWithoutRef<typeof RadixDropdownMenuContent> {}
-interface DropdownMenuItemProps extends React.ComponentPropsWithoutRef<typeof RadixDropdownMenuItem> {}
-interface DropdownMenuTriggerProps extends React.ComponentPropsWithoutRef<typeof RadixDropdownMenuTrigger> {}
+type DropdownMenuProps = React.ComponentPropsWithoutRef<typeof RadixDropdownMenu>;
+type DropdownMenuContentProps = React.ComponentPropsWithoutRef<typeof RadixDropdownMenuContent>;
+type DropdownMenuItemProps = React.ComponentPropsWithoutRef<typeof RadixDropdownMenuItem>;
+type DropdownMenuTriggerProps = React.ComponentPropsWithoutRef<typeof RadixDropdownMenuTrigger>;
 
 const DropdownMenu = RadixDropdownMenu;
 const DropdownMenuTrigger = RadixDropdownMenuTrigger;

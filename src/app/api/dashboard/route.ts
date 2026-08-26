@@ -101,15 +101,18 @@ export async function GET() {
     }),
   ]);
 
-  const topProductsWithDetails = await Promise.all(
-    topProducts.map(async (item) => {
-      const product = await prisma.product.findUnique({
-        where: { id: item.productId },
-        select: { name: true, sku: true, price: true },
-      });
-      return { ...item, product: product ?? { name: 'Unknown Product', sku: '', price: 0 } };
-    })
-  );
+  const topProductsWithDetails = await (async () => {
+    const productIds = topProducts.map((p) => p.productId).filter(Boolean) as string[];
+    const products = productIds.length > 0 ? await prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, name: true, sku: true, price: true },
+    }) : [];
+    const productMap = new Map(products.map((p) => [p.id, p]));
+    return topProducts.map((item) => ({
+      ...item,
+      product: item.productId ? (productMap.get(item.productId) ?? { name: 'Unknown Product', sku: '', price: 0 }) : { name: 'Unknown Product', sku: '', price: 0 },
+    }));
+  })();
 
   const revenue = toNumeric(monthSales._sum?.totalAmount) || 0;
 
@@ -133,7 +136,7 @@ export async function GET() {
   const profit = revenue - totalCost;
 
   const branchesPerformance = branchPerformance.map((branch) => {
-    const totalSales = branch.sales.reduce((sum: number, sale: { totalAmount: { toNumber: () => number } }) => sum + toNumeric(sale.totalAmount), 0);
+    const totalSales = branch.sales.reduce((sum: number, sale: { totalAmount: unknown }) => sum + toNumeric(sale.totalAmount), 0);
     return {
       id: branch.id,
       name: branch.name,
@@ -186,30 +189,32 @@ export async function GET() {
     orderBy: { _sum: { grandTotal: 'desc' } },
     take: 5,
   });
-  const suppliersWithNames = await Promise.all(
-    topSuppliers.map(async (s) => {
-      const supplier = await prisma.supplier.findUnique({
-        where: { id: s.supplierId },
-        select: { name: true },
-      });
-      return {
-        supplier: { name: supplier?.name ?? 'Unknown' },
-        _sum: { grandTotal: s._sum.grandTotal },
-        _count: { id: s._count.id },
-      };
-    })
-  );
+  const suppliersWithNames = await (async () => {
+    const supplierIds = topSuppliers.map((s) => s.supplierId).filter(Boolean);
+    const suppliers = supplierIds.length > 0 ? await prisma.supplier.findMany({
+      where: { id: { in: supplierIds } },
+      select: { id: true, name: true },
+    }) : [];
+    const supplierMap = new Map(suppliers.map((s) => [s.id, s]));
+    return topSuppliers.map((s) => ({
+      supplier: { name: supplierMap.get(s.supplierId)?.name ?? 'Unknown' },
+      _sum: { grandTotal: s._sum.grandTotal },
+      _count: { id: s._count.id },
+    }));
+  })();
 
-  const topPurchasedWithDetails = await Promise.all(
-    topPurchasedProducts.map(async (item) => {
-      if (!item.productId) return { ...item, product: undefined };
-      const product = await prisma.product.findUnique({
-        where: { id: item.productId },
-        select: { name: true, sku: true, price: true },
-      });
-      return { ...item, product: product ?? undefined };
-    })
-  );
+  const topPurchasedWithDetails = await (async () => {
+    const productIds = topPurchasedProducts.map((p) => p.productId).filter((id): id is string => Boolean(id));
+    const products = productIds.length > 0 ? await prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, name: true, sku: true, price: true },
+    }) : [];
+    const productMap = new Map(products.map((p) => [p.id, p]));
+    return topPurchasedProducts.map((item) => ({
+      ...item,
+      product: item.productId ? (productMap.get(item.productId) ?? undefined) : undefined,
+    }));
+  })();
 
   return NextResponse.json({
     todaySales: toNumeric(todaySales._sum?.totalAmount) || 0,

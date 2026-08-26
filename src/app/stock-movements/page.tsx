@@ -98,7 +98,7 @@ export default function StockMovementsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {(data?.movements || []).map((movement: any) => (
+                      {(data?.movements || []).map((movement: { id: string; type: string; quantity: number; notes: string | null; createdAt: string; reference?: string; inventory?: { product?: { name: string; sku: string }; branch?: { name: string } }; user?: { name: string } | null }) => (
                       <tr key={movement.id} className="border-t">
                         <td className="p-3 text-xs">{formatDate(movement.createdAt)}</td>
                         <td className="p-3 font-medium">

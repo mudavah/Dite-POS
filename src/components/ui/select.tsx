@@ -13,11 +13,11 @@ import {
   SelectIcon,
 } from '@radix-ui/react-select';
 
-interface SelectProps extends React.ComponentPropsWithoutRef<typeof RadixSelect> {}
-interface SelectContentProps extends React.ComponentPropsWithoutRef<typeof RadixSelectContent> {}
-interface SelectItemProps extends React.ComponentPropsWithoutRef<typeof RadixSelectItem> {}
-interface SelectTriggerProps extends React.ComponentPropsWithoutRef<typeof RadixSelectTrigger> {}
-interface SelectValueProps extends React.ComponentPropsWithoutRef<typeof RadixSelectValue> {}
+type SelectProps = React.ComponentPropsWithoutRef<typeof RadixSelect>;
+type SelectContentProps = React.ComponentPropsWithoutRef<typeof RadixSelectContent>;
+type SelectItemProps = React.ComponentPropsWithoutRef<typeof RadixSelectItem>;
+type SelectTriggerProps = React.ComponentPropsWithoutRef<typeof RadixSelectTrigger>;
+type SelectValueProps = React.ComponentPropsWithoutRef<typeof RadixSelectValue>;
 
 const Select = RadixSelect;
 const SelectContent = React.forwardRef<React.ElementRef<typeof RadixSelectContent>, React.ComponentPropsWithoutRef<typeof RadixSelectContent>>(

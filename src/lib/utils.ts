@@ -24,7 +24,9 @@ export function formatCurrency(amount: number | string | null | undefined, _curr
 }
 
 export function formatDate(date: Date | string) {
-  return new Date(date).toLocaleDateString('en-KE', {
+  const dateObj = new Date(date);
+  if (Number.isNaN(dateObj.getTime())) return 'Invalid Date';
+  return dateObj.toLocaleDateString('en-KE', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',

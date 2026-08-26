@@ -6,6 +6,8 @@ import {
   branchSchema,
   userSchema,
   saleSchema,
+  purchaseItemSchema,
+  purchaseSchema,
 } from './validators';
 
 describe('loginSchema', () => {
@@ -119,7 +121,7 @@ describe('userSchema', () => {
       name: 'John Doe',
       email: 'john@shop.com',
       password: 'password123',
-      role: 'SUPERADMIN' as any,
+      role: 'SUPERADMIN' as unknown as 'ADMIN' | 'MANAGER' | 'CASHIER',
     });
     expect(result.success).toBe(false);
   });
@@ -173,6 +175,70 @@ describe('saleSchema', () => {
       paymentMethod: 'CASH',
       amountPaid: 100,
       paymentStatus: 'REFUNDED',
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('purchaseItemSchema', () => {
+  it('should validate item without productId', () => {
+    const result = purchaseItemSchema.safeParse({
+      productName: 'Office Chair',
+      quantity: 2,
+      buyingPrice: 50,
+      sellingPrice: 100,
+      lineTotal: 100,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should validate item with productId', () => {
+    const result = purchaseItemSchema.safeParse({
+      productId: 'prod-1',
+      productName: 'Test Product',
+      sku: 'SKU-1',
+      quantity: 2,
+      buyingPrice: 50,
+      sellingPrice: 100,
+      lineTotal: 100,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject missing productName', () => {
+    const result = purchaseItemSchema.safeParse({
+      quantity: 2,
+      buyingPrice: 50,
+      sellingPrice: 100,
+      lineTotal: 100,
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('purchaseSchema', () => {
+  it('should validate purchase with items that have no productId', () => {
+    const result = purchaseSchema.safeParse({
+      supplierId: 'sup-1',
+      paymentMethod: 'CASH',
+      items: [
+        {
+          productName: 'Office Chair',
+          quantity: 2,
+          buyingPrice: 50,
+          sellingPrice: 100,
+          lineTotal: 100,
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject purchase with empty items', () => {
+    const result = purchaseSchema.safeParse({
+      supplierId: 'sup-1',
+      paymentMethod: 'CASH',
+      items: [],
     });
     expect(result.success).toBe(false);
   });

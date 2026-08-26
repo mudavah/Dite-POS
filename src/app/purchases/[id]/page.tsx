@@ -14,6 +14,39 @@ async function fetchPurchase(id: string) {
   return res.json();
 }
 
+interface PurchaseItem {
+  id: string;
+  productName: string;
+  sku?: string;
+  quantity: number;
+  buyingPrice: number;
+  sellingPrice: number;
+  discount: number;
+  tax: number;
+  lineTotal: number;
+}
+
+interface Purchase {
+  id: string;
+  purchaseNumber: string;
+  purchaseDate: string;
+  invoiceNumber?: string;
+  deliveryNote?: string;
+  paymentMethod: string;
+  status: string;
+  subtotal: number;
+  discountAmount: number;
+  taxAmount: number;
+  grandTotal: number;
+  amountPaid: number;
+  outstandingBalance: number;
+  notes?: string;
+  items: PurchaseItem[];
+  supplier: { name: string; phone?: string; email?: string };
+  branch: { name: string; code: string };
+  user: { name: string; email: string };
+}
+
 export default function PurchaseDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -21,7 +54,7 @@ export default function PurchaseDetailPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: purchase, isLoading } = useQuery({
+  const { data: purchase, isLoading } = useQuery<Purchase>({
     queryKey: ['purchase', id],
     queryFn: () => fetchPurchase(id),
   });
@@ -153,7 +186,7 @@ export default function PurchaseDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {purchase.items?.map((item: any) => (
+                {purchase.items?.map((item: { id: string; productName: string; sku?: string; quantity: number; buyingPrice: number; sellingPrice: number; discount: number; tax: number; lineTotal: number }) => (
                   <tr key={item.id} className="border-t">
                     <td className="p-3 font-medium">{item.productName}</td>
                     <td className="p-3 font-mono">{item.sku || '-'}</td>

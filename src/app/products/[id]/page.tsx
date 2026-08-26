@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, Button, Input, Badge, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Label, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui';
@@ -29,7 +29,38 @@ async function fetchSuppliers() {
   return data.suppliers || [];
 }
 
-async function createProduct(data: any) {
+interface Category {
+  id: string;
+  name: string;
+}
+
+interface Supplier {
+  id: string;
+  name: string;
+}
+
+interface ProductFormData {
+  name: string;
+  sku: string;
+  barcode?: string | null;
+  description?: string | null;
+  price: number;
+  costPrice?: number | null;
+  categoryId?: string | null;
+  lowStockThreshold: number;
+  reorderLevel: number;
+  maxStock: number;
+  brand?: string | null;
+  unit: string;
+  isActive: boolean;
+  image?: string | null;
+  taxRate: number;
+  discount: number;
+  openingStock: number;
+  defaultSupplierId?: string | null;
+}
+
+async function createProduct(data: ProductFormData) {
   const res = await fetch('/api/products', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -52,7 +83,7 @@ async function createProduct(data: any) {
   return res.json();
 }
 
-async function updateProduct(id: string, data: any) {
+async function updateProduct(id: string, data: ProductFormData) {
   const res = await fetch(`/api/products/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -121,9 +152,16 @@ export default function ProductEditPage() {
   const { data: categories } = useQuery({ queryKey: ['categories'], queryFn: fetchCategories });
   const { data: suppliers } = useQuery({ queryKey: ['suppliers'], queryFn: fetchSuppliers });
 
-  const initialForm = useMemo(() => {
+  const [form, setForm] = useState(emptyForm);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'general' | 'pricing' | 'inventory' | 'supplier' | 'other'>('general');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // One-time initialization from async query data
+  useEffect(() => {
     if (product) {
-      return {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setForm({
         name: product.name || '',
         sku: product.sku || '',
         barcode: product.barcode || '',
@@ -142,24 +180,19 @@ export default function ProductEditPage() {
         discount: product.discount?.toString() || '0',
         openingStock: '0',
         defaultSupplierId: '',
-      };
+      });
+      setImagePreview(product.image || null);
     }
-    return emptyForm;
   }, [product]);
 
-  const [form, setForm] = useState(initialForm);
-  const [imagePreview, setImagePreview] = useState<string | null>(product?.image || null);
-  const [activeTab, setActiveTab] = useState<'general' | 'pricing' | 'inventory' | 'supplier' | 'other'>('general');
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
   const updateMutation = useMutation({
-    mutationFn: (data: any) => (isNew ? createProduct(data) : updateProduct(id, data)),
+    mutationFn: (data: ProductFormData) => (isNew ? createProduct(data) : updateProduct(id, data)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       router.push('/products');
       toast({ title: 'Success', description: isNew ? 'Product created successfully' : 'Product updated successfully', variant: 'success' });
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast({ title: 'Error', description: err.message || 'Failed to save product', variant: 'destructive' });
     },
   });
@@ -287,7 +320,7 @@ export default function ProductEditPage() {
                     className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                   >
                     <option value="">None</option>
-                    {categories?.map((cat: any) => (
+                     {categories?.map((cat: Category) => (
                       <option key={cat.id} value={cat.id}>{cat.name}</option>
                     ))}
                   </select>
@@ -412,7 +445,7 @@ export default function ProductEditPage() {
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                 >
                   <option value="">None</option>
-                  {suppliers?.map((s: any) => (
+                     {suppliers?.map((s: Supplier) => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>

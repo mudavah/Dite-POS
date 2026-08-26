@@ -17,7 +17,11 @@ function Tabs({ className, defaultValue, value, onValueChange, children }: { cla
           return React.cloneElement(child as React.ReactElement<{ value: string; onSelect: (v: string) => void; currentValue?: string }>, { onSelect: handleChange, currentValue });
         }
         if (React.isValidElement(child) && child.type === TabsContent) {
-          return React.cloneElement(child as React.ReactElement<{ value: string }>, { value: currentValue });
+          const childValue = (child as React.ReactElement<{ value?: string }>).props.value;
+          if (childValue !== undefined && childValue !== currentValue) {
+            return null;
+          }
+          return child;
         }
         return child;
       })}
@@ -47,7 +51,7 @@ function TabsTrigger({ className, value, children, isSelected, onSelect, ...prop
   );
 }
 
-function TabsContent({ className, value, children, ...props }: React.HTMLAttributes<HTMLDivElement> & { value: string }) {
+function TabsContent({ className, value, children, ...props }: React.HTMLAttributes<HTMLDivElement> & { value?: string }) {
   return <div className={cn('mt-2', className)} role="tabpanel" {...props}>{children}</div>;
 }
 

@@ -61,7 +61,7 @@ export async function GET(request: Request) {
   const [products, total] = await Promise.all([
     prisma.product.findMany({
       where,
-      include: { category: true, purchaseItems: { select: { id: true } } },
+      include: { category: true, purchaseItems: { select: { id: true } }, inventories: { select: { quantity: true } } },
       orderBy: { createdAt: 'desc' },
       skip,
       take: limit,
@@ -87,6 +87,7 @@ export async function GET(request: Request) {
       taxRate: toNumeric(p.taxRate),
       discount: toNumeric(p.discount),
       purchaseCount: p.purchaseItems?.length || 0,
+      totalStock: p.inventories?.reduce((sum: number, inv: { quantity: number }) => sum + inv.quantity, 0) || 0,
     })),
     categories,
     suppliers,

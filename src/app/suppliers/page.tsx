@@ -19,7 +19,7 @@ import {
 import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
 
-async function fetchSuppliers(params?: Record<string, string>) {
+async function fetchSuppliers(params?: Record<string, string>): Promise<{ suppliers: Array<{ id: string; name: string; companyName?: string | null; contactPerson?: string | null; phone?: string | null; email?: string | null; totalPurchases: number; totalAmountPurchased: number; outstandingBalance: number; lastPurchaseDate: string | null; status: string }>; total: number; page: number; limit: number; totalPages: number; summary: { totalSuppliers: number; activeSuppliers: number; totalPurchases: number; totalAmountPurchased: number; outstandingBalance: number } }> {
   const query = new URLSearchParams();
   if (params?.search) query.set('search', params.search);
   if (params?.status) query.set('status', params.status);
@@ -164,7 +164,7 @@ export default function SuppliersPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data?.suppliers?.map((supplier: any) => (
+                     {data?.suppliers?.map((supplier) => (
                       <tr key={supplier.id} className="border-t">
                         <td className="p-3 font-medium">{supplier.name}</td>
                         <td className="p-3">{supplier.companyName || '-'}</td>

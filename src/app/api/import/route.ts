@@ -200,7 +200,7 @@ export async function PUT(request: Request) {
   }
 
   const body = await request.json();
-  const { rows, mode, fileName } = body as { rows: any[]; mode: string; fileName: string };
+  const { rows, mode, fileName } = body as { rows: Array<{ row: number; data: ImportRowInput; warnings?: string[] }>; mode: string; fileName: string };
 
   if (!rows || !Array.isArray(rows) || rows.length === 0) {
     return NextResponse.json({ error: 'No rows provided' }, { status: 400 });

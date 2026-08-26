@@ -14,11 +14,14 @@ function parseDate(param: string | null): Date | undefined {
 }
 
 function formatCurrency(value: number): string {
+  if (typeof value !== 'number' || Number.isNaN(value) || !Number.isFinite(value)) return 'KSh —';
   return `KSh ${value.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function formatReportDate(date: Date): string {
-  return new Date(date).toLocaleDateString('en-KE', {
+  const dateObj = new Date(date);
+  if (Number.isNaN(dateObj.getTime())) return 'Invalid Date';
+  return dateObj.toLocaleDateString('en-KE', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',

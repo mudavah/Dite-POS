@@ -79,6 +79,10 @@ export async function POST(
         });
       }
 
+      if (!product) {
+        throw new Error(`Product not found for item: ${item.productName || item.sku || item.productId}`);
+      }
+
       let inventory = await tx.inventory.findUnique({
         where: { branchId_productId: { branchId: purchase.branchId, productId: product!.id } },
       });

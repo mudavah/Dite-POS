@@ -50,7 +50,7 @@ async function deleteProduct(id: string) {
   return res.json();
 }
 
-async function bulkAction(data: { action: string; productIds: string[]; data?: any }) {
+async function bulkAction(data: { action: string; productIds: string[]; data?: Record<string, unknown> }) {
   const res = await fetch('/api/products/bulk', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -108,9 +108,46 @@ export default function ProductsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [limit, setLimit] = useState(20);
   const [importFile, setImportFile] = useState<File | null>(null);
-  const [importPreview, setImportPreview] = useState<any[]>([]);
-  const [importErrors, setImportErrors] = useState<any[]>([]);
-  const [importSummary, setImportSummary] = useState<any>(null);
+interface ImportRow {
+  row: number;
+  data: {
+    productName: string;
+    sku: string;
+    barcode?: string;
+    category?: string;
+    brand?: string;
+    buyingPrice: number;
+    sellingPrice: number;
+    quantity: number;
+    unit: string;
+    reorderLevel: number;
+    supplier?: string;
+    tax: number;
+    description?: string;
+  };
+  warnings?: string[];
+}
+
+interface ImportError {
+  row: number;
+  errors: string[];
+  productName: string;
+}
+
+interface ImportSummary {
+  totalRows: number;
+  validRows: number;
+  errorRows: number;
+  duplicates: number;
+  imported: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+}
+
+  const [importPreview, setImportPreview] = useState<ImportRow[]>([]);
+  const [importErrors, setImportErrors] = useState<ImportError[]>([]);
+  const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importStep, setImportStep] = useState(1);
   const [importMode, setImportMode] = useState('skip');
@@ -158,7 +195,7 @@ export default function ProductsPage() {
     if (selectedIds.length === data?.products?.length) {
       setSelectedIds([]);
     } else {
-      setSelectedIds(data?.products?.map((p: any) => p.id) || []);
+      setSelectedIds(data?.products?.map((p: { id: string }) => p.id) || []);
     }
   };
 
@@ -294,7 +331,7 @@ export default function ProductsPage() {
                 className="h-10 rounded-md border border-input bg-background px-3 text-sm w-full md:w-[160px]"
               >
                 <option value="">All Categories</option>
-                {data?.categories?.map((cat: any) => (
+                {data?.categories?.map((cat: { id: string; name: string }) => (
                   <option key={cat.id} value={cat.id}>{cat.name}</option>
                 ))}
               </select>
@@ -369,7 +406,7 @@ export default function ProductsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data?.products?.map((product: any) => (
+                    {data?.products?.map((product: { id: string; name: string; sku: string; category?: { name: string }; costPrice: number; price: number; totalStock?: number; lowStockThreshold: number; isActive: boolean; image?: string; description?: string }) => (
                       <tr key={product.id} className="border-t">
                         <td className="p-3">
                           <input
@@ -574,7 +611,7 @@ export default function ProductsPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="max-h-48 overflow-y-auto space-y-1">
-                      {importErrors.map((err: any, i: number) => (
+                       {importErrors.map((err: { row: number; errors?: string[]; error?: string }, i: number) => (
                         <div key={i} className="text-sm text-destructive">
                           Row {err.row}: {err.errors?.join(', ') || err.error}
                         </div>

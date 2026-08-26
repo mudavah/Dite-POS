@@ -13,7 +13,7 @@ async function fetchUsers() {
   return res.json();
 }
 
-async function createUser(data: any) {
+async function createUser(data: Record<string, unknown>) {
   const res = await fetch('/api/users', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -39,15 +39,25 @@ async function changePassword(userId: string, newPassword: string) {
   return res.json();
 }
 
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  branch?: { id: string; name: string };
+  isActive: boolean;
+  createdAt: string;
+}
+
 export default function UsersPage() {
   const queryClient = useQueryClient();
   const [showAddModal, setShowAddModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'CASHIER', branchId: '' });
 
-  const { data: users, isLoading } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
+  const { data: users, isLoading } = useQuery<User[]>({ queryKey: ['users'], queryFn: fetchUsers as () => Promise<User[]> });
 
   const createMutation = useMutation({ mutationFn: createUser, onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['users'] }); setShowAddModal(false); setForm({ name: '', email: '', password: '', role: 'CASHIER', branchId: '' }); } });
   const deleteMutation = useMutation({ mutationFn: deleteUser, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] }) });
@@ -101,7 +111,7 @@ export default function UsersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {users?.map((user: any) => (
+                  {users?.map((user: User) => (
                     <tr key={user.id} className="border-t">
                       <td className="p-3">
                         <div className="flex items-center gap-3">
@@ -208,7 +218,7 @@ export default function UsersPage() {
                     className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                   >
                     <option value="">None</option>
-                    {users?.map((u: any) => u.branch && (
+                    {users?.map((u: User) => u.branch && (
                       <option key={u.branch.id} value={u.branch.id}>{u.branch.name}</option>
                     ))}
                   </select>

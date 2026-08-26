@@ -117,8 +117,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Inventory not found' }, { status: 404 });
     }
 
-    const newQuantity = inventory.quantity + quantity;
-    if (newQuantity < 0) {
+    const absQuantity = Math.abs(quantity);
+    const isDecrement = quantity < 0;
+    const updated = await prisma.inventory.updateMany({
+      where: {
+        id: inventoryId,
+        ...(isDecrement ? { quantity: { gte: absQuantity } } : {}),
+      },
+      data: isDecrement ? { quantity: { decrement: absQuantity } } : { quantity: { increment: absQuantity } },
+    });
+
+    if (updated.count === 0) {
       return NextResponse.json({ error: 'Insufficient stock for this adjustment' }, { status: 400 });
     }
 
@@ -132,11 +141,6 @@ export async function POST(request: Request) {
         notes,
         createdById: session.user.id,
       },
-    });
-
-    await prisma.inventory.update({
-      where: { id: inventoryId },
-      data: { quantity: newQuantity },
     });
 
     return NextResponse.json(movement);
