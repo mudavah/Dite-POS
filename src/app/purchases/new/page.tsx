@@ -16,7 +16,7 @@ async function fetchSuppliers() {
 }
 
 async function fetchProducts() {
-  const res = await fetch('/api/products');
+  const res = await fetch('/api/products?limit=200&status=active');
   if (!res.ok) throw new Error('Failed to fetch products');
   return res.json();
 }
