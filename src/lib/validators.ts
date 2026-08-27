@@ -99,11 +99,11 @@ export const saleSchema = z.object({
 }).strict();
 
 export const supplierSchema = z.object({
-  name: z.string().min(1, 'Supplier name is required').max(200),
+  name: z.string().min(1, 'Supplier name is required').max(200).refine(val => val.trim().length > 0, { message: 'Supplier name is required' }),
   companyName: z.string().max(200).optional().nullable(),
   contactPerson: z.string().max(100).optional().nullable(),
   phone: z.string().max(20).optional().nullable(),
-  email: z.string().email().optional().nullable(),
+  email: z.union([z.string().email(), z.literal('')]).optional().nullable(),
   address: z.string().max(500).optional().nullable(),
   city: z.string().max(100).optional().nullable(),
   country: z.string().max(100).optional().nullable(),
@@ -111,6 +111,21 @@ export const supplierSchema = z.object({
   notes: z.string().max(1000).optional().nullable(),
   status: z.enum(['ACTIVE', 'INACTIVE']).default('ACTIVE'),
 });
+
+export function sanitizeSupplierInput(data: z.infer<typeof supplierSchema>): z.infer<typeof supplierSchema> {
+  const sanitized: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(data)) {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      sanitized[key] = trimmed === '' ? null : trimmed;
+    } else {
+      sanitized[key] = value;
+    }
+  }
+
+  return sanitized as z.infer<typeof supplierSchema>;
+}
 
 export const purchaseItemSchema = z.object({
   productId: z.string().optional().nullable(),

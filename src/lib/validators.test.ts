@@ -8,6 +8,8 @@ import {
   saleSchema,
   purchaseItemSchema,
   purchaseSchema,
+  supplierSchema,
+  sanitizeSupplierInput,
 } from './validators';
 
 describe('loginSchema', () => {
@@ -241,5 +243,109 @@ describe('purchaseSchema', () => {
       items: [],
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('supplierSchema', () => {
+  it('should validate supplier with only name', () => {
+    const result = supplierSchema.safeParse({ name: 'Acme Supplies' });
+    expect(result.success).toBe(true);
+  });
+
+  it('should validate supplier with all fields', () => {
+    const result = supplierSchema.safeParse({
+      name: 'Acme Supplies',
+      companyName: 'Acme Corp',
+      contactPerson: 'John Doe',
+      phone: '+254700000000',
+      email: 'john@acme.com',
+      address: '123 Main St',
+      city: 'Nairobi',
+      country: 'Kenya',
+      kraPin: 'A123456789Z',
+      notes: 'Preferred supplier',
+      status: 'ACTIVE',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should validate supplier with empty optional fields', () => {
+    const result = supplierSchema.safeParse({
+      name: 'Acme Supplies',
+      companyName: '',
+      contactPerson: '',
+      phone: '',
+      email: '',
+      address: '',
+      city: '',
+      country: '',
+      kraPin: '',
+      notes: '',
+      status: 'ACTIVE',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject missing name', () => {
+    const result = supplierSchema.safeParse({});
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject whitespace-only name', () => {
+    const result = supplierSchema.safeParse({ name: '   ' });
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject invalid email', () => {
+    const result = supplierSchema.safeParse({ name: 'Acme', email: 'invalid-email' });
+    expect(result.success).toBe(false);
+  });
+
+  it('should accept valid email', () => {
+    const result = supplierSchema.safeParse({ name: 'Acme', email: 'test@example.com' });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('sanitizeSupplierInput', () => {
+  it('should trim string values and convert empty strings to null', () => {
+    const result = sanitizeSupplierInput({
+      name: '  Acme Supplies  ',
+      companyName: '',
+      contactPerson: '  ',
+      phone: '  +254700000000  ',
+      email: '',
+      address: '  123 Main St  ',
+      city: '',
+      country: 'Kenya',
+      kraPin: '',
+      notes: '',
+      status: 'ACTIVE',
+    });
+    expect(result.name).toBe('Acme Supplies');
+    expect(result.companyName).toBe(null);
+    expect(result.contactPerson).toBe(null);
+    expect(result.phone).toBe('+254700000000');
+    expect(result.email).toBe(null);
+    expect(result.address).toBe('123 Main St');
+    expect(result.city).toBe(null);
+    expect(result.country).toBe('Kenya');
+    expect(result.kraPin).toBe(null);
+    expect(result.notes).toBe(null);
+    expect(result.status).toBe('ACTIVE');
+  });
+
+  it('should preserve null and undefined values', () => {
+    const result = sanitizeSupplierInput({
+      name: 'Acme',
+      companyName: null,
+      contactPerson: undefined,
+      email: null,
+      status: 'INACTIVE',
+    } as any);
+    expect(result.companyName).toBe(null);
+    expect(result.contactPerson).toBe(undefined);
+    expect(result.email).toBe(null);
+    expect(result.status).toBe('INACTIVE');
   });
 });

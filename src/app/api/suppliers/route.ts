@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { supplierSchema } from '@/lib/validators';
+import { supplierSchema, sanitizeSupplierInput } from '@/lib/validators';
 import { auditLog } from '@/lib/actions/audit';
 
 import { toNumeric } from '@/lib/numeric';
-import type { Prisma } from '@prisma/client';
 
 export async function GET(request: Request) {
   const session = await auth();
@@ -134,7 +133,7 @@ export async function POST(request: Request) {
     }
 
     const supplier = await prisma.supplier.create({
-      data: validated.data,
+      data: sanitizeSupplierInput(validated.data),
     });
 
     await auditLog({

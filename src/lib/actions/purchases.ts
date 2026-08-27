@@ -3,7 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth';
-import { supplierSchema, purchaseSchema } from '@/lib/validators';
+import { supplierSchema, sanitizeSupplierInput, purchaseSchema } from '@/lib/validators';
 import { auditLog } from '@/lib/actions/audit';
 import { StockMovementType } from '@prisma/client';
 import { sanitizeText } from '@/lib/utils';
@@ -30,7 +30,7 @@ export async function createSupplier(data: unknown) {
   }
 
   const supplier = await prisma.supplier.create({
-    data: validated.data,
+    data: sanitizeSupplierInput(validated.data),
   });
 
   await auditLog({
@@ -63,9 +63,11 @@ export async function updateSupplier(id: string, data: unknown) {
 
   const oldValues = JSON.stringify(existing);
 
+  const sanitized = sanitizeSupplierInput(validated.data);
+
   const supplier = await prisma.supplier.update({
     where: { id },
-    data: validated.data,
+    data: sanitized,
   });
 
   await auditLog({

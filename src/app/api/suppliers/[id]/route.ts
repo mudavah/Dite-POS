@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { supplierSchema } from '@/lib/validators';
+import { supplierSchema, sanitizeSupplierInput } from '@/lib/validators';
 import { auditLog } from '@/lib/actions/audit';
 
 
@@ -74,21 +74,11 @@ export async function PUT(
 
     const oldValues = JSON.stringify(existing);
 
+    const sanitized = sanitizeSupplierInput(validated.data);
+
     const supplier = await prisma.supplier.update({
       where: { id },
-      data: {
-        name: (validated.data.name as string) || undefined,
-        companyName: (validated.data.companyName as string) || undefined,
-        contactPerson: (validated.data.contactPerson as string) || undefined,
-        phone: (validated.data.phone as string) || undefined,
-        email: (validated.data.email as string) || undefined,
-        address: (validated.data.address as string) || undefined,
-        city: (validated.data.city as string) || undefined,
-        country: (validated.data.country as string) || undefined,
-        kraPin: (validated.data.kraPin as string) || undefined,
-        notes: (validated.data.notes as string) || undefined,
-        status: validated.data.status,
-      },
+      data: sanitized,
     });
 
     await auditLog({
