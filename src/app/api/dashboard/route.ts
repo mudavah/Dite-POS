@@ -54,6 +54,7 @@ export async function GET() {
       by: ['productId'],
       where: {
         sale: { ...branchFilter, createdAt: { gte: monthStart }, paymentStatus: 'COMPLETED' },
+        product: { isArchived: false },
       },
       _sum: { quantity: true, total: true },
       orderBy: { _sum: { total: 'desc' } },
@@ -94,6 +95,7 @@ export async function GET() {
       by: ['productId'],
       where: {
         purchase: { ...branchFilter, createdAt: { gte: monthStart } },
+        product: { isArchived: false },
       },
       _sum: { quantity: true, lineTotal: true },
       orderBy: { _sum: { lineTotal: 'desc' } },
