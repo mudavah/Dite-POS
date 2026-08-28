@@ -26,7 +26,7 @@ async function fetchSuppliers() {
   const res = await fetch('/api/suppliers?status=ACTIVE');
   if (!res.ok) throw new Error('Failed to fetch suppliers');
   const data = await res.json();
-  return data.suppliers || [];
+  return Array.isArray(data.suppliers) ? data.suppliers : [];
 }
 
 interface Category {
@@ -150,7 +150,7 @@ export default function ProductEditPage() {
   });
 
   const { data: categories } = useQuery({ queryKey: ['categories'], queryFn: fetchCategories });
-  const { data: suppliers } = useQuery({ queryKey: ['suppliers'], queryFn: fetchSuppliers });
+  const { data: suppliers } = useQuery({ queryKey: ['active-suppliers'], queryFn: fetchSuppliers });
 
   const [form, setForm] = useState(emptyForm);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -444,8 +444,8 @@ export default function ProductEditPage() {
                   onChange={(e) => setForm({ ...form, defaultSupplierId: e.target.value })}
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                 >
-                  <option value="">None</option>
-                     {suppliers?.map((s: Supplier) => (
+                   <option value="">None</option>
+                      {(Array.isArray(suppliers) ? suppliers : []).map((s: Supplier) => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
