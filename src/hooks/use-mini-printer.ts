@@ -40,7 +40,11 @@ export function useMiniPrinter() {
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'USB connection failed';
-      setPrinter((p) => ({ ...p, error: message }));
+      if (message.includes('Access denied')) {
+        setPrinter((p) => ({ ...p, error: 'USB access denied. Printing will use browser-native mode.' }));
+      } else {
+        setPrinter((p) => ({ ...p, error: message }));
+      }
       return false;
     }
   };

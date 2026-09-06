@@ -232,7 +232,11 @@ export default function SettingsPage() {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Connection failed';
-      setConnectionError(message);
+      if (message.includes('Access denied')) {
+        setConnectionError('USB access denied by Windows. Your receipt will print using the browser-native print dialog.');
+      } else {
+        setConnectionError(message);
+      }
     } finally {
       setConnecting(false);
     }

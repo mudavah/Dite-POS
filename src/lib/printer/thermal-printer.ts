@@ -67,24 +67,29 @@ class ThermalPrinter {
     }
   }
 
-  private async connectUSB(): Promise<boolean> {
-    try {
-      if (!navigator.usb) {
-        throw new Error('WebUSB not supported');
-      }
-      const device = await navigator.usb.requestDevice({ filters: [] });
-      await device.open();
-      if (device.configuration === null) {
-        await device.selectConfiguration(1);
-      }
-      await device.claimInterface(0);
-      this.config!.deviceId = device.serialNumber || undefined;
-      return true;
-    } catch (error) {
-      logger.error('USB connection failed', error);
-      return false;
-    }
-  }
+   private async connectUSB(): Promise<boolean> {
+     try {
+       if (!navigator.usb) {
+         throw new Error('WebUSB not supported');
+       }
+       const device = await navigator.usb.requestDevice({ filters: [] });
+       await device.open();
+       if (device.configuration === null) {
+         await device.selectConfiguration(1);
+       }
+       await device.claimInterface(0);
+       this.config!.deviceId = device.serialNumber || undefined;
+       return true;
+     } catch (error) {
+       const message = error instanceof Error ? error.message : 'USB connection failed';
+       if (message.includes('Access denied')) {
+         logger.warn('USB access denied; native print fallback will be used');
+         return false;
+       }
+       logger.error('USB connection failed', error);
+       return false;
+     }
+   }
 
   private async connectBluetooth(): Promise<boolean> {
     try {
