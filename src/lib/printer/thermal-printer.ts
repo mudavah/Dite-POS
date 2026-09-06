@@ -189,6 +189,49 @@ class ThermalPrinter {
     }
   }
 
+  async printNative(html: string): Promise<PrintResult> {
+    try {
+      const printWindow = window.open('', '_blank', 'width=800,height=600');
+      if (!printWindow) {
+        return { success: false, message: 'Popup blocked. Please allow popups for this site to print receipts.', error: 'Popup blocked' };
+      }
+      printWindow.document.open();
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.focus();
+
+      return new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+          try { printWindow.close(); } catch { /* ignore */ }
+          resolve({ success: false, message: 'Print window timed out', error: 'Timeout' });
+        }, 10000);
+
+        printWindow.onload = () => {
+          clearTimeout(timeout);
+          try {
+            printWindow.print();
+          } catch {
+            // ignore print errors
+          }
+          setTimeout(() => {
+            try { printWindow.close(); } catch { /* ignore */ }
+            resolve({ success: true, message: 'Print sent to browser' });
+          }, 500);
+        };
+
+        printWindow.onerror = () => {
+          clearTimeout(timeout);
+          try { printWindow.close(); } catch { /* ignore */ }
+          resolve({ success: false, message: 'Failed to open print document', error: 'Load error' });
+        };
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Native print failed';
+      logger.error('Native print failed', error);
+      return { success: false, message, error: message };
+    }
+  }
+
   async print(data: Uint8Array, options: PrintOptions = {}): Promise<PrintResult> {
     if (!this.config) {
       return { success: false, message: 'No printer configured', error: 'No printer configured' };

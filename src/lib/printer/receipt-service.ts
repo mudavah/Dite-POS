@@ -3,6 +3,8 @@ import { printer, type PrinterConfig } from './thermal-printer';
 import {
   buildEscpos,
   buildFiscalEscpos,
+  generateReceiptTemplate,
+  generateFiscalReceiptTemplate,
   type ReceiptData,
   type FiscalReceiptData,
   type ReceiptTemplate,
@@ -78,7 +80,11 @@ class ReceiptService {
         case 'existing': {
           const receiptData = this.mapToExistingReceipt(sale);
           const escposData = buildEscpos(receiptData, printerConfig.paperSize || '80mm');
-          const result = await printer.print(escposData, { retries: 2 });
+          let result = await printer.print(escposData, { retries: 2 });
+          if (!result.success && printerConfig.type === 'USB') {
+            const html = generateReceiptTemplate(receiptData, 'html', printerConfig.paperSize || '80mm');
+            result = await printer.printNative(html);
+          }
           if (result.success && printerConfig.cutter) {
             await printer.cut({ retries: 1 });
           }
@@ -87,7 +93,11 @@ class ReceiptService {
         case 'fiscal': {
           const fiscalData = this.mapToFiscalReceipt(sale);
           const escposData = buildFiscalEscpos(fiscalData, printerConfig.paperSize || '80mm');
-          const result = await printer.print(escposData, { retries: 2 });
+          let result = await printer.print(escposData, { retries: 2 });
+          if (!result.success && printerConfig.type === 'USB') {
+            const html = generateFiscalReceiptTemplate(fiscalData, 'html', printerConfig.paperSize || '80mm');
+            result = await printer.printNative(html);
+          }
           if (result.success && printerConfig.cutter) {
             await printer.cut({ retries: 1 });
           }

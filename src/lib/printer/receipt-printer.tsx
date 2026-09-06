@@ -5,6 +5,8 @@ import { printer, type PrinterConfig, type PrintResult } from '@/lib/printer/the
 import {
   buildEscpos,
   buildFiscalEscpos,
+  generateReceiptTemplate,
+  generateFiscalReceiptTemplate,
   type ReceiptData,
   type FiscalReceiptData,
   type ReceiptTemplate,
@@ -28,12 +30,23 @@ export function ReceiptPrinter({ config, data, template, onPrint }: ReceiptPrint
       printer.setConfig(config);
 
       let escposData: Uint8Array;
+      let result: PrintResult;
       switch (template) {
         case 'existing':
           escposData = buildEscpos(data as ReceiptData, config.paperSize || '80mm');
+          result = await printer.print(escposData, { retries: 2 });
+          if (!result.success && config.type === 'USB') {
+            const html = generateReceiptTemplate(data as ReceiptData, 'html', config.paperSize || '80mm');
+            result = await printer.printNative(html);
+          }
           break;
         case 'fiscal':
           escposData = buildFiscalEscpos(data as FiscalReceiptData, config.paperSize || '80mm');
+          result = await printer.print(escposData, { retries: 2 });
+          if (!result.success && config.type === 'USB') {
+            const html = generateFiscalReceiptTemplate(data as FiscalReceiptData, 'html', config.paperSize || '80mm');
+            result = await printer.printNative(html);
+          }
           break;
         case 'both': {
           const existingData = data as ReceiptData;
@@ -42,7 +55,14 @@ export function ReceiptPrinter({ config, data, template, onPrint }: ReceiptPrint
             buildEscpos(existingData, config.paperSize || '80mm'),
             { retries: 2 }
           );
-          if (!existingResult.success) {
+          if (!existingResult.success && config.type === 'USB') {
+            const html = generateReceiptTemplate(existingData, 'html', config.paperSize || '80mm');
+            const nativeResult = await printer.printNative(html);
+            if (!nativeResult.success) {
+              onPrint?.(nativeResult);
+              return;
+            }
+          } else if (!existingResult.success) {
             onPrint?.(existingResult);
             return;
           }
@@ -51,17 +71,22 @@ export function ReceiptPrinter({ config, data, template, onPrint }: ReceiptPrint
             buildFiscalEscpos(fiscalData, config.paperSize || '80mm'),
             { retries: 2 }
           );
-          if (fiscalResult.success && config.cutter) {
+          if (!fiscalResult.success && config.type === 'USB') {
+            const html = generateFiscalReceiptTemplate(fiscalData, 'html', config.paperSize || '80mm');
+            result = await printer.printNative(html);
+          } else {
+            result = fiscalResult;
+          }
+          if (result.success && config.cutter) {
             await printer.cut({ retries: 1 });
           }
-          onPrint?.(fiscalResult);
+          onPrint?.(result);
           return;
         }
         default:
           throw new Error(`Unknown template: ${template}`);
       }
 
-      const result = await printer.print(escposData, { retries: 2 });
       if (result.success && config.cutter) {
         await printer.cut({ retries: 1 });
       }
