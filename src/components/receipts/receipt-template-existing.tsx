@@ -36,7 +36,7 @@ export function ReceiptTemplateExisting({ data, paperSize = '80mm' }: ReceiptTem
         {data.kraPin && <div className="text-xs">KRA PIN: {data.kraPin}</div>}
       </div>
 
-      <div className="border-t border-b border-dashed border-slate-400 py-2 mt-2 space-y-1">
+      <div className="border-t border-b border-dashed border-black py-2 mt-2 space-y-1">
         <div style={centerStyle} className="font-bold text-xs">RECEIPT</div>
         <div style={rowStyle} className="text-xs"><span>Receipt No:</span><span>{data.receiptNo}</span></div>
         <div style={rowStyle} className="text-xs"><span>Sale No:</span><span>{data.saleId}</span></div>
@@ -63,8 +63,8 @@ export function ReceiptTemplateExisting({ data, paperSize = '80mm' }: ReceiptTem
         {data.items.map((item, idx) => (
           <div key={idx} className="text-xs space-y-1">
             <div className="font-medium leading-snug">{item.productName}</div>
-            {item.sku && <div className="text-slate-500">SKU: {item.sku}</div>}
-            <div style={rowStyle} className="text-slate-600">
+            {item.sku && <div className="text-black">SKU: {item.sku}</div>}
+            <div style={rowStyle} className="text-black">
               <span>{item.quantity} x {formatCurrency(item.unitPrice, data.currency, data.currencySymbol)}</span>
               <span>{formatCurrency(item.total, data.currency, data.currencySymbol)}</span>
             </div>
@@ -73,22 +73,22 @@ export function ReceiptTemplateExisting({ data, paperSize = '80mm' }: ReceiptTem
       </div>
 
       {data.saleNotes && (
-        <div className="text-xs text-slate-500 border-t border-dashed border-slate-300 pt-2 mt-2">
-          <p className="font-medium text-slate-600 mb-1">Notes</p>
+        <div className="text-xs text-black border-t border-dashed border-black pt-2 mt-2">
+          <p className="font-medium text-black mb-1">Notes</p>
           <p>{data.saleNotes}</p>
         </div>
       )}
 
-      <div className="border-t border-dashed border-slate-400 pt-2 mt-2 space-y-1 text-xs">
+      <div className="border-t border-dashed border-black pt-2 mt-2 space-y-1 text-xs">
         <div style={rowStyle}><span>Subtotal</span><span>{formatCurrency(vat.vatExclusive, data.currency, data.currencySymbol)}</span></div>
         <div style={rowStyle}><span>VAT (16%)</span><span>{formatCurrency(vat.vatAmount, data.currency, data.currencySymbol)}</span></div>
         {data.discountAmount > 0 && (
           <div style={rowStyle}><span>Discount</span><span>-{formatCurrency(data.discountAmount, data.currency, data.currencySymbol)}</span></div>
         )}
-        <div style={rowStyle} className="font-bold text-sm pt-1 border-t border-slate-400"><span>TOTAL</span><span>{formatCurrency(data.total, data.currency, data.currencySymbol)}</span></div>
+        <div style={rowStyle} className="font-bold text-sm pt-1 border-t border-black"><span>TOTAL</span><span>{formatCurrency(data.total, data.currency, data.currencySymbol)}</span></div>
       </div>
 
-      <div className="border-t border-dashed border-slate-400 pt-2 mt-2 space-y-1 text-xs">
+      <div className="border-t border-dashed border-black pt-2 mt-2 space-y-1 text-xs">
         <div style={rowStyle}><span>Payment</span><span>{data.paymentMethod}</span></div>
         <div style={rowStyle}><span>Paid</span><span>{formatCurrency(data.amountPaid, data.currency, data.currencySymbol)}</span></div>
         {data.changeAmount > 0 && (
@@ -96,14 +96,14 @@ export function ReceiptTemplateExisting({ data, paperSize = '80mm' }: ReceiptTem
         )}
       </div>
 
-      <div style={centerStyle} className="border-t border-dashed border-slate-400 pt-2 mt-2 text-xs space-y-0.5">
+      <div style={centerStyle} className="border-t border-dashed border-black pt-2 mt-2 text-xs space-y-0.5">
         <p className="font-medium">Thank you for shopping with us.</p>
         <p>Please come again.</p>
-        {data.footerText && <p className="mt-1 text-slate-500">{data.footerText}</p>}
+        {data.footerText && <p className="mt-1 text-black">{data.footerText}</p>}
         {data.branchWebsite && !data.footerText && <p>{data.branchWebsite}</p>}
       </div>
 
-      <div style={centerStyle} className="text-[10px] text-slate-400 mt-2">All prices are VAT Inclusive.</div>
+      <div style={centerStyle} className="text-[10px] text-black mt-2">All prices are VAT Inclusive.</div>
     </div>
   );
 }

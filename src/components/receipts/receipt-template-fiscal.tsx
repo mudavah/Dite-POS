@@ -32,7 +32,7 @@ export function ReceiptTemplateFiscal({ data, paperSize = '80mm' }: ReceiptTempl
         <div>{data.companyPhone}</div>
       </div>
 
-      <div className="border-t border-b border-dashed border-slate-400 py-2 mt-2">
+      <div className="border-t border-b border-dashed border-black py-2 mt-2">
         <div style={centerStyle} className="font-bold">FISCAL RECEIPT</div>
       </div>
 
@@ -46,7 +46,7 @@ export function ReceiptTemplateFiscal({ data, paperSize = '80mm' }: ReceiptTempl
         <div style={rowStyle}><span>Country:</span><span>{data.country}</span></div>
       </div>
 
-      <div className="border-t border-b border-dashed border-slate-400 py-2 mt-2">
+      <div className="border-t border-b border-dashed border-black py-2 mt-2">
         <div style={rowStyle} className="text-xs font-bold">
           <span style={{ width: 30 }}>QTY</span>
           <span style={{ flex: 1 }}>DESCRIPTION</span>
@@ -71,14 +71,14 @@ export function ReceiptTemplateFiscal({ data, paperSize = '80mm' }: ReceiptTempl
         })}
       </div>
 
-      <div className="border-t border-dashed border-slate-400 pt-2 mt-2 space-y-1 text-xs">
+      <div className="border-t border-dashed border-black pt-2 mt-2 space-y-1 text-xs">
         <div style={rowStyle}><span>SUBTOTAL</span><span>{formatCurrency(data.subtotal, data.currency, data.currencySymbol)}</span></div>
         <div style={rowStyle}><span>TOTAL AMOUNT</span><span>{formatCurrency(data.totalAmount, data.currency, data.currencySymbol)}</span></div>
         <div style={rowStyle}><span>CASH</span><span>{formatCurrency(data.cashReceived, data.currency, data.currencySymbol)}</span></div>
         <div style={rowStyle}><span>CHANGE</span><span>{formatCurrency(data.changeAmount, data.currency, data.currencySymbol)}</span></div>
       </div>
 
-      <div className="border-t border-dashed border-slate-400 pt-2 mt-2 text-xs space-y-1">
+      <div className="border-t border-dashed border-black pt-2 mt-2 text-xs space-y-1">
         <div style={rowStyle}>
           <span style={{ width: 60 }} className="font-bold">VAT CODE</span>
           <span style={{ width: 50 }} className="font-bold">RATE</span>
@@ -93,13 +93,13 @@ export function ReceiptTemplateFiscal({ data, paperSize = '80mm' }: ReceiptTempl
         </div>
       </div>
 
-      <div style={centerStyle} className="border-t border-dashed border-slate-400 pt-2 mt-2 text-xs">
+      <div style={centerStyle} className="border-t border-dashed border-black pt-2 mt-2 text-xs">
         <div className="inline-flex items-center justify-center p-1 bg-white">
           <QRCodeSVG value={`${data.shopName || 'Dite POS'}|${data.receiptNo}|${data.saleId}`} size={80} level="M" />
         </div>
       </div>
 
-      <div className="border-t border-dashed border-slate-400 pt-2 mt-2 text-xs space-y-0.5">
+      <div className="border-t border-dashed border-black pt-2 mt-2 text-xs space-y-0.5">
         <div>Control Unit Serial: {data.controlUnitSerial}</div>
         <div>Control Unit Invoice: {data.controlUnitInvoice}</div>
         <div>Attended By: {data.attendedBy}</div>
