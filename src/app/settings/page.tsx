@@ -303,7 +303,7 @@ export default function SettingsPage() {
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Shop Name</label>
-                <Input value={shopForm.shopName} onChange={(e) => setShopForm({ ...shopForm, shopName: e.target.value })} />
+                <textarea value={shopForm.shopName} onChange={(e) => setShopForm({ ...shopForm, shopName: e.target.value })} className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-center" rows={5} />
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
