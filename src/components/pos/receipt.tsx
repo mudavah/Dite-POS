@@ -28,7 +28,7 @@ export function Receipt({ data, paperSize = '80mm', format = 'full' }: ReceiptPr
     <div className="mx-auto max-w-md rounded-xl border border-border bg-white text-slate-900 shadow-sm">
       <div className="p-6 space-y-5">
         <div className="text-center space-y-1">
-          <h1 className="text-xl font-bold tracking-tight">{data.shopName || 'Dite POS'}</h1>
+          <h1 className="text-xl font-bold tracking-tight whitespace-pre-wrap">{data.shopName || 'Dite POS'}</h1>
           {data.branchName && <p className="text-sm text-slate-600">{data.branchName}</p>}
           {data.branchAddress && <p className="text-xs text-slate-500 leading-relaxed">{data.branchAddress}</p>}
           <div className="text-xs text-slate-500 space-y-0.5">
@@ -175,7 +175,7 @@ function ThermalReceipt({ data, paperSize }: { data: ReceiptData; paperSize: '58
       style={{ width, maxWidth: '100%', padding, margin: '0 auto' }}
     >
       <div style={centerStyle} className="space-y-1">
-        <div className="font-bold text-sm">{data.shopName || 'Dite POS'}</div>
+        <div className="font-bold text-sm whitespace-pre-wrap">{data.shopName || 'Dite POS'}</div>
         {data.branchName && <div className="text-xs">{data.branchName}</div>}
         {data.branchAddress && <div className="text-xs">{data.branchAddress}</div>}
         <div className="text-xs space-y-0.5">

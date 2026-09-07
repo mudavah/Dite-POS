@@ -64,8 +64,10 @@ function escapeHtml(str: string): string {
 }
 
 function center(text: string, width: number): string {
-  const padding = Math.max(0, Math.floor((width - text.length) / 2));
-  return ' '.repeat(padding) + text;
+  return text.split('\n').map((line) => {
+    const padding = Math.max(0, Math.floor((width - line.length) / 2));
+    return ' '.repeat(padding) + line;
+  }).join('\n');
 }
 
 export function generateReceiptTemplate(
@@ -179,7 +181,7 @@ function generateHtmlTemplate(data: ReceiptData, paperSize: PaperSize): string {
 </head>
 <body>
   <div class="receipt">
-    <div class="center bold">${escapeHtml(data.shopName || 'Dite POS')}</div>
+    <div class="center bold" style="white-space:pre-wrap">${escapeHtml(data.shopName || 'Dite POS')}</div>
     ${data.branchName ? `<div class="center">${escapeHtml(data.branchName)}</div>` : ''}
     ${data.branchAddress ? `<div class="center">${escapeHtml(data.branchAddress)}</div>` : ''}
     ${data.branchPhone ? `<div class="center">${escapeHtml(data.branchPhone)}</div>` : ''}
@@ -370,7 +372,7 @@ function generateFiscalHtmlTemplate(data: FiscalReceiptData, paperSize: PaperSiz
 </head>
 <body>
   <div class="receipt">
-    <div class="center bold">${escapeHtml(data.shopName || 'Dite POS')}</div>
+    <div class="center bold" style="white-space:pre-wrap">${escapeHtml(data.shopName || 'Dite POS')}</div>
     <div class="center">${escapeHtml(data.companyPin)}</div>
     <div class="center">${escapeHtml(data.companyAddress)}</div>
     <div class="center">P.O. Box ${escapeHtml(data.companyPoBox)}</div>

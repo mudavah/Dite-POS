@@ -244,9 +244,13 @@ function ReceiptActionsInner() {
 
       const centerText = (y: number, text: string, fontSize = 10) => {
         doc.setFontSize(fontSize);
-        const textWidth = doc.getTextWidth(text);
-        doc.text(text, (pageWidth - textWidth) / 2, y);
-        return y + fontSize / 2.5;
+        const lines = text.split('\n');
+        lines.forEach((line) => {
+          const textWidth = doc.getTextWidth(line);
+          doc.text(line, (pageWidth - textWidth) / 2, y);
+          y += fontSize / 2.5;
+        });
+        return y;
       };
 
       const rightText = (y: number, label: string, value: string) => {

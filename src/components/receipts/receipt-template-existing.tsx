@@ -25,7 +25,7 @@ export function ReceiptTemplateExisting({ data, paperSize = '80mm' }: ReceiptTem
       style={{ width, maxWidth: '100%', padding, margin: '0 auto', fontSize }}
     >
       <div style={centerStyle} className="space-y-1">
-        <div className="font-bold text-sm">{data.shopName || 'Dite POS'}</div>
+        <div className="font-bold text-sm whitespace-pre-wrap">{data.shopName || 'Dite POS'}</div>
         {data.branchName && <div className="text-xs">{data.branchName}</div>}
         {data.branchAddress && <div className="text-xs">{data.branchAddress}</div>}
         <div className="text-xs space-y-0.5">

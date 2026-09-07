@@ -195,7 +195,7 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint, def
 <body>
 <div class="page">
     <div class="center">
-      <div class="font-bold text-lg tracking-tight">${escapeHtmlAttr(receiptData.shopName || 'Dite POS')}</div>
+      <div class="font-bold text-lg tracking-tight" style="white-space:pre-wrap">${escapeHtmlAttr(receiptData.shopName || 'Dite POS')}</div>
       ${escapeHtmlAttr(receiptData.branchName || '') ? `<div class="text-sm">${escapeHtmlAttr(receiptData.branchName || '')}</div>` : ''}
       ${escapeHtmlAttr(receiptData.branchAddress || '') ? `<div class="text-xs">${escapeHtmlAttr(receiptData.branchAddress || '')}</div>` : ''}
       <div class="text-xs space-y-0.5">
@@ -335,9 +335,12 @@ export function ReceiptPreviewModal({ saleId, receiptNo, onClose, onReprint, def
 
       const centerText = (text: string, fontSize = 10) => {
         doc.setFontSize(fontSize);
-        const textWidth = doc.getTextWidth(text);
-        doc.text(text, (pageWidth - textWidth) / 2, y);
-        y += fontSize / 2.5;
+        const lines = text.split('\n');
+        lines.forEach((line) => {
+          const textWidth = doc.getTextWidth(line);
+          doc.text(line, (pageWidth - textWidth) / 2, y);
+          y += fontSize / 2.5;
+        });
       };
 
       const rightText = (label: string, value: string) => {

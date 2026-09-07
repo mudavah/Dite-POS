@@ -25,7 +25,7 @@ export function ReceiptTemplateFiscal({ data, paperSize = '80mm' }: ReceiptTempl
       style={{ width, maxWidth: '100%', padding, margin: '0 auto', fontSize }}
     >
       <div style={centerStyle} className="space-y-0.5">
-        <div className="font-bold text-sm">{data.shopName || 'Dite POS'}</div>
+        <div className="font-bold text-sm whitespace-pre-wrap">{data.shopName || 'Dite POS'}</div>
         <div>{data.companyPin}</div>
         <div>{data.companyAddress}</div>
         <div>P.O. Box {data.companyPoBox}</div>
