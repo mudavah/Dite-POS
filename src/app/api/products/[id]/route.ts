@@ -7,6 +7,7 @@ import { auditLog } from '@/lib/actions/audit';
 import { toNumeric, toNullableNumeric } from '@/lib/numeric';
 import { revalidatePath } from 'next/cache';
 import type { Prisma } from '@prisma/client';
+import { StockMovementType } from '@prisma/client';
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -48,26 +49,112 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: validated.error.flatten() }, { status: 400 });
     }
 
-    const product = await prisma.product.update({
-      where: { id },
-      data: {
-        name: validated.data.name,
-        sku: validated.data.sku,
-        barcode: validated.data.barcode || undefined,
-        description: validated.data.description || undefined,
-        price: validated.data.price,
-        costPrice: validated.data.costPrice || null,
-        categoryId: validated.data.categoryId || undefined,
-        lowStockThreshold: validated.data.lowStockThreshold,
-        maxStock: validated.data.maxStock || 1000,
-        brand: validated.data.brand || undefined,
-        unit: validated.data.unit,
-        reorderLevel: validated.data.reorderLevel,
-        taxRate: validated.data.taxRate,
-        discount: validated.data.discount,
-        image: validated.data.image || undefined,
-        isActive: validated.data.isActive,
-      },
+    const product = await prisma.$transaction(async (tx) => {
+      const updatedProduct = await tx.product.update({
+        where: { id },
+        data: {
+          name: validated.data.name,
+          sku: validated.data.sku,
+          barcode: validated.data.barcode || undefined,
+          description: validated.data.description || undefined,
+          price: validated.data.price,
+          costPrice: validated.data.costPrice || null,
+          categoryId: validated.data.categoryId || undefined,
+          lowStockThreshold: validated.data.lowStockThreshold,
+          maxStock: validated.data.maxStock || 1000,
+          brand: validated.data.brand || undefined,
+          unit: validated.data.unit,
+          reorderLevel: validated.data.reorderLevel,
+          taxRate: validated.data.taxRate,
+          discount: validated.data.discount,
+          image: validated.data.image || undefined,
+          isActive: validated.data.isActive,
+        },
+      });
+
+      // Handle openingStock update for inventory
+      if (validated.data.openingStock !== undefined && validated.data.openingStock >= 0 && session.user?.branchId) {
+        const branchId = session.user.branchId as string;
+        let inventory = await tx.inventory.findUnique({
+          where: { branchId_productId: { branchId, productId: id } },
+        });
+
+        const newQuantity = validated.data.openingStock;
+
+        if (!inventory) {
+          inventory = await tx.inventory.create({
+            data: {
+              branchId,
+              productId: id,
+              quantity: newQuantity,
+            },
+          });
+
+          await tx.stockMovement.create({
+            data: {
+              inventoryId: inventory.id,
+              type: StockMovementType.ADJUSTMENT,
+              quantity: newQuantity,
+              reference: 'Stock Adjustment',
+              notes: `Initial stock set to ${newQuantity} for ${updatedProduct.name}`,
+              createdById: session.user.id,
+            },
+          });
+
+          await tx.inventoryTransaction.create({
+            data: {
+              inventoryId: inventory.id,
+              productId: id,
+              branchId,
+              type: StockMovementType.ADJUSTMENT,
+              quantity: newQuantity,
+              previousStock: 0,
+              newStock: newQuantity,
+              referenceNumber: 'ADJUSTMENT',
+              notes: `Initial stock set to ${newQuantity} for ${updatedProduct.name}`,
+              createdById: session.user.id,
+            },
+          });
+        } else {
+          const oldQuantity = inventory.quantity;
+          const quantityDiff = newQuantity - oldQuantity;
+
+          await tx.inventory.update({
+            where: { id: inventory.id },
+            data: { quantity: newQuantity },
+          });
+
+          if (quantityDiff !== 0) {
+            await tx.stockMovement.create({
+              data: {
+                inventoryId: inventory.id,
+                type: StockMovementType.ADJUSTMENT,
+                quantity: quantityDiff,
+                reference: 'Stock Adjustment',
+                notes: `Stock adjusted from ${oldQuantity} to ${newQuantity} for ${updatedProduct.name}`,
+                createdById: session.user.id,
+              },
+            });
+
+            await tx.inventoryTransaction.create({
+              data: {
+                inventoryId: inventory.id,
+                productId: id,
+                branchId,
+                type: StockMovementType.ADJUSTMENT,
+                quantity: quantityDiff,
+                previousStock: oldQuantity,
+                newStock: newQuantity,
+                referenceNumber: 'ADJUSTMENT',
+                notes: `Stock adjusted from ${oldQuantity} to ${newQuantity} for ${updatedProduct.name}`,
+                createdById: session.user.id,
+              },
+            });
+          }
+        }
+      }
+
+      return updatedProduct;
     });
 
     await auditLog({
