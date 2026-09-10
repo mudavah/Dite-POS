@@ -178,7 +178,7 @@ export default function ProductEditPage() {
         image: product.image || '',
         taxRate: product.taxRate?.toString() || '0',
         discount: product.discount?.toString() || '0',
-        openingStock: '0',
+        openingStock: product.totalStock?.toString() || '0',
         defaultSupplierId: '',
       });
       setImagePreview(product.image || null);

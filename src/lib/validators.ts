@@ -11,7 +11,7 @@ export const productSchema = z.object({
   barcode: z.string().max(100).optional().nullable(),
   description: z.string().max(1000).optional().nullable(),
   price: z.coerce.number().positive('Price must be positive'),
-  costPrice: z.coerce.number().positive().optional().nullable(),
+  costPrice: z.coerce.number().nonnegative().optional().nullable(),
   categoryId: z.string().optional().nullable(),
   lowStockThreshold: z.coerce.number().int().nonnegative().default(10),
   maxStock: z.coerce.number().int().positive().default(1000),
